@@ -10,6 +10,17 @@ public func configure(_ app: Application) async throws {
 
     app.databases.use(DatabaseConfigurationFactory.sqlite(.file("pingddb.sqlite")), as: .sqlite)
 
+    app.migrations.add([
+        CreateUser(),
+        CreateTopic(),
+        CreateToken(),
+        CreatePermission(),
+        CreateMessageDelivery(),
+        CreateMessage(),
+        CreateDeviceSubscription(),
+        CreateDevice(),
+    ])
+
     // register routes
     try routes(app)
 }
