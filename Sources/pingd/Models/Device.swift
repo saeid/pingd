@@ -1,0 +1,62 @@
+import Fluent
+import Vapor
+
+enum Platform: String, Codable, CaseIterable {
+    case iOS
+    case android
+    case web
+}
+
+enum PushType: String, Codable, CaseIterable {
+    case apns
+    case fcm
+    case webPush
+}
+
+final class Device: Model, @unchecked Sendable {
+    static let schema = "devices"
+
+    @ID(key: .id)
+    var id: UUID?
+
+    @Parent(key: "user_id")
+    var user: User
+
+    @Enum(key: "platform")
+    var platform: Platform
+
+    @Enum(key: "push_type")
+    var pushType: PushType
+
+    @Field(key: "push_token")
+    var pushToken: String
+
+    @Field(key: "isActive")
+    var isActive: Bool
+
+    @Timestamp(key: "created_at", on: .create)
+    var createdAt: Date?
+
+    @OptionalField(key: "last_activity_at")
+    var lastActivityAt: Date?
+
+    init() {}
+
+    init(
+        id: UUID? = nil,
+        userID: UUID,
+        platform: Platform,
+        pushType: PushType,
+        pushToken: String,
+        isActive: Bool = true,
+        lastActivityAt: Date? = nil
+    ) {
+        self.id = id
+        $user.id = userID
+        self.platform = platform
+        self.pushType = pushType
+        self.pushToken = pushToken
+        self.isActive = isActive
+        self.lastActivityAt = lastActivityAt
+    }
+}
