@@ -25,7 +25,7 @@ let package = Package(
             swiftSettings: swiftSettings
         ),
         .testTarget(
-            name: "pingdTests",
+            name: "PingdTests",
             dependencies: [
                 .target(name: "pingd"),
                 .product(name: "VaporTesting", package: "vapor"),

@@ -10,3 +10,4 @@ pingddb.sqlite
 .env.*
 !.env.example
 default.profraw
+.nvim*
