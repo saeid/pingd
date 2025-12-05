@@ -6,6 +6,7 @@ struct CreateTopic: AsyncMigration {
             .id()
             .field("name", .string, .required)
             .field("owner_user_id", .uuid, .required, .references("users", "id", onDelete: .cascade))
+            .field("password_hash", .string)
             .field("created_at", .datetime)
             .field("updated_at", .datetime)
             .unique(on: "name")

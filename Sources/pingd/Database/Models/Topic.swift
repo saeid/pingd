@@ -13,6 +13,9 @@ final class Topic: Model, @unchecked Sendable {
     @Parent(key: "owner_user_id")
     var owner: User
 
+    @OptionalField(key: "password_hash")
+    var passwordHash: String?
+
     @Timestamp(key: "created_at", on: .create)
     var createdAt: Date?
 
@@ -27,10 +30,12 @@ final class Topic: Model, @unchecked Sendable {
     init(
         id: UUID? = nil,
         name: String,
-        ownerUserID: UUID
+        ownerUserID: UUID,
+        passwordHash: String?
     ) {
         self.id = id
         self.name = name
+        self.passwordHash = passwordHash
         $owner.id = ownerUserID
     }
 }
