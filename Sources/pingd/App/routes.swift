@@ -2,11 +2,12 @@ import Fluent
 import Vapor
 
 func routes(_ app: Application) throws {
-    app.get { _ async in
-        "It works!"
-    }
+    let services = app.services
 
-    app.get("hello") { _ async -> String in
-        "Hello, world!"
-    }
+    try app.routes.register(
+        collection: HealthController(
+            healthService: services.healthService,
+            appInfo: services.appInfo
+        )
+    )
 }
