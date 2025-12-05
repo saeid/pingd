@@ -21,6 +21,8 @@ public func configure(_ app: Application) async throws {
         CreateDevice(),
     ])
 
+    app.services = .live(with: app)
+
     // register routes
     try routes(app)
 }
