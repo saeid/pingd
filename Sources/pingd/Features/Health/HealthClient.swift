@@ -1,13 +1,13 @@
 import Fluent
 import Vapor
 
-struct HealthService: @unchecked Sendable {
+struct HealthClient {
     let check: () async -> (system: String, database: String)
 }
 
-extension HealthService {
+extension HealthClient {
     static func live(app: Application) -> Self {
-        HealthService {
+        HealthClient {
             let system = "ok"
             var database = ""
             do {
@@ -22,7 +22,7 @@ extension HealthService {
     }
 
     static func mock(system: String = "ok", database: String = "ok") -> Self {
-        HealthService {
+        HealthClient {
             (system, database)
         }
     }

@@ -1,7 +1,7 @@
 import Vapor
 
-struct HealthController: RouteCollection {
-    let healthService: HealthService
+struct HealthController: RouteCollection, @unchecked Sendable {
+    let healthClient: HealthClient
     let appInfo: AppInfo
 
     func boot(routes: any RoutesBuilder) throws {
@@ -9,7 +9,7 @@ struct HealthController: RouteCollection {
     }
 
     func health(_: Request) async throws -> HealthResponse {
-        let result = await healthService.check()
+        let result = await healthClient.check()
         return HealthResponse(result: result, info: appInfo)
     }
 }
