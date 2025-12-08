@@ -8,7 +8,9 @@ struct CreateToken: AsyncMigration {
             .field("token_hash", .string, .required)
             .field("created_at", .datetime)
             .field("last_used_at", .datetime)
-            .field("revoked_at", .datetime)
+            .field("last_used_ip", .string)
+            .field("label", .string)
+            .field("expires_at", .datetime)
             .unique(on: "token_hash")
             .create()
     }

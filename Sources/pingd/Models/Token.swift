@@ -19,22 +19,28 @@ final class Token: Model, @unchecked Sendable {
     @OptionalField(key: "last_used_at")
     var lastUsedAt: Date?
 
-    @OptionalField(key: "revoked_at")
-    var revokedAt: Date?
+    @OptionalField(key: "last_used_ip")
+    var lastUsedIp: String?
+
+    @OptionalField(key: "label")
+    var label: String?
+
+    @OptionalField(key: "expires_at")
+    var expiresAt: Date?
 
     init() {}
 
     init(
         id: UUID? = nil,
         userID: UUID,
-        tokenHash: String
+        tokenHash: String,
+        label: String?,
+        expiresAt: Date?
     ) {
         self.id = id
         $user.id = userID
         self.tokenHash = tokenHash
-    }
-
-    var isRevoked: Bool {
-        revokedAt != nil
+        self.label = label
+        self.expiresAt = expiresAt
     }
 }
