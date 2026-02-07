@@ -5,4 +5,8 @@ extension Date {
         let calendar = Calendar.current
         return calendar.date(byAdding: .day, value: days, to: self)!
     }
+
+    var isInPast: Bool {
+        return self < Date()
+    }
 }
