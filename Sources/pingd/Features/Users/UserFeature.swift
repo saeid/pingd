@@ -43,7 +43,10 @@ extension UserFeature {
         }, getUser: { user, target in
             try userClient.checkUserPermission(for: user, targetUser: target)
             let userId = try await userClient.getUserId(for: target)
-            return user
+            guard let fetchedUser = try await userClient.get(userId) else {
+                throw UserError.notFound
+            }
+            return fetchedUser
         }, createUser: { user, username, passwordHash, role in
             try userClient.checkAdminPermission(for: user)
             return try await userClient.create(username, passwordHash, role ?? .user)

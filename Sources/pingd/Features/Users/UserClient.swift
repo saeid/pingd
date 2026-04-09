@@ -64,7 +64,7 @@ extension UserClient {
         list: @escaping @Sendable () async throws -> [User] = { [] },
         get: @escaping @Sendable (UUID) async throws -> User? = { _ in nil },
         getByUsername: @escaping @Sendable (String) async throws -> User? = { _ in nil },
-        create: @escaping @Sendable (String, String, UserRole?) async throws -> User = { _, _, _ in
+        create: @escaping @Sendable (String, String, UserRole) async throws -> User = { _, _, _ in
             User(id: UUID(), username: "user1", passwordHash: "hash-xxx", role: .user)
         },
         update: @escaping @Sendable (UUID, String?, UserRole?) async throws -> User? = { _, _, _ in nil },
