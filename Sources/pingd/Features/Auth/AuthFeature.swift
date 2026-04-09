@@ -5,8 +5,8 @@ enum AuthError: Error {
 }
 
 struct AuthFeature {
-    let doBasicAuth: @Sendable (String, String) async throws -> Bool
-    let doTokenAuth: @Sendable (String, String) async throws -> Bool
+    let doBasicAuth: @Sendable (String, String) async throws -> User
+    let doTokenAuth: @Sendable (String, String) async throws -> User
 }
 
 extension AuthFeature {
@@ -23,34 +23,22 @@ extension AuthFeature {
                 else {
                     throw AuthError.invalidCredentials
                 }
-                return true
+                return user
             },
             doTokenAuth: { token, ip in
-                guard let token = try await tokenClient.markTokenUse(token, ip, now()) else {
-                    return nil
-                }
-                return try await userClient.getByID(token.$user.id)
+                try await tokenClient.markTokenUse(token, ip, now())
             }
         )
     }
 
     static func mock() -> AuthFeature {
         AuthFeature(
-            login: { username, _ in
-                let id = UUID()
-                let user = User(id: id, username: username, passwordHash: "", role: .user)
-                let token = UserToken(
-                    id: UUID(),
-                    value: "mock-token",
-                    userID: id,
-                    createdAt: Date(),
-                    expiresAt: nil,
-                    lastAccessAt: nil,
-                    lastAccessIP: nil
-                )
-                return (user, token)
+            doBasicAuth: { username, _ in
+                User(id: UUID(), username: username, passwordHash: "", role: .user)
             },
-            resolveUserFromToken: { _, _ in nil }
+            doTokenAuth: { _, _ in
+                User(id: UUID(), username: "mock-user", passwordHash: "", role: .user)
+            }
         )
     }
 }
