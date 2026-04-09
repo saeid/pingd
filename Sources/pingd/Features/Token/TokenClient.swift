@@ -6,11 +6,11 @@ struct TokenClient {
     let createToken: @Sendable (UUID, String?, Date?) async throws -> Token
     let listUserTokens: @Sendable (UUID) async throws -> [Token]
     let revokeToken: @Sendable (UUID) async throws -> Void
-    let markTokenUse: @Sendable (String, String, Date) async throws -> Void
+    let markTokenUse: @Sendable (String, String, Date) async throws -> User
 }
 
 extension TokenClient {
-    static func live(app: Application, userClient: UserClient) -> Self {
+    static func live(app: Application) -> Self {
         TokenClient(
             createToken: { userId, label, expiresAt in
                 let token = Token(
@@ -23,11 +23,13 @@ extension TokenClient {
                 return token
             },
             listUserTokens: { userId in
-                let tokens = try await Token.query(on: app.db)
+                try await Token.query(on: app.db)
                     .filter(\.$user.$id == userId)
-                    .filter(\.$expiresAt > Date())
+                    .group(.or) { group in
+                        group.filter(\.$expiresAt == nil)
+                        group.filter(\.$expiresAt > Date())
+                    }
                     .all()
-                return tokens
             },
             revokeToken: { tokenId in
                 guard let token = try await Token.find(tokenId, on: app.db) else {
@@ -35,13 +37,21 @@ extension TokenClient {
                 }
                 try await token.delete(on: app.db)
             },
-            markTokenUse: { token, ip, now in
-                guard let token = try await Token.query(on: app.db).(token, on: app.db) else {
-                    return
+            markTokenUse: { tokenHash, ip, now in
+                guard let token = try await Token.query(on: app.db)
+                    .filter(\.$tokenHash == tokenHash)
+                    .with(\.$user)
+                    .first()
+                else {
+                    throw AuthError.invalidCredentials
+                }
+                guard token.expiresAt == nil || token.expiresAt! > now else {
+                    throw AuthError.invalidCredentials
                 }
                 token.lastUsedAt = now
                 token.lastUsedIp = ip
                 try await token.save(on: app.db)
+                return token.user
             }
         )
     }
@@ -59,7 +69,9 @@ extension TokenClient {
             },
             listUserTokens: { _ in [] },
             revokeToken: { _ in },
-            markTokenUse: { _, _, _ in }
+            markTokenUse: { _, _, _ in
+                User(id: UUID(), username: "mock-user", passwordHash: "", role: .user)
+            }
         )
     }
 
