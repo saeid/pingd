@@ -1,0 +1,53 @@
+excluded:
+  - .build
+  - Sources/pingd/Core/Migrations
+
+line_length:
+  warning: 120
+  error: 150
+  ignores_comments: true
+  ignores_urls: true
+
+file_length:
+  warning: 400
+  error: 600
+
+function_body_length:
+  warning: 40
+  error: 60
+
+type_body_length:
+  warning: 200
+  error: 350
+
+cyclomatic_complexity:
+  warning: 10
+  error: 20
+
+identifier_name:
+  min_length:
+    warning: 2
+  excluded:
+    - ip
+    - id
+    - db
+
+type_name:
+  min_length: 3
+
+opt_in_rules:
+  - empty_count
+  - first_where
+  - contains_over_filter_count
+  - contains_over_filter_is_empty
+  - flatmap_over_map_reduce
+  - toggle_bool
+  - unneeded_parentheses_in_closure_argument
+  - redundant_nil_coalescing
+  - sorted_first_last
+  - explicit_init
+  - unavailable_function
+
+disabled_rules:
+  - todo
+  - trailing_comma
