@@ -11,3 +11,4 @@ pingddb.sqlite
 !.env.example
 default.profraw
 .nvim*
+plan.md
