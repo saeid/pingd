@@ -20,7 +20,7 @@ struct CreateDevice: AsyncMigration {
             .field("platform", platformEnum, .required)
             .field("push_type", pushTypeEnum, .required)
             .field("push_token", .string, .required)
-            .field("isActive", .bool, .required, .sql(.default(true)))
+            .field("is_active", .bool, .required, .sql(.default(true)))
             .field("created_at", .datetime)
             .field("last_activity_at", .datetime)
             .create()

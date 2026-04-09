@@ -1,5 +1,5 @@
 import Fluent
-import Vapor
+import Foundation
 
 enum AccessLevel: String, Codable, CaseIterable {
     case deny
@@ -11,10 +11,6 @@ enum AccessLevel: String, Codable, CaseIterable {
 enum PermissionScope: String, Codable, CaseIterable {
     case user
     case `public`
-}
-
-enum PermissionError: Error {
-    case invalidScope
 }
 
 final class Permission: Model, @unchecked Sendable {
@@ -54,12 +50,4 @@ final class Permission: Model, @unchecked Sendable {
         $user.id = userId
     }
 
-    func validate() throws {
-        if scope == .public, $user.id != nil {
-            throw PermissionError.invalidScope
-        }
-        if scope == .user, $user.id == nil {
-            throw PermissionError.invalidScope
-        }
-    }
 }

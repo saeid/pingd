@@ -1,5 +1,5 @@
 import Fluent
-import Vapor
+import Foundation
 
 enum DeliveryStatus: String, CaseIterable, Codable {
     case pending
@@ -20,7 +20,7 @@ final class MessageDelivery: Model, @unchecked Sendable {
     @Parent(key: "device_id")
     var device: Device
 
-    @Field(key: "status")
+    @Enum(key: "status")
     var status: DeliveryStatus
 
     @Field(key: "retry_count")
@@ -28,6 +28,9 @@ final class MessageDelivery: Model, @unchecked Sendable {
 
     @Timestamp(key: "created_at", on: .create)
     var createdAt: Date?
+
+    @Timestamp(key: "updated_at", on: .update)
+    var updatedAt: Date?
 
     init() {}
 

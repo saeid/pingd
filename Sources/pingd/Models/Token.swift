@@ -1,5 +1,5 @@
 import Fluent
-import Vapor
+import Foundation
 
 final class Token: Model, @unchecked Sendable {
     static let schema = "tokens"

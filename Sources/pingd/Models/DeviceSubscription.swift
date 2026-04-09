@@ -1,5 +1,5 @@
 import Fluent
-import Vapor
+import Foundation
 
 final class DeviceSubscription: Model, @unchecked Sendable {
     static let schema = "device_subscriptions"

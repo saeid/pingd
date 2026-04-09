@@ -1,5 +1,5 @@
 import Fluent
-import Vapor
+import Foundation
 
 final class Topic: Model, @unchecked Sendable {
     static let schema = "topics"

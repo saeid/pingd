@@ -1,8 +1,8 @@
 import Fluent
-import Vapor
+import Foundation
 
 enum Platform: String, Codable, CaseIterable {
-    case iOS
+    case ios
     case android
     case web
 }
@@ -10,7 +10,7 @@ enum Platform: String, Codable, CaseIterable {
 enum PushType: String, Codable, CaseIterable {
     case apns
     case fcm
-    case webPush
+    case webPush = "webpush"
 }
 
 final class Device: Model, @unchecked Sendable {
@@ -31,7 +31,7 @@ final class Device: Model, @unchecked Sendable {
     @Field(key: "push_token")
     var pushToken: String
 
-    @Field(key: "isActive")
+    @Field(key: "is_active")
     var isActive: Bool
 
     @Timestamp(key: "created_at", on: .create)

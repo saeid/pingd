@@ -16,6 +16,7 @@ struct CreateMessageDelivery: AsyncMigration {
             .field("status", deliveryStatusEnum, .required)
             .field("retry_count", .uint8, .required, .sql(.default(3)))
             .field("created_at", .datetime)
+            .field("updated_at", .datetime)
             .create()
     }
 

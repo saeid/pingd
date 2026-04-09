@@ -1,5 +1,5 @@
 import Fluent
-import Vapor
+import Foundation
 
 enum UserRole: String, Codable, CaseIterable {
     case user
