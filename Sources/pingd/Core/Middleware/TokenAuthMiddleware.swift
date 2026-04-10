@@ -14,4 +14,3 @@ struct TokenAuthMiddleware: AsyncMiddleware {
         return try await next.respond(to: req)
     }
 }
-
