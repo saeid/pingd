@@ -15,10 +15,10 @@ public func configure(_ app: Application) async throws {
         CreateTopic(),
         CreateToken(),
         CreatePermission(),
-        CreateMessageDelivery(),
         CreateMessage(),
-        CreateDeviceSubscription(),
         CreateDevice(),
+        CreateDeviceSubscription(),
+        CreateMessageDelivery(),
     ])
 
     let services = AppDependencies.live(with: app)
