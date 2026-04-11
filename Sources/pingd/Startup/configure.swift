@@ -5,10 +5,13 @@ import Vapor
 
 // configures your application
 public func configure(_ app: Application) async throws {
-    // uncomment to serve files from /Public folder
-    // app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
+    app.middleware.use(RequestLoggerMiddleware())
 
     app.databases.use(DatabaseConfigurationFactory.sqlite(.file("pingddb.sqlite")), as: .sqlite)
+
+    app.logger.info("Starting Pingd \(AppInfo.current.version) (build \(AppInfo.current.build))")
+    app.logger.info("Database: pingddb.sqlite")
+    app.logger.info("Environment: \(app.environment.name)")
 
     app.migrations.add([
         CreateUser(),
@@ -19,6 +22,7 @@ public func configure(_ app: Application) async throws {
         CreateDevice(),
         CreateDeviceSubscription(),
         CreateMessageDelivery(),
+        SeedAdminUser(),
     ])
 
     let services = AppDependencies.live(with: app)
