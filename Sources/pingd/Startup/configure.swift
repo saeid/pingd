@@ -7,11 +7,14 @@ import Vapor
 public func configure(_ app: Application) async throws {
     app.middleware.use(RequestLoggerMiddleware())
 
-    app.databases.use(DatabaseConfigurationFactory.sqlite(.file("pingddb.sqlite")), as: .sqlite)
-
-    app.logger.info("Starting Pingd \(AppInfo.current.version) (build \(AppInfo.current.build))")
-    app.logger.info("Database: pingddb.sqlite")
-    app.logger.info("Environment: \(app.environment.name)")
+    if app.environment == .testing {
+        app.databases.use(DatabaseConfigurationFactory.sqlite(.memory), as: .sqlite)
+    } else {
+        app.databases.use(DatabaseConfigurationFactory.sqlite(.file("pingddb.sqlite")), as: .sqlite)
+        app.logger.info("Starting Pingd \(AppInfo.current.version) (build \(AppInfo.current.build))")
+        app.logger.info("Database: pingddb.sqlite")
+        app.logger.info("Environment: \(app.environment.name)")
+    }
 
     app.migrations.add([
         CreateUser(),

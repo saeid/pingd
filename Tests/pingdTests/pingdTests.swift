@@ -3,13 +3,14 @@ import Fluent
 import Testing
 import VaporTesting
 
-@Suite("App Tests with DB", .serialized)
+@Suite("Pingd Tests", .serialized)
 struct PingdTests {
-    private func withApp(_ test: (Application) async throws -> Void) async throws {
+    func withApp(_ test: (Application) async throws -> Void) async throws {
         let app = try await Application.make(.testing)
         do {
             try await configure(app)
             try await app.autoMigrate()
+            try await seedUsers(app)
             try await test(app)
             try await app.autoRevert()
         } catch {
@@ -20,13 +21,31 @@ struct PingdTests {
         try await app.asyncShutdown()
     }
 
-    @Test("Test Hello World Route")
-    func helloWorld() async throws {
-        try await withApp { app in
-            try await app.testing().test(.GET, "hello", afterResponse: { res async in
-                #expect(res.status == .ok)
-                #expect(res.body.string == "Hello, world!")
-            })
+    func seedUsers(_ app: Application) async throws {
+        for user in User.allUsers {
+            let fresh = User(username: user.username, passwordHash: user.passwordHash, role: user.role)
+            try await fresh.save(on: app.db)
         }
+    }
+
+    func login(
+        _ app: Application,
+        username: String,
+        password: String
+    ) async throws -> LoginResponse {
+        var result: LoginResponse?
+        try await app.testing().test(
+            .POST, "auth/login",
+            beforeRequest: { req in
+                try req.content.encode(LoginRequest(username: username, password: password, label: nil))
+            },
+            afterResponse: { res in
+                guard res.status == .ok else {
+                    throw Abort(.internalServerError, reason: "Login failed: \(res.status)")
+                }
+                result = try res.content.decode(LoginResponse.self)
+            }
+        )
+        return try #require(result)
     }
 }
