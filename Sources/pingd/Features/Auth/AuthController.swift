@@ -27,12 +27,7 @@ struct AuthController: RouteCollection, @unchecked Sendable {
         guard let bearerToken = req.headers.bearerAuthorization?.token else {
             throw Abort(.unauthorized)
         }
-        guard let token = try await tokenClient.listUserTokens(try req.user.requireID())
-            .first(where: { $0.tokenHash == bearerToken })
-        else {
-            return .noContent
-        }
-        try await tokenClient.revokeToken(token.requireID())
+        try await tokenClient.revokeByHash(bearerToken)
         return .noContent
     }
 }

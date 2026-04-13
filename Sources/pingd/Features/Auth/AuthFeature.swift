@@ -1,7 +1,14 @@
-import Foundation
+import Vapor
 
-enum AuthError: Error {
+enum AuthError: AbortError {
     case invalidCredentials
+
+    var status: HTTPResponseStatus { .unauthorized }
+    var reason: String {
+        switch self {
+        case .invalidCredentials: "Invalid credentials"
+        }
+    }
 }
 
 struct AuthFeature {

@@ -6,6 +6,7 @@ struct TokenClient {
     let createToken: @Sendable (UUID, String?, Date?) async throws -> Token
     let listUserTokens: @Sendable (UUID) async throws -> [Token]
     let revokeToken: @Sendable (UUID) async throws -> Void
+    let revokeByHash: @Sendable (String) async throws -> Void
     let markTokenUse: @Sendable (String, String, Date) async throws -> User
 }
 
@@ -35,6 +36,13 @@ extension TokenClient {
                 guard let token = try await Token.find(tokenId, on: app.db) else {
                     return
                 }
+                try await token.delete(on: app.db)
+            },
+            revokeByHash: { tokenHash in
+                guard let token = try await Token.query(on: app.db)
+                    .filter(\.$tokenHash == tokenHash)
+                    .first()
+                else { return }
                 try await token.delete(on: app.db)
             },
             markTokenUse: { tokenHash, ip, now in
@@ -69,6 +77,7 @@ extension TokenClient {
             },
             listUserTokens: { _ in [] },
             revokeToken: { _ in },
+            revokeByHash: { _ in },
             markTokenUse: { _, _, _ in
                 User(id: UUID(), username: "mock-user", passwordHash: "", role: .user)
             }
