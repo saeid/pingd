@@ -1,10 +1,27 @@
-import Foundation
+import Vapor
 
-enum UserError: Error {
+enum UserError: AbortError {
     case accessDenied
     case needAtLeastOneAdmin
     case notFound
     case userAlreadyExists
+
+    var status: HTTPResponseStatus {
+        switch self {
+        case .accessDenied: .forbidden
+        case .notFound: .notFound
+        case .needAtLeastOneAdmin, .userAlreadyExists: .badRequest
+        }
+    }
+
+    var reason: String {
+        switch self {
+        case .accessDenied: "Access denied"
+        case .notFound: "User not found"
+        case .needAtLeastOneAdmin: "At least one admin must remain"
+        case .userAlreadyExists: "Username already taken"
+        }
+    }
 }
 
 struct UserFeature {
