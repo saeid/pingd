@@ -1,0 +1,14 @@
+name: Update User
+method: PATCH
+url: $host/users/admin
+headers:
+  - name: Authorization
+    value: Bearer $token
+  - name: Content-Type
+    value: application/json
+body:
+  content: |
+    {
+      "password": "newpassword"
+    }
+  content_type: application/json

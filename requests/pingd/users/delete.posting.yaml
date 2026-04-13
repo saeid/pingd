@@ -1,0 +1,6 @@
+name: Delete User
+method: DELETE
+url: $host/users/targetuser
+headers:
+  - name: Authorization
+    value: Bearer $token

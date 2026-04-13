@@ -1,0 +1,14 @@
+name: Create Token
+method: POST
+url: $host/users/admin/tokens
+headers:
+  - name: Authorization
+    value: Bearer $token
+  - name: Content-Type
+    value: application/json
+body:
+  content: |
+    {
+      "label": "my-device"
+    }
+  content_type: application/json

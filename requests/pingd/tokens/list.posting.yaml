@@ -1,0 +1,6 @@
+name: List Tokens
+method: GET
+url: $host/users/admin/tokens
+headers:
+  - name: Authorization
+    value: Bearer $token

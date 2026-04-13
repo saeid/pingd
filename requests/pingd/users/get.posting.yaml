@@ -1,0 +1,6 @@
+name: Get User
+method: GET
+url: $host/users/admin
+headers:
+  - name: Authorization
+    value: Bearer $token
