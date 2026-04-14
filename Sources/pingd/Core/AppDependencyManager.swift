@@ -8,10 +8,12 @@ struct AppDependencies {
     let tokenClient: TokenClient
     let userClient: UserClient
     let topicClient: TopicClient
+    let messageClient: MessageClient
     let authFeature: AuthFeature
     let userFeature: UserFeature
     let tokenFeature: TokenFeature
     let topicFeature: TopicFeature
+    let messageFeature: MessageFeature
 }
 
 extension AppDependencies {
@@ -21,6 +23,7 @@ extension AppDependencies {
         let tokenClient = TokenClient.live(app: app)
         let userClient = UserClient.live(app: app)
         let topicClient = TopicClient.live(app: app)
+        let messageClient = MessageClient.live(app: app)
         return AppDependencies(
             appInfo: AppInfo.current,
             now: now,
@@ -29,6 +32,7 @@ extension AppDependencies {
             tokenClient: tokenClient,
             userClient: userClient,
             topicClient: topicClient,
+            messageClient: messageClient,
             authFeature: AuthFeature.live(
                 userClient: userClient,
                 authClient: authClient,
@@ -37,7 +41,8 @@ extension AppDependencies {
             ),
             userFeature: UserFeature.live(userClient: userClient),
             tokenFeature: TokenFeature.live(tokenClient: tokenClient, userClient: userClient),
-            topicFeature: TopicFeature.live(topicClient: topicClient)
+            topicFeature: TopicFeature.live(topicClient: topicClient),
+            messageFeature: MessageFeature.live(topicClient: topicClient, messageClient: messageClient)
         )
     }
 
@@ -48,7 +53,8 @@ extension AppDependencies {
         authClient: AuthClient = .mock(),
         tokenClient: TokenClient = .mock(),
         userClient: UserClient = .mock(),
-        topicClient: TopicClient = .mock()
+        topicClient: TopicClient = .mock(),
+        messageClient: MessageClient = .mock()
     ) -> AppDependencies {
         let now: @Sendable () -> Date = { fixedNow }
         return AppDependencies(
@@ -59,6 +65,7 @@ extension AppDependencies {
             tokenClient: tokenClient,
             userClient: userClient,
             topicClient: topicClient,
+            messageClient: messageClient,
             authFeature: AuthFeature.live(
                 userClient: userClient,
                 authClient: authClient,
@@ -67,7 +74,8 @@ extension AppDependencies {
             ),
             userFeature: UserFeature.live(userClient: userClient),
             tokenFeature: TokenFeature.live(tokenClient: tokenClient, userClient: userClient),
-            topicFeature: TopicFeature.live(topicClient: topicClient)
+            topicFeature: TopicFeature.live(topicClient: topicClient),
+            messageFeature: MessageFeature.live(topicClient: topicClient, messageClient: messageClient)
         )
     }
 
@@ -79,10 +87,12 @@ extension AppDependencies {
         tokenClient: TokenClient? = nil,
         userClient: UserClient? = nil,
         topicClient: TopicClient? = nil,
+        messageClient: MessageClient? = nil,
         authFeature: AuthFeature? = nil,
         userFeature: UserFeature? = nil,
         tokenFeature: TokenFeature? = nil,
-        topicFeature: TopicFeature? = nil
+        topicFeature: TopicFeature? = nil,
+        messageFeature: MessageFeature? = nil
     ) -> AppDependencies {
         AppDependencies(
             appInfo: appInfo ?? self.appInfo,
@@ -92,10 +102,12 @@ extension AppDependencies {
             tokenClient: tokenClient ?? self.tokenClient,
             userClient: userClient ?? self.userClient,
             topicClient: topicClient ?? self.topicClient,
+            messageClient: messageClient ?? self.messageClient,
             authFeature: authFeature ?? self.authFeature,
             userFeature: userFeature ?? self.userFeature,
             tokenFeature: tokenFeature ?? self.tokenFeature,
-            topicFeature: topicFeature ?? self.topicFeature
+            topicFeature: topicFeature ?? self.topicFeature,
+            messageFeature: messageFeature ?? self.messageFeature
         )
     }
 }

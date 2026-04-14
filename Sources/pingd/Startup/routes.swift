@@ -18,6 +18,10 @@ func routes(_ app: Application, _ services: AppDependencies) throws {
     try optionalAuth.register(collection: TopicController(
         topicFeature: services.topicFeature
     ))
+    try optionalAuth.register(collection: MessageController(
+        messageFeature: services.messageFeature,
+        now: services.now
+    ))
 
     // Protected
     let protected = app.routes.grouped(
