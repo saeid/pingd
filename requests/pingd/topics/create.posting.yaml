@@ -1,0 +1,15 @@
+name: Create Topic
+method: POST
+url: $host/topics
+headers:
+  - name: Authorization
+    value: Bearer $token
+  - name: Content-Type
+    value: application/json
+body:
+  content: |
+    {
+      "name": "my-topic",
+      "visibility": "protected"
+    }
+  content_type: application/json

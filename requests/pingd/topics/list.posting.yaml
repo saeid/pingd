@@ -1,0 +1,6 @@
+name: List Topics
+method: GET
+url: $host/topics
+headers:
+  - name: Authorization
+    value: Bearer $token

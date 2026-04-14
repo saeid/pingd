@@ -1,0 +1,14 @@
+name: Update Topic
+method: PATCH
+url: $host/topics/my-topic
+headers:
+  - name: Authorization
+    value: Bearer $token
+  - name: Content-Type
+    value: application/json
+body:
+  content: |
+    {
+      "visibility": "open"
+    }
+  content_type: application/json
