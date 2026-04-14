@@ -2,10 +2,17 @@ import Fluent
 
 struct CreateTopic: AsyncMigration {
     func prepare(on database: any Database) async throws {
+        let visibilityEnum = try await database.enum("topic_visibility")
+            .case("open")
+            .case("protected")
+            .case("private")
+            .create()
+
         try await database.schema("topics")
             .id()
             .field("name", .string, .required)
             .field("owner_user_id", .uuid, .required, .references("users", "id", onDelete: .cascade))
+            .field("visibility", visibilityEnum, .required, .sql(.default("protected")))
             .field("password_hash", .string)
             .field("created_at", .datetime)
             .field("updated_at", .datetime)
@@ -15,5 +22,6 @@ struct CreateTopic: AsyncMigration {
 
     func revert(on database: any Database) async throws {
         try await database.schema("topics").delete()
+        try await database.enum("topic_visibility").delete()
     }
 }

@@ -17,6 +17,7 @@ struct CreateDevice: AsyncMigration {
         try await database.schema("devices")
             .id()
             .field("user_id", .uuid, .references("users", "id", onDelete: .cascade))
+            .field("name", .string, .required)
             .field("platform", platformEnum, .required)
             .field("push_type", pushTypeEnum, .required)
             .field("push_token", .string, .required)

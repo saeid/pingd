@@ -1,6 +1,12 @@
 import Fluent
 import Foundation
 
+enum TopicVisibility: String, Codable, CaseIterable {
+    case open
+    case protected
+    case `private`
+}
+
 final class Topic: Model, @unchecked Sendable {
     static let schema = "topics"
 
@@ -12,6 +18,9 @@ final class Topic: Model, @unchecked Sendable {
 
     @Parent(key: "owner_user_id")
     var owner: User
+
+    @Enum(key: "visibility")
+    var visibility: TopicVisibility
 
     @OptionalField(key: "password_hash")
     var passwordHash: String?
@@ -31,10 +40,12 @@ final class Topic: Model, @unchecked Sendable {
         id: UUID? = nil,
         name: String,
         ownerUserID: UUID,
-        passwordHash: String?
+        visibility: TopicVisibility = .protected,
+        passwordHash: String? = nil
     ) {
         self.id = id
         self.name = name
+        self.visibility = visibility
         self.passwordHash = passwordHash
         $owner.id = ownerUserID
     }

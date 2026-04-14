@@ -28,6 +28,9 @@ final class Device: Model, @unchecked Sendable {
     @Enum(key: "push_type")
     var pushType: PushType
 
+    @Field(key: "name")
+    var name: String
+
     @Field(key: "push_token")
     var pushToken: String
 
@@ -45,6 +48,7 @@ final class Device: Model, @unchecked Sendable {
     init(
         id: UUID? = nil,
         userID: UUID,
+        name: String,
         platform: Platform,
         pushType: PushType,
         pushToken: String,
@@ -53,6 +57,7 @@ final class Device: Model, @unchecked Sendable {
     ) {
         self.id = id
         $user.id = userID
+        self.name = name
         self.platform = platform
         self.pushType = pushType
         self.pushToken = pushToken
