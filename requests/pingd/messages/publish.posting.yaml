@@ -1,0 +1,20 @@
+name: Publish Message
+method: POST
+url: $host/topics/my-topic/messages
+headers:
+  - name: Authorization
+    value: Bearer $token
+  - name: Content-Type
+    value: application/json
+body:
+  content: |
+    {
+      "priority": 3,
+      "tags": ["tag1"],
+      "payload": {
+        "title": "Hello",
+        "subtitle": null,
+        "body": "World"
+      }
+    }
+  content_type: application/json

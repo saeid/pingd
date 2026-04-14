@@ -1,0 +1,6 @@
+name: List Messages
+method: GET
+url: $host/topics/my-topic/messages
+headers:
+  - name: Authorization
+    value: Bearer $token
