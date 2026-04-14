@@ -13,4 +13,8 @@ extension Request {
             return user
         }
     }
+
+    var optionalUser: User? {
+        storage[UserStorageKey.self]
+    }
 }
