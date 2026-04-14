@@ -1,0 +1,222 @@
+@testable import pingd
+import Testing
+import VaporTesting
+
+extension PingdTests {
+    @Test("Topics: GET /topics as anonymous returns only open topics")
+    func listTopicsAnonymous() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            try await app.testing().test(
+                .GET, "topics",
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let topics = try res.content.decode([TopicResponse].self)
+                    #expect(topics.allSatisfy { $0.visibility == .open })
+                }
+            )
+        }
+    }
+
+    @Test("Topics: GET /topics as authenticated returns all topics")
+    func listTopicsAuthenticated() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            let session = try await login(app, username: "jinx", password: "hunter2")
+            try await app.testing().test(
+                .GET, "topics",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let topics = try res.content.decode([TopicResponse].self)
+                    #expect(topics.count == 3)
+                }
+            )
+        }
+    }
+
+    @Test("Topics: GET /topics/:name open topic as anonymous returns topic")
+    func getOpenTopicAnonymous() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            try await app.testing().test(
+                .GET, "topics/open-topic",
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let topic = try res.content.decode(TopicResponse.self)
+                    #expect(topic.name == "open-topic")
+                }
+            )
+        }
+    }
+
+    @Test("Topics: GET /topics/:name protected topic as anonymous returns 403")
+    func getProtectedTopicAnonymous() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            try await app.testing().test(
+                .GET, "topics/protected-topic",
+                afterResponse: { res in
+                    #expect(res.status == .forbidden)
+                }
+            )
+        }
+    }
+
+    @Test("Topics: GET /topics/:name private topic as anonymous returns 403")
+    func getPrivateTopicAnonymous() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            try await app.testing().test(
+                .GET, "topics/private-topic",
+                afterResponse: { res in
+                    #expect(res.status == .forbidden)
+                }
+            )
+        }
+    }
+
+    @Test("Topics: POST /topics creates topic")
+    func createTopic() async throws {
+        try await withApp { app in
+            let session = try await login(app, username: "jinx", password: "hunter2")
+            try await app.testing().test(
+                .POST, "topics",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(CreateTopicRequest(name: "new-topic", visibility: .open))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let topic = try res.content.decode(TopicResponse.self)
+                    #expect(topic.name == "new-topic")
+                    #expect(topic.visibility == .open)
+                }
+            )
+        }
+    }
+
+    @Test("Topics: POST /topics as anonymous returns 401")
+    func createTopicAnonymous() async throws {
+        try await withApp { app in
+            try await app.testing().test(
+                .POST, "topics",
+                beforeRequest: { req in
+                    try req.content.encode(CreateTopicRequest(name: "new-topic", visibility: .open))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .unauthorized)
+                }
+            )
+        }
+    }
+
+    @Test("Topics: POST /topics with short name returns 400")
+    func createTopicShortName() async throws {
+        try await withApp { app in
+            let session = try await login(app, username: "jinx", password: "hunter2")
+            try await app.testing().test(
+                .POST, "topics",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(CreateTopicRequest(name: "ab", visibility: .open))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .badRequest)
+                }
+            )
+        }
+    }
+
+    @Test("Topics: POST /topics with duplicate name returns 400")
+    func createDuplicateTopic() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            let session = try await login(app, username: "jinx", password: "hunter2")
+            try await app.testing().test(
+                .POST, "topics",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(CreateTopicRequest(name: "open-topic", visibility: .open))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .badRequest)
+                }
+            )
+        }
+    }
+
+    @Test("Topics: PATCH /topics/:name as owner updates visibility")
+    func updateTopicAsOwner() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            let session = try await login(app, username: "jinx", password: "hunter2")
+            try await app.testing().test(
+                .PATCH, "topics/open-topic",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(UpdateTopicRequest(visibility: .protected, password: nil))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let topic = try res.content.decode(TopicResponse.self)
+                    #expect(topic.visibility == .protected)
+                }
+            )
+        }
+    }
+
+    @Test("Topics: PATCH /topics/:name as non-owner non-admin returns 403")
+    func updateTopicAsOther() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            let session = try await login(app, username: "vi", password: "password1")
+            try await app.testing().test(
+                .PATCH, "topics/open-topic",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(UpdateTopicRequest(visibility: .protected, password: nil))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .forbidden)
+                }
+            )
+        }
+    }
+
+    @Test("Topics: DELETE /topics/:name as owner deletes topic")
+    func deleteTopic() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            let session = try await login(app, username: "jinx", password: "hunter2")
+            try await app.testing().test(
+                .DELETE, "topics/open-topic",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .noContent)
+                }
+            )
+        }
+    }
+
+    @Test("Topics: DELETE /topics/:name as non-owner non-admin returns 403")
+    func deleteTopicAsOther() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            let session = try await login(app, username: "vi", password: "password1")
+            try await app.testing().test(
+                .DELETE, "topics/open-topic",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .forbidden)
+                }
+            )
+        }
+    }
+}

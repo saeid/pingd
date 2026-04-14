@@ -28,6 +28,22 @@ struct PingdTests {
         }
     }
 
+    func seedTopics(_ app: Application) async throws {
+        guard let jinx = try await User.query(on: app.db)
+            .filter(\.$username == "jinx")
+            .first()
+        else { return }
+        let jinxID = try jinx.requireID()
+        let topics: [Topic] = [
+            Topic(name: "open-topic", ownerUserID: jinxID, visibility: .open),
+            Topic(name: "protected-topic", ownerUserID: jinxID, visibility: .protected),
+            Topic(name: "private-topic", ownerUserID: jinxID, visibility: .private),
+        ]
+        for topic in topics {
+            try await topic.save(on: app.db)
+        }
+    }
+
     func login(
         _ app: Application,
         username: String,
