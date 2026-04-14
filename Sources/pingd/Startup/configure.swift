@@ -25,8 +25,11 @@ public func configure(_ app: Application) async throws {
         CreateDevice(),
         CreateDeviceSubscription(),
         CreateMessageDelivery(),
-        SeedAdminUser(),
     ])
+
+    if app.environment != .testing {
+        app.migrations.add(SeedAdminUser())
+    }
 
     let services = AppDependencies.live(with: app)
 

@@ -11,6 +11,14 @@ func routes(_ app: Application, _ services: AppDependencies) throws {
         tokenClient: services.tokenClient
     ))
 
+    // Resolve token if present, otherwise anonymous
+    let optionalAuth = app.routes.grouped(
+        OptionalTokenAuthMiddleware(tokenClient: services.tokenClient, now: services.now)
+    )
+    try optionalAuth.register(collection: TopicController(
+        topicFeature: services.topicFeature
+    ))
+
     // Protected
     let protected = app.routes.grouped(
         TokenAuthMiddleware(tokenClient: services.tokenClient, now: services.now)
