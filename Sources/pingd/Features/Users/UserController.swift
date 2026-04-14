@@ -21,6 +21,7 @@ struct UserController: RouteCollection, @unchecked Sendable {
     }
 
     func create(_ req: Request) async throws -> UserResponse {
+        try CreateUserRequest.validate(content: req)
         let body = try req.content.decode(CreateUserRequest.self)
         let passwordHash = try authClient.hashPassword(body.password)
         let created = try await userFeature.createUser(try req.user, body.username, passwordHash, body.role)
@@ -39,6 +40,7 @@ struct UserController: RouteCollection, @unchecked Sendable {
         guard let username = req.parameters.get("username") else {
             throw Abort(.badRequest)
         }
+        try UpdateUserRequest.validate(content: req)
         let body = try req.content.decode(UpdateUserRequest.self)
         let passwordHash = try body.password.map { try authClient.hashPassword($0) }
         let updated = try await userFeature.updateUser(try req.user, username, passwordHash, body.role)
@@ -70,13 +72,22 @@ struct UserResponse: Content {
     }
 }
 
-struct CreateUserRequest: Content {
+struct CreateUserRequest: Content, Validatable {
     let username: String
     let password: String
     let role: UserRole?
+
+    static func validations(_ validations: inout Validations) {
+        validations.add("username", as: String.self, is: .count(3...) && .characterSet(.alphanumerics + .init(charactersIn: "-_")))
+        validations.add("password", as: String.self, is: .count(6...))
+    }
 }
 
-struct UpdateUserRequest: Content {
+struct UpdateUserRequest: Content, Validatable {
     let password: String?
     let role: UserRole?
+
+    static func validations(_ validations: inout Validations) {
+        validations.add("password", as: String.self, is: .count(6...), required: false)
+    }
 }

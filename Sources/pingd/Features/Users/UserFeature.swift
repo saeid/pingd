@@ -42,7 +42,7 @@ struct UserFeature {
     let updateUser: @Sendable (
         _ currentUser: User,
         _ targetUser: String,
-        _ username: String?,
+        _ passwordHash: String?,
         _ role: UserRole?
     ) async throws -> User
 
@@ -66,10 +66,13 @@ extension UserFeature {
             return fetchedUser
         }, createUser: { user, username, passwordHash, role in
             try userClient.checkAdminPermission(for: user)
+            if try await userClient.getByUsername(username) != nil {
+                throw UserError.userAlreadyExists
+            }
             return try await userClient.create(username, passwordHash, role ?? .user)
-        }, updateUser: { user, username, passwordHash, role in
+        }, updateUser: { user, target, passwordHash, role in
             try userClient.checkAdminPermission(for: user)
-            let userId = try await userClient.getUserId(for: username)
+            let userId = try await userClient.getUserId(for: target)
             guard let updatedUser = try await userClient.update(userId, passwordHash, role) else {
                 throw UserError.notFound
             }
@@ -77,6 +80,15 @@ extension UserFeature {
         }, deleteUser: { user, target in
             try userClient.checkAdminPermission(for: user)
             let userId = try await userClient.getUserId(for: target)
+            guard let targetUser = try await userClient.get(userId) else {
+                throw UserError.notFound
+            }
+            if targetUser.role == .admin {
+                let adminCount = try await userClient.list().filter { $0.role == .admin }.count
+                if adminCount <= 1 {
+                    throw UserError.needAtLeastOneAdmin
+                }
+            }
             try await userClient.delete(userId)
         })
     }
