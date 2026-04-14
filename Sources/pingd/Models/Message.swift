@@ -1,6 +1,12 @@
 import Fluent
 import Foundation
 
+struct MessagePayload: Codable {
+    let title: String?
+    let subtitle: String?
+    let body: String
+}
+
 final class Message: Model, @unchecked Sendable {
     static let schema = "messages"
 
@@ -13,20 +19,14 @@ final class Message: Model, @unchecked Sendable {
     @Field(key: "time")
     var time: Date
 
-    @OptionalField(key: "title")
-    var title: String?
-
-    @OptionalField(key: "subtitle")
-    var subtitle: String?
-
-    @Field(key: "body")
-    var body: String
-
     @Field(key: "priority")
     var priority: UInt8
 
     @OptionalField(key: "tags")
     var tags: [String]?
+
+    @Field(key: "payload")
+    var payload: MessagePayload
 
     @Timestamp(key: "created_at", on: .create)
     var createdAt: Date?
@@ -37,19 +37,15 @@ final class Message: Model, @unchecked Sendable {
         id: UUID? = nil,
         topicID: UUID,
         time: Date,
-        title: String?,
-        subtitle: String?,
-        body: String,
-        priority: UInt8,
-        tags: [String]?
+        priority: UInt8 = 3,
+        tags: [String]? = nil,
+        payload: MessagePayload
     ) {
         self.id = id
         $topic.id = topicID
         self.time = time
-        self.title = title
-        self.subtitle = subtitle
         self.priority = priority
-        self.body = body
         self.tags = tags
+        self.payload = payload
     }
 }
