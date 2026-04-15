@@ -40,4 +40,7 @@ func routes(_ app: Application, _ services: AppDependencies) throws {
     try protected.register(collection: DeviceController(
         deviceFeature: services.deviceFeature
     ))
+    try protected.register(collection: SubscriptionController(
+        subscriptionFeature: services.subscriptionFeature
+    ))
 }
