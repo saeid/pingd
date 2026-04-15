@@ -44,6 +44,19 @@ struct PingdTests {
         }
     }
 
+    func seedDevices(_ app: Application) async throws {
+        guard let vi = try await User.query(on: app.db).filter(\.$username == "vi").first(),
+              let vander = try await User.query(on: app.db).filter(\.$username == "vander").first()
+        else { return }
+        let devices: [Device] = [
+            Device(userID: try vi.requireID(), name: "Vi's iPhone", platform: .ios, pushType: .apns, pushToken: "token-vi-iphone"),
+            Device(userID: try vander.requireID(), name: "Vander's Android", platform: .android, pushType: .fcm, pushToken: "token-vander-android"),
+        ]
+        for device in devices {
+            try await device.save(on: app.db)
+        }
+    }
+
     func login(
         _ app: Application,
         username: String,
