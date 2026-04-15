@@ -1,0 +1,17 @@
+name: Register Device
+method: POST
+url: $host/devices
+headers:
+  - name: Authorization
+    value: Bearer $token
+  - name: Content-Type
+    value: application/json
+body:
+  content: |
+    {
+      "name": "My iPhone",
+      "platform": "ios",
+      "pushType": "apns",
+      "pushToken": "your-apns-token-here"
+    }
+  content_type: application/json
