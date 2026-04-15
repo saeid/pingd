@@ -37,4 +37,7 @@ func routes(_ app: Application, _ services: AppDependencies) throws {
     try protected.register(collection: TokenController(
         tokenFeature: services.tokenFeature
     ))
+    try protected.register(collection: DeviceController(
+        deviceFeature: services.deviceFeature
+    ))
 }

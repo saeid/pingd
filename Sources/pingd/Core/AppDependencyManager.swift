@@ -9,11 +9,13 @@ struct AppDependencies {
     let userClient: UserClient
     let topicClient: TopicClient
     let messageClient: MessageClient
+    let deviceClient: DeviceClient
     let authFeature: AuthFeature
     let userFeature: UserFeature
     let tokenFeature: TokenFeature
     let topicFeature: TopicFeature
     let messageFeature: MessageFeature
+    let deviceFeature: DeviceFeature
 }
 
 extension AppDependencies {
@@ -24,6 +26,7 @@ extension AppDependencies {
         let userClient = UserClient.live(app: app)
         let topicClient = TopicClient.live(app: app)
         let messageClient = MessageClient.live(app: app)
+        let deviceClient = DeviceClient.live(app: app)
         return AppDependencies(
             appInfo: AppInfo.current,
             now: now,
@@ -33,6 +36,7 @@ extension AppDependencies {
             userClient: userClient,
             topicClient: topicClient,
             messageClient: messageClient,
+            deviceClient: deviceClient,
             authFeature: AuthFeature.live(
                 userClient: userClient,
                 authClient: authClient,
@@ -42,7 +46,8 @@ extension AppDependencies {
             userFeature: UserFeature.live(userClient: userClient),
             tokenFeature: TokenFeature.live(tokenClient: tokenClient, userClient: userClient),
             topicFeature: TopicFeature.live(topicClient: topicClient),
-            messageFeature: MessageFeature.live(topicClient: topicClient, messageClient: messageClient)
+            messageFeature: MessageFeature.live(topicClient: topicClient, messageClient: messageClient),
+            deviceFeature: DeviceFeature.live(deviceClient: deviceClient)
         )
     }
 
@@ -54,7 +59,8 @@ extension AppDependencies {
         tokenClient: TokenClient = .mock(),
         userClient: UserClient = .mock(),
         topicClient: TopicClient = .mock(),
-        messageClient: MessageClient = .mock()
+        messageClient: MessageClient = .mock(),
+        deviceClient: DeviceClient = .mock()
     ) -> AppDependencies {
         let now: @Sendable () -> Date = { fixedNow }
         return AppDependencies(
@@ -66,6 +72,7 @@ extension AppDependencies {
             userClient: userClient,
             topicClient: topicClient,
             messageClient: messageClient,
+            deviceClient: deviceClient,
             authFeature: AuthFeature.live(
                 userClient: userClient,
                 authClient: authClient,
@@ -75,7 +82,8 @@ extension AppDependencies {
             userFeature: UserFeature.live(userClient: userClient),
             tokenFeature: TokenFeature.live(tokenClient: tokenClient, userClient: userClient),
             topicFeature: TopicFeature.live(topicClient: topicClient),
-            messageFeature: MessageFeature.live(topicClient: topicClient, messageClient: messageClient)
+            messageFeature: MessageFeature.live(topicClient: topicClient, messageClient: messageClient),
+            deviceFeature: DeviceFeature.live(deviceClient: deviceClient)
         )
     }
 
@@ -88,11 +96,13 @@ extension AppDependencies {
         userClient: UserClient? = nil,
         topicClient: TopicClient? = nil,
         messageClient: MessageClient? = nil,
+        deviceClient: DeviceClient? = nil,
         authFeature: AuthFeature? = nil,
         userFeature: UserFeature? = nil,
         tokenFeature: TokenFeature? = nil,
         topicFeature: TopicFeature? = nil,
-        messageFeature: MessageFeature? = nil
+        messageFeature: MessageFeature? = nil,
+        deviceFeature: DeviceFeature? = nil
     ) -> AppDependencies {
         AppDependencies(
             appInfo: appInfo ?? self.appInfo,
@@ -103,11 +113,13 @@ extension AppDependencies {
             userClient: userClient ?? self.userClient,
             topicClient: topicClient ?? self.topicClient,
             messageClient: messageClient ?? self.messageClient,
+            deviceClient: deviceClient ?? self.deviceClient,
             authFeature: authFeature ?? self.authFeature,
             userFeature: userFeature ?? self.userFeature,
             tokenFeature: tokenFeature ?? self.tokenFeature,
             topicFeature: topicFeature ?? self.topicFeature,
-            messageFeature: messageFeature ?? self.messageFeature
+            messageFeature: messageFeature ?? self.messageFeature,
+            deviceFeature: deviceFeature ?? self.deviceFeature
         )
     }
 }
