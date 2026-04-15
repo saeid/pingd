@@ -1,0 +1,6 @@
+name: Unsubscribe Device from Topic
+method: DELETE
+url: $host/devices/device-id-here/subscriptions/my-topic
+headers:
+  - name: Authorization
+    value: Bearer $token

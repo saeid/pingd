@@ -1,0 +1,6 @@
+name: List Subscriptions
+method: GET
+url: $host/devices/device-id-here/subscriptions
+headers:
+  - name: Authorization
+    value: Bearer $token
