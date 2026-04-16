@@ -35,4 +35,10 @@ public func configure(_ app: Application) async throws {
 
     // register routes
     try routes(app, services)
+
+    // start dispatch worker (not in tests)
+    if app.environment != .testing, let worker = services.dispatchWorker {
+        Task { await worker.start() }
+        app.logger.info("Dispatch worker started")
+    }
 }

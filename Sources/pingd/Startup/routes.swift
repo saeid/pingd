@@ -46,4 +46,10 @@ func routes(_ app: Application, _ services: AppDependencies) throws {
     try protected.register(collection: PermissionController(
         permissionFeature: services.permissionFeature
     ))
+
+    // Dispatch
+    try protected.register(collection: DispatchController(
+        dispatchFeature: services.dispatchFeature,
+        topicBroadcaster: services.topicBroadcaster
+    ))
 }

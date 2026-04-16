@@ -12,6 +12,9 @@ struct AppDependencies {
     let deviceClient: DeviceClient
     let subscriptionClient: SubscriptionClient
     let permissionClient: PermissionClient
+    let dispatchClient: DispatchClient
+    let pushProvider: PushProvider
+    let topicBroadcaster: TopicBroadcaster
     let authFeature: AuthFeature
     let userFeature: UserFeature
     let tokenFeature: TokenFeature
@@ -20,6 +23,8 @@ struct AppDependencies {
     let deviceFeature: DeviceFeature
     let subscriptionFeature: SubscriptionFeature
     let permissionFeature: PermissionFeature
+    let dispatchFeature: DispatchFeature
+    let dispatchWorker: DispatchWorker?
 }
 
 extension AppDependencies {
@@ -33,6 +38,24 @@ extension AppDependencies {
         let deviceClient = DeviceClient.live(app: app)
         let subscriptionClient = SubscriptionClient.live(app: app)
         let permissionClient = PermissionClient.live(app: app)
+        let dispatchClient = DispatchClient.live(app: app)
+        let pushProvider = PushProvider.mock(logger: app.logger)
+        let topicBroadcaster = TopicBroadcaster()
+
+        let dispatchFeature = DispatchFeature.live(
+            dispatchClient: dispatchClient,
+            subscriptionClient: subscriptionClient,
+            deviceClient: deviceClient
+        )
+
+        let dispatchWorker = DispatchWorker(
+            dispatchClient: dispatchClient,
+            deviceClient: deviceClient,
+            pushProvider: pushProvider,
+            messageClient: messageClient,
+            logger: app.logger
+        )
+
         return AppDependencies(
             appInfo: AppInfo.current,
             now: now,
@@ -45,6 +68,9 @@ extension AppDependencies {
             deviceClient: deviceClient,
             subscriptionClient: subscriptionClient,
             permissionClient: permissionClient,
+            dispatchClient: dispatchClient,
+            pushProvider: pushProvider,
+            topicBroadcaster: topicBroadcaster,
             authFeature: AuthFeature.live(
                 userClient: userClient,
                 authClient: authClient,
@@ -54,7 +80,12 @@ extension AppDependencies {
             userFeature: UserFeature.live(userClient: userClient),
             tokenFeature: TokenFeature.live(tokenClient: tokenClient, userClient: userClient),
             topicFeature: TopicFeature.live(topicClient: topicClient),
-            messageFeature: MessageFeature.live(topicClient: topicClient, messageClient: messageClient),
+            messageFeature: MessageFeature.live(
+                topicClient: topicClient,
+                messageClient: messageClient,
+                dispatchFeature: dispatchFeature,
+                topicBroadcaster: topicBroadcaster
+            ),
             deviceFeature: DeviceFeature.live(deviceClient: deviceClient),
             subscriptionFeature: SubscriptionFeature.live(
                 subscriptionClient: subscriptionClient,
@@ -64,7 +95,9 @@ extension AppDependencies {
             permissionFeature: PermissionFeature.live(
                 permissionClient: permissionClient,
                 userClient: userClient
-            )
+            ),
+            dispatchFeature: dispatchFeature,
+            dispatchWorker: dispatchWorker
         )
     }
 
@@ -79,9 +112,16 @@ extension AppDependencies {
         messageClient: MessageClient = .mock(),
         deviceClient: DeviceClient = .mock(),
         subscriptionClient: SubscriptionClient = .mock(),
-        permissionClient: PermissionClient = .mock()
+        permissionClient: PermissionClient = .mock(),
+        dispatchClient: DispatchClient = .mock()
     ) -> AppDependencies {
         let now: @Sendable () -> Date = { fixedNow }
+        let topicBroadcaster = TopicBroadcaster()
+        let dispatchFeature = DispatchFeature.live(
+            dispatchClient: dispatchClient,
+            subscriptionClient: subscriptionClient,
+            deviceClient: deviceClient
+        )
         return AppDependencies(
             appInfo: appInfo,
             now: now,
@@ -94,6 +134,9 @@ extension AppDependencies {
             deviceClient: deviceClient,
             subscriptionClient: subscriptionClient,
             permissionClient: permissionClient,
+            dispatchClient: dispatchClient,
+            pushProvider: PushProvider.mock(logger: Logger(label: "test")),
+            topicBroadcaster: topicBroadcaster,
             authFeature: AuthFeature.live(
                 userClient: userClient,
                 authClient: authClient,
@@ -103,7 +146,12 @@ extension AppDependencies {
             userFeature: UserFeature.live(userClient: userClient),
             tokenFeature: TokenFeature.live(tokenClient: tokenClient, userClient: userClient),
             topicFeature: TopicFeature.live(topicClient: topicClient),
-            messageFeature: MessageFeature.live(topicClient: topicClient, messageClient: messageClient),
+            messageFeature: MessageFeature.live(
+                topicClient: topicClient,
+                messageClient: messageClient,
+                dispatchFeature: dispatchFeature,
+                topicBroadcaster: topicBroadcaster
+            ),
             deviceFeature: DeviceFeature.live(deviceClient: deviceClient),
             subscriptionFeature: SubscriptionFeature.live(
                 subscriptionClient: subscriptionClient,
@@ -113,7 +161,9 @@ extension AppDependencies {
             permissionFeature: PermissionFeature.live(
                 permissionClient: permissionClient,
                 userClient: userClient
-            )
+            ),
+            dispatchFeature: dispatchFeature,
+            dispatchWorker: nil
         )
     }
 
@@ -129,6 +179,9 @@ extension AppDependencies {
         deviceClient: DeviceClient? = nil,
         subscriptionClient: SubscriptionClient? = nil,
         permissionClient: PermissionClient? = nil,
+        dispatchClient: DispatchClient? = nil,
+        pushProvider: PushProvider? = nil,
+        topicBroadcaster: TopicBroadcaster? = nil,
         authFeature: AuthFeature? = nil,
         userFeature: UserFeature? = nil,
         tokenFeature: TokenFeature? = nil,
@@ -136,7 +189,9 @@ extension AppDependencies {
         messageFeature: MessageFeature? = nil,
         deviceFeature: DeviceFeature? = nil,
         subscriptionFeature: SubscriptionFeature? = nil,
-        permissionFeature: PermissionFeature? = nil
+        permissionFeature: PermissionFeature? = nil,
+        dispatchFeature: DispatchFeature? = nil,
+        dispatchWorker: DispatchWorker? = nil
     ) -> AppDependencies {
         AppDependencies(
             appInfo: appInfo ?? self.appInfo,
@@ -150,6 +205,9 @@ extension AppDependencies {
             deviceClient: deviceClient ?? self.deviceClient,
             subscriptionClient: subscriptionClient ?? self.subscriptionClient,
             permissionClient: permissionClient ?? self.permissionClient,
+            dispatchClient: dispatchClient ?? self.dispatchClient,
+            pushProvider: pushProvider ?? self.pushProvider,
+            topicBroadcaster: topicBroadcaster ?? self.topicBroadcaster,
             authFeature: authFeature ?? self.authFeature,
             userFeature: userFeature ?? self.userFeature,
             tokenFeature: tokenFeature ?? self.tokenFeature,
@@ -157,7 +215,9 @@ extension AppDependencies {
             messageFeature: messageFeature ?? self.messageFeature,
             deviceFeature: deviceFeature ?? self.deviceFeature,
             subscriptionFeature: subscriptionFeature ?? self.subscriptionFeature,
-            permissionFeature: permissionFeature ?? self.permissionFeature
+            permissionFeature: permissionFeature ?? self.permissionFeature,
+            dispatchFeature: dispatchFeature ?? self.dispatchFeature,
+            dispatchWorker: dispatchWorker ?? self.dispatchWorker
         )
     }
 }
