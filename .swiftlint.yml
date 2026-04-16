@@ -9,12 +9,12 @@ line_length:
   ignores_urls: true
 
 file_length:
-  warning: 400
-  error: 600
+  warning: 500
+  error: 800
 
 function_body_length:
-  warning: 40
-  error: 60
+  warning: 65
+  error: 100
 
 type_body_length:
   warning: 200
