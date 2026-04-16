@@ -11,6 +11,7 @@ struct AppDependencies {
     let messageClient: MessageClient
     let deviceClient: DeviceClient
     let subscriptionClient: SubscriptionClient
+    let permissionClient: PermissionClient
     let authFeature: AuthFeature
     let userFeature: UserFeature
     let tokenFeature: TokenFeature
@@ -18,6 +19,7 @@ struct AppDependencies {
     let messageFeature: MessageFeature
     let deviceFeature: DeviceFeature
     let subscriptionFeature: SubscriptionFeature
+    let permissionFeature: PermissionFeature
 }
 
 extension AppDependencies {
@@ -30,6 +32,7 @@ extension AppDependencies {
         let messageClient = MessageClient.live(app: app)
         let deviceClient = DeviceClient.live(app: app)
         let subscriptionClient = SubscriptionClient.live(app: app)
+        let permissionClient = PermissionClient.live(app: app)
         return AppDependencies(
             appInfo: AppInfo.current,
             now: now,
@@ -41,6 +44,7 @@ extension AppDependencies {
             messageClient: messageClient,
             deviceClient: deviceClient,
             subscriptionClient: subscriptionClient,
+            permissionClient: permissionClient,
             authFeature: AuthFeature.live(
                 userClient: userClient,
                 authClient: authClient,
@@ -56,6 +60,10 @@ extension AppDependencies {
                 subscriptionClient: subscriptionClient,
                 deviceClient: deviceClient,
                 topicClient: topicClient
+            ),
+            permissionFeature: PermissionFeature.live(
+                permissionClient: permissionClient,
+                userClient: userClient
             )
         )
     }
@@ -70,7 +78,8 @@ extension AppDependencies {
         topicClient: TopicClient = .mock(),
         messageClient: MessageClient = .mock(),
         deviceClient: DeviceClient = .mock(),
-        subscriptionClient: SubscriptionClient = .mock()
+        subscriptionClient: SubscriptionClient = .mock(),
+        permissionClient: PermissionClient = .mock()
     ) -> AppDependencies {
         let now: @Sendable () -> Date = { fixedNow }
         return AppDependencies(
@@ -84,6 +93,7 @@ extension AppDependencies {
             messageClient: messageClient,
             deviceClient: deviceClient,
             subscriptionClient: subscriptionClient,
+            permissionClient: permissionClient,
             authFeature: AuthFeature.live(
                 userClient: userClient,
                 authClient: authClient,
@@ -99,6 +109,10 @@ extension AppDependencies {
                 subscriptionClient: subscriptionClient,
                 deviceClient: deviceClient,
                 topicClient: topicClient
+            ),
+            permissionFeature: PermissionFeature.live(
+                permissionClient: permissionClient,
+                userClient: userClient
             )
         )
     }
@@ -114,13 +128,15 @@ extension AppDependencies {
         messageClient: MessageClient? = nil,
         deviceClient: DeviceClient? = nil,
         subscriptionClient: SubscriptionClient? = nil,
+        permissionClient: PermissionClient? = nil,
         authFeature: AuthFeature? = nil,
         userFeature: UserFeature? = nil,
         tokenFeature: TokenFeature? = nil,
         topicFeature: TopicFeature? = nil,
         messageFeature: MessageFeature? = nil,
         deviceFeature: DeviceFeature? = nil,
-        subscriptionFeature: SubscriptionFeature? = nil
+        subscriptionFeature: SubscriptionFeature? = nil,
+        permissionFeature: PermissionFeature? = nil
     ) -> AppDependencies {
         AppDependencies(
             appInfo: appInfo ?? self.appInfo,
@@ -133,13 +149,15 @@ extension AppDependencies {
             messageClient: messageClient ?? self.messageClient,
             deviceClient: deviceClient ?? self.deviceClient,
             subscriptionClient: subscriptionClient ?? self.subscriptionClient,
+            permissionClient: permissionClient ?? self.permissionClient,
             authFeature: authFeature ?? self.authFeature,
             userFeature: userFeature ?? self.userFeature,
             tokenFeature: tokenFeature ?? self.tokenFeature,
             topicFeature: topicFeature ?? self.topicFeature,
             messageFeature: messageFeature ?? self.messageFeature,
             deviceFeature: deviceFeature ?? self.deviceFeature,
-            subscriptionFeature: subscriptionFeature ?? self.subscriptionFeature
+            subscriptionFeature: subscriptionFeature ?? self.subscriptionFeature,
+            permissionFeature: permissionFeature ?? self.permissionFeature
         )
     }
 }

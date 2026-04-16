@@ -43,4 +43,7 @@ func routes(_ app: Application, _ services: AppDependencies) throws {
     try protected.register(collection: SubscriptionController(
         subscriptionFeature: services.subscriptionFeature
     ))
+    try protected.register(collection: PermissionController(
+        permissionFeature: services.permissionFeature
+    ))
 }
