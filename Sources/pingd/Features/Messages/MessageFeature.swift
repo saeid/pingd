@@ -36,7 +36,12 @@ struct MessageFeature {
 }
 
 extension MessageFeature {
-    static func live(topicClient: TopicClient, messageClient: MessageClient) -> Self {
+    static func live(
+        topicClient: TopicClient,
+        messageClient: MessageClient,
+        dispatchFeature: DispatchFeature? = nil,
+        topicBroadcaster: TopicBroadcaster? = nil
+    ) -> Self {
         MessageFeature(
             listMessages: { currentUser, topicName in
                 guard let topic = try await topicClient.getByName(topicName) else {
@@ -68,7 +73,20 @@ extension MessageFeature {
                     }
                 }
                 let topicID = try topic.requireID()
-                return try await messageClient.publish(topicID, priority, tags, payload, time)
+                let message = try await messageClient.publish(topicID, priority, tags, payload, time)
+
+                // fan-out: create deliveries for subscribed devices
+                if let dispatchFeature {
+                    let messageID = try message.requireID()
+                    try await dispatchFeature.fanOut(messageID, topicID)
+                }
+
+                // broadcast to SSE listeners
+                if let topicBroadcaster {
+                    await topicBroadcaster.broadcast(topic: topicName, payload: payload)
+                }
+
+                return message
             }
         )
     }
