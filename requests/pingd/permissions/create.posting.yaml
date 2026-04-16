@@ -1,0 +1,16 @@
+name: Create Permission
+method: POST
+url: $host/users/username/permissions
+headers:
+  - name: Authorization
+    value: Bearer $token
+  - name: Content-Type
+    value: application/json
+body:
+  content: |
+    {
+      "scope": "user",
+      "accessLevel": "rw",
+      "topicPattern": "news/*"
+    }
+  content_type: application/json

@@ -1,0 +1,6 @@
+name: Delete Permission
+method: DELETE
+url: $host/permissions/permission-id-here
+headers:
+  - name: Authorization
+    value: Bearer $token
