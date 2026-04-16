@@ -1,0 +1,6 @@
+name: List Deliveries
+method: GET
+url: $host/messages/message-id-here/deliveries
+headers:
+  - name: Authorization
+    value: Bearer $token
