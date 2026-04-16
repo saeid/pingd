@@ -14,7 +14,7 @@ struct CreateMessageDelivery: AsyncMigration {
             .field("message_id", .uuid, .required, .references("messages", "id", onDelete: .cascade))
             .field("device_id", .uuid, .required, .references("devices", "id", onDelete: .cascade))
             .field("status", deliveryStatusEnum, .required)
-            .field("retry_count", .uint8, .required, .sql(.default(3)))
+            .field("retry_count", .uint8, .required, .sql(.default(0)))
             .field("created_at", .datetime)
             .field("updated_at", .datetime)
             .create()
