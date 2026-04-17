@@ -34,13 +34,15 @@ public func configure(_ app: Application) async throws {
 
     let services = AppDependencies.live(with: app)
 
+    if app.environment != .testing, !isMigrationCommand {
+        app.lifecycle.use(TopicBroadcasterLifecycleHandler(broadcaster: services.topicBroadcaster))
+    }
+
     // register routes
     try routes(app, services)
 
-    // start dispatch worker (not in tests)
-    if app.environment != .testing, let worker = services.dispatchWorker {
-        Task { await worker.start() }
-        app.logger.info("Dispatch worker started")
+    if app.environment != .testing, !isMigrationCommand, let worker = services.dispatchWorker {
+        app.lifecycle.use(DispatchWorkerLifecycleHandler(worker: worker))
     }
 
     // seed CLI token (not in tests)

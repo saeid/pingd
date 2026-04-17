@@ -10,6 +10,7 @@ actor DispatchWorker {
     let maxRetries: UInt8
 
     private var isRunning = false
+    private var pollTask: Task<Void, Never>?
 
     init(
         dispatchClient: DispatchClient,
@@ -32,25 +33,36 @@ actor DispatchWorker {
     func start() {
         guard !isRunning else { return }
         isRunning = true
-        Task { await pollLoop() }
+        pollTask = Task { await pollLoop() }
     }
 
     func stop() {
         isRunning = false
+        pollTask?.cancel()
+        pollTask = nil
     }
 
     private func pollLoop() async {
-        while isRunning {
+        while isRunning && !Task.isCancelled {
             do {
                 let pending = try await dispatchClient.fetchPending(50)
                 for delivery in pending {
+                    guard isRunning, !Task.isCancelled else { break }
                     await processDelivery(delivery)
                 }
             } catch {
+                guard !Task.isCancelled else { break }
                 logger.error("[DispatchWorker] Poll error: \(error)")
             }
-            try? await Task.sleep(for: pollInterval)
+            do {
+                try await Task.sleep(for: pollInterval)
+            } catch {
+                break
+            }
         }
+
+        isRunning = false
+        pollTask = nil
     }
 
     private func processDelivery(_ delivery: MessageDelivery) async {
@@ -100,5 +112,19 @@ actor DispatchWorker {
             let status: DeliveryStatus = newCount >= maxRetries ? .failed : .pending
             try? await dispatchClient.updateStatus(deliveryID, status, newCount)
         }
+    }
+}
+
+struct DispatchWorkerLifecycleHandler: LifecycleHandler {
+    let worker: DispatchWorker
+
+    func didBootAsync(_ application: Application) async throws {
+        await worker.start()
+        application.logger.info("Dispatch worker started")
+    }
+
+    func shutdownAsync(_ application: Application) async {
+        await worker.stop()
+        application.logger.info("Dispatch worker stopped")
     }
 }

@@ -1,8 +1,8 @@
 import Foundation
+import Vapor
 
 /// In-memory pub/sub for SSE. Holds active listeners per topic.
 /// When a message is published, all listeners for that topic get notified.
-/// Each listener is an AsyncStream continuation — writing to it pushes data to the SSE connection.
 actor TopicBroadcaster {
     private var listeners: [String: [UUID: AsyncStream<MessagePayload>.Continuation]] = [:]
 
@@ -26,5 +26,23 @@ actor TopicBroadcaster {
         for (_, continuation) in topicListeners {
             continuation.yield(payload)
         }
+    }
+
+    func shutdown() {
+        for (_, topicListeners) in listeners {
+            for (_, continuation) in topicListeners {
+                continuation.finish()
+            }
+        }
+        listeners.removeAll()
+    }
+}
+
+struct TopicBroadcasterLifecycleHandler: LifecycleHandler {
+    let broadcaster: TopicBroadcaster
+
+    func shutdownAsync(_ application: Application) async {
+        await broadcaster.shutdown()
+        application.logger.info("SSE broadcaster stopped")
     }
 }
