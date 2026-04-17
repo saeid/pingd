@@ -12,14 +12,15 @@ struct TopicsCommand: AsyncParsableCommand {
         static let configuration = CommandConfiguration(abstract: "List all topics")
 
         func run() async throws {
-            let client = APIClient(config: ConfigManager.load())
-            let topics = try await client.get("/topics", as: [TopicDTO].self)
-            if topics.isEmpty {
-                print("No topics")
-                return
-            }
-            for topic in topics {
-                print("\(topic.name)  \(topic.visibility)")
+            try await withAPIClient { client in
+                let topics = try await client.get("/topics", as: [TopicDTO].self)
+                if topics.isEmpty {
+                    print("No topics")
+                    return
+                }
+                for topic in topics {
+                    print("\(topic.name)  \(topic.visibility)")
+                }
             }
         }
     }
@@ -34,10 +35,11 @@ struct TopicsCommand: AsyncParsableCommand {
         var visibility: String = "protected"
 
         func run() async throws {
-            let client = APIClient(config: ConfigManager.load())
-            let body = ["name": name, "visibility": visibility]
-            let topic = try await client.post("/topics", body: body, as: TopicDTO.self)
-            print("Created topic '\(topic.name)' (\(topic.visibility))")
+            try await withAPIClient { client in
+                let body = ["name": name, "visibility": visibility]
+                let topic = try await client.post("/topics", body: body, as: TopicDTO.self)
+                print("Created topic '\(topic.name)' (\(topic.visibility))")
+            }
         }
     }
 
@@ -48,9 +50,10 @@ struct TopicsCommand: AsyncParsableCommand {
         var name: String
 
         func run() async throws {
-            let client = APIClient(config: ConfigManager.load())
-            try await client.delete("/topics/\(name)")
-            print("Deleted topic '\(name)'")
+            try await withAPIClient { client in
+                try await client.delete("/topics/\(name)")
+                print("Deleted topic '\(name)'")
+            }
         }
     }
 }

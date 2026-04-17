@@ -15,15 +15,16 @@ struct TokensCommand: AsyncParsableCommand {
         var username: String
 
         func run() async throws {
-            let client = APIClient(config: ConfigManager.load())
-            let tokens = try await client.get("/users/\(username)/tokens", as: [TokenDTO].self)
-            if tokens.isEmpty {
-                print("No tokens")
-                return
-            }
-            for token in tokens {
-                let label = token.label ?? "no label"
-                print("\(token.id)  \(label)")
+            try await withAPIClient { client in
+                let tokens = try await client.get("/users/\(username)/tokens", as: [TokenDTO].self)
+                if tokens.isEmpty {
+                    print("No tokens")
+                    return
+                }
+                for token in tokens {
+                    let label = token.label ?? "no label"
+                    print("\(token.id)  \(label)")
+                }
             }
         }
     }
@@ -38,11 +39,12 @@ struct TokensCommand: AsyncParsableCommand {
         var label: String?
 
         func run() async throws {
-            let client = APIClient(config: ConfigManager.load())
-            var body: [String: String] = [:]
-            if let label { body["label"] = label }
-            let token = try await client.post("/users/\(username)/tokens", body: body, as: TokenDTO.self)
-            print("Created token: \(token.id)")
+            try await withAPIClient { client in
+                var body: [String: String] = [:]
+                if let label { body["label"] = label }
+                let token = try await client.post("/users/\(username)/tokens", body: body, as: TokenDTO.self)
+                print("Created token: \(token.id)")
+            }
         }
     }
 
@@ -53,9 +55,10 @@ struct TokensCommand: AsyncParsableCommand {
         var id: String
 
         func run() async throws {
-            let client = APIClient(config: ConfigManager.load())
-            try await client.delete("/tokens/\(id)")
-            print("Revoked token \(id)")
+            try await withAPIClient { client in
+                try await client.delete("/tokens/\(id)")
+                print("Revoked token \(id)")
+            }
         }
     }
 }

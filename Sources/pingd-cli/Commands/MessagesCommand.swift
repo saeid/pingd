@@ -21,19 +21,20 @@ struct MessagesCommand: AsyncParsableCommand {
         var all: Bool = false
 
         func run() async throws {
-            let client = APIClient(config: ConfigManager.load())
-            var messages = try await client.get("/topics/\(topic)/messages", as: [MessageDTO].self)
-            if messages.isEmpty {
-                print("No messages")
-                return
-            }
-            if !all {
-                messages = Array(messages.prefix(limit))
-            }
-            for msg in messages {
-                let title = msg.payload.title.map { "\($0): " } ?? ""
-                let tags = msg.tags?.joined(separator: ", ") ?? ""
-                print("[\(msg.priority)] \(title)\(msg.payload.body)\(tags.isEmpty ? "" : " [\(tags)]")")
+            try await withAPIClient { client in
+                var messages = try await client.get("/topics/\(topic)/messages", as: [MessageDTO].self)
+                if messages.isEmpty {
+                    print("No messages")
+                    return
+                }
+                if !all {
+                    messages = Array(messages.prefix(limit))
+                }
+                for msg in messages {
+                    let title = msg.payload.title.map { "\($0): " } ?? ""
+                    let tags = msg.tags?.joined(separator: ", ") ?? ""
+                    print("[\(msg.priority)] \(title)\(msg.payload.body)\(tags.isEmpty ? "" : " [\(tags)]")")
+                }
             }
         }
     }
@@ -54,14 +55,15 @@ struct MessagesCommand: AsyncParsableCommand {
         var priority: UInt8 = 3
 
         func run() async throws {
-            let client = APIClient(config: ConfigManager.load())
-            let request = PublishRequest(
-                priority: priority,
-                tags: nil,
-                payload: PayloadDTO(title: title, subtitle: nil, body: body)
-            )
-            let msg = try await client.post("/topics/\(topic)/messages", body: request, as: MessageDTO.self)
-            print("Published to '\(topic)': \(msg.payload.body)")
+            try await withAPIClient { client in
+                let request = PublishRequest(
+                    priority: priority,
+                    tags: nil,
+                    payload: PayloadDTO(title: title, subtitle: nil, body: body)
+                )
+                let msg = try await client.post("/topics/\(topic)/messages", body: request, as: MessageDTO.self)
+                print("Published to '\(topic)': \(msg.payload.body)")
+            }
         }
     }
 
@@ -72,18 +74,31 @@ struct MessagesCommand: AsyncParsableCommand {
         var topic: String
 
         func run() async throws {
-            let client = APIClient(config: ConfigManager.load())
-            let bytes = try await client.stream("/topics/\(topic)/stream")
-
             print("Watching '\(topic)' (Ctrl+C to stop)")
+            try await withAPIClient { client in
+                var delay: UInt64 = 2
+                while !Task.isCancelled {
+                    do {
+                        let response = try await client.openStream("/topics/\(topic)/stream")
+                        print("Connected.")
+                        delay = 2
 
-            for try await line in bytes.lines {
-                guard line.hasPrefix("data: ") else { continue }
-                let json = String(line.dropFirst(6))
-                guard let data = json.data(using: .utf8) else { continue }
-                if let payload = try? JSONDecoder().decode(PayloadDTO.self, from: data) {
-                    let title = payload.title.map { "\($0): " } ?? ""
-                    print("\(title)\(payload.body)")
+                        try await client.consumeStream(response) { data in
+                            guard let payload = try? JSONDecoder().decode(PayloadDTO.self, from: data) else {
+                                return
+                            }
+                            let title = payload.title.map { "\($0): " } ?? ""
+                            print("\(title)\(payload.body)")
+                        }
+
+                        print("Stream ended.")
+                    } catch is CancellationError {
+                        break
+                    } catch {
+                        print("Connection lost. Reconnecting in \(delay)s...")
+                        try await Task.sleep(for: .seconds(delay))
+                        delay = min(delay * 2, 30)
+                    }
                 }
             }
         }

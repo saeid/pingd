@@ -1,4 +1,7 @@
+import AsyncHTTPClient
 import Foundation
+import NIOCore
+import NIOFoundationCompat
 
 enum APIError: Error, CustomStringConvertible {
     case noToken
@@ -18,40 +21,38 @@ enum APIError: Error, CustomStringConvertible {
 
 struct APIClient {
     let config: CLIConfig
+    let httpClient: HTTPClient
 
     private var baseURL: String { config.serverURL }
 
     private func request(
         method: String,
         path: String,
-        body: (any Encodable)? = nil,
-        requiresAuth: Bool = true
+        body: (any Encodable)? = nil
     ) async throws -> (Data, Int) {
-        guard let url = URL(string: "\(baseURL)\(path)") else {
-            throw APIError.networkError("Invalid URL: \(baseURL)\(path)")
-        }
+        var req = HTTPClientRequest(url: "\(baseURL)\(path)")
+        req.method = .RAW(value: method)
 
-        var req = URLRequest(url: url)
-        req.httpMethod = method
-
-        if requiresAuth {
-            guard let token = config.token else { throw APIError.noToken }
-            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
+        guard let token = config.token else { throw APIError.noToken }
+        req.headers.add(name: "Authorization", value: "Bearer \(token)")
 
         if let body {
-            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            req.httpBody = try JSONEncoder().encode(body)
+            req.headers.add(name: "Content-Type", value: "application/json")
+            let data = try JSONEncoder().encode(body)
+            req.body = .bytes(data)
         }
 
-        let (data, response): (Data, URLResponse)
+        let response: HTTPClientResponse
         do {
-            (data, response) = try await URLSession.shared.data(for: req)
+            response = try await httpClient.execute(req, timeout: .seconds(30))
         } catch {
             throw APIError.networkError(error.localizedDescription)
         }
 
-        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let responseBody = try await response.body.collect(upTo: 1024 * 1024)
+        let data = Data(buffer: responseBody)
+        let statusCode = Int(response.status.code)
+
         if statusCode >= 400 {
             let message = String(data: data, encoding: .utf8) ?? "Unknown error"
             throw APIError.requestFailed(statusCode, message)
@@ -79,20 +80,37 @@ struct APIClient {
         _ = try await request(method: "DELETE", path: path)
     }
 
-    func stream(_ path: String) async throws -> URLSession.AsyncBytes {
-        guard let url = URL(string: "\(baseURL)\(path)") else {
-            throw APIError.networkError("Invalid URL: \(baseURL)\(path)")
+    func openStream(_ path: String) async throws -> HTTPClientResponse {
+        var req = HTTPClientRequest(url: "\(baseURL)\(path)")
+        guard let token = config.token else { throw APIError.noToken }
+        req.headers.add(name: "Authorization", value: "Bearer \(token)")
+        req.headers.add(name: "Accept", value: "text/event-stream")
+
+        let response = try await httpClient.execute(req, timeout: .hours(24))
+        guard response.status == .ok else {
+            throw APIError.requestFailed(Int(response.status.code), "SSE connection failed")
         }
-        var req = URLRequest(url: url)
-        if let token = config.token {
-            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        return response
+    }
+
+    func consumeStream(
+        _ response: HTTPClientResponse,
+        onMessage: @Sendable @escaping (Data) -> Void
+    ) async throws {
+        var buffer = ""
+        for try await chunk in response.body {
+            let str = String(buffer: chunk)
+            buffer += str
+            let parts = buffer.split(separator: "\n\n", omittingEmptySubsequences: false)
+            buffer = String(parts.last ?? "")
+            for part in parts.dropLast() {
+                let line = String(part).trimmingCharacters(in: .whitespacesAndNewlines)
+                if line.hasPrefix("data: "), let data = line.dropFirst(6).data(using: .utf8) {
+                    onMessage(data)
+                }
+            }
         }
-        let (bytes, response) = try await URLSession.shared.bytes(for: req)
-        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
-        if statusCode >= 400 {
-            throw APIError.requestFailed(statusCode, "SSE connection failed")
-        }
-        return bytes
     }
 
     private func decode<T: Decodable>(_ data: Data, as type: T.Type) throws -> T {

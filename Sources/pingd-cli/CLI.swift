@@ -1,3 +1,4 @@
+import AsyncHTTPClient
 import ArgumentParser
 
 @main
@@ -12,4 +13,18 @@ struct PingdCLI: AsyncParsableCommand {
             TokensCommand.self,
         ]
     )
+}
+
+func withAPIClient<T>(_ operation: (APIClient) async throws -> T) async throws -> T {
+    let httpClient = HTTPClient(eventLoopGroupProvider: .singleton)
+    let client = APIClient(config: ConfigManager.load(), httpClient: httpClient)
+
+    do {
+        let result = try await operation(client)
+        try await httpClient.shutdown()
+        return result
+    } catch {
+        try? await httpClient.shutdown()
+        throw error
+    }
 }
