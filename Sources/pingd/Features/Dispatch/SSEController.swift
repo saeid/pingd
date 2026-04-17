@@ -2,6 +2,7 @@ import Vapor
 
 struct SSEController: RouteCollection, @unchecked Sendable {
     let topicBroadcaster: TopicBroadcaster
+    let topicFeature: TopicFeature
 
     func boot(routes: any RoutesBuilder) throws {
         routes.get("topics", ":name", "stream", use: stream)
@@ -11,6 +12,8 @@ struct SSEController: RouteCollection, @unchecked Sendable {
         guard let name = req.parameters.get("name") else {
             throw Abort(.badRequest)
         }
+
+        _ = try await topicFeature.getTopic(req.optionalUser, name)
 
         let (listenerID, payloadStream) = await topicBroadcaster.subscribe(topic: name)
         let broadcaster = topicBroadcaster

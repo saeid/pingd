@@ -24,7 +24,8 @@ func routes(_ app: Application, _ services: AppDependencies) throws {
     ))
 
     try optionalAuth.register(collection: SSEController(
-        topicBroadcaster: services.topicBroadcaster
+        topicBroadcaster: services.topicBroadcaster,
+        topicFeature: services.topicFeature
     ))
 
     // Protected
