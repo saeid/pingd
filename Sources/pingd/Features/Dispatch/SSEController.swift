@@ -17,6 +17,7 @@ struct SSEController: RouteCollection, @unchecked Sendable {
 
         let body = Response.Body(asyncStream: { writer in
             do {
+                try await writer.write(.buffer(.init(string: ": connected\n\n")))
                 for try await payload in payloadStream {
                     let data = try JSONEncoder().encode(payload)
                     let line = "data: \(String(data: data, encoding: .utf8) ?? "{}")\n\n"
