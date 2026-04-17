@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pingd</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Login -->
+        <div id="login-view">
+            <div class="login-card">
+                <div class="login-logo">
+                    <h1>pingd</h1>
+                </div>
+                <form id="login-form">
+                    <input type="text" id="login-username" placeholder="username" autocomplete="username" required>
+                    <input type="password" id="login-password" placeholder="password" autocomplete="current-password" required>
+                    <button type="submit">Sign in</button>
+                </form>
+                <p id="login-error" class="error hidden"></p>
+                <button id="skip-login" class="btn-skip" type="button">Continue without login</button>
+            </div>
+        </div>
+
+        <!-- Dashboard -->
+        <div id="main-view" class="hidden">
+            <nav>
+                <div class="nav-left">
+                    <span class="nav-logo">pingd</span>
+                </div>
+                <div class="nav-right">
+                    <span id="current-user" class="nav-user"></span>
+                    <button id="logout-btn" class="btn-ghost">sign out</button>
+                </div>
+            </nav>
+
+            <div class="dashboard">
+                <!-- Sidebar: Topics -->
+                <aside id="sidebar">
+                    <div class="sidebar-header">
+                        <h2>Topics</h2>
+                    </div>
+                    <div id="topic-list" class="topic-list"></div>
+                    <form id="create-topic-form" class="sidebar-form">
+                        <input type="text" id="topic-name" placeholder="new topic name" required>
+                        <select id="topic-visibility">
+                            <option value="open">open</option>
+                            <option value="protected" selected>protected</option>
+                            <option value="private">private</option>
+                        </select>
+                        <button type="submit" class="btn-create">+</button>
+                    </form>
+                </aside>
+
+                <!-- Main: Messages -->
+                <main id="content">
+                    <div id="empty-state" class="empty-state">
+                        <p>Select a topic to view messages</p>
+                    </div>
+
+                    <div id="messages-view" class="hidden">
+                        <div class="content-header">
+                            <h2 id="messages-topic-name"></h2>
+                            <span id="messages-visibility" class="badge"></span>
+                            <div class="header-actions">
+                                <button id="sse-toggle" class="btn-sm btn-live">Live</button>
+                                <button id="delete-topic-btn" class="btn-sm btn-danger">Delete</button>
+                            </div>
+                        </div>
+
+                        <form id="publish-form" class="publish-form">
+                            <input type="text" id="msg-title" placeholder="title (optional)">
+                            <div class="publish-row">
+                                <input type="text" id="msg-body" placeholder="message body" required>
+                                <button type="submit" class="btn-send">Send</button>
+                            </div>
+                        </form>
+
+                        <div id="message-list" class="message-list"></div>
+                    </div>
+                </main>
+            </div>
+        </div>
+    </div>
+
+    <audio id="notification-sound" preload="auto">
+        <source src="/notification.mp3" type="audio/mpeg">
+    </audio>
+
+    <script src="/app.js"></script>
+</body>
+</html>
