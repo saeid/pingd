@@ -41,4 +41,9 @@ public func configure(_ app: Application) async throws {
         Task { await worker.start() }
         app.logger.info("Dispatch worker started")
     }
+
+    // seed CLI token (not in tests)
+    if app.environment != .testing {
+        try await seedCLIToken(services: services, logger: app.logger)
+    }
 }
