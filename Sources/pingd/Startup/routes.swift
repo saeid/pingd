@@ -23,6 +23,10 @@ func routes(_ app: Application, _ services: AppDependencies) throws {
         now: services.now
     ))
 
+    try optionalAuth.register(collection: SSEController(
+        topicBroadcaster: services.topicBroadcaster
+    ))
+
     // Protected
     let protected = app.routes.grouped(
         TokenAuthMiddleware(tokenClient: services.tokenClient, now: services.now)
@@ -46,10 +50,7 @@ func routes(_ app: Application, _ services: AppDependencies) throws {
     try protected.register(collection: PermissionController(
         permissionFeature: services.permissionFeature
     ))
-
-    // Dispatch
     try protected.register(collection: DispatchController(
-        dispatchFeature: services.dispatchFeature,
-        topicBroadcaster: services.topicBroadcaster
+        dispatchFeature: services.dispatchFeature
     ))
 }
