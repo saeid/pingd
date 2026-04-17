@@ -5,6 +5,7 @@ xcuserdata
 DerivedData/
 .DS_Store
 pingddb.sqlite
+data/
 .swiftpm
 .env
 .env.*

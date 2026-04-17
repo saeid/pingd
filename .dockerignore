@@ -1,2 +1,7 @@
 .build/
 .swiftpm/
+.git/
+.env
+*.sqlite
+requests/
+plan.md
