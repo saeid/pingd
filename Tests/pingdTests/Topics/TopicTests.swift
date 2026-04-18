@@ -65,12 +65,82 @@ extension PingdTests {
         }
     }
 
+    @Test("Topics: GET /topics/:name protected topic as anonymous with password returns topic")
+    func getProtectedTopicAnonymousWithPassword() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            try await app.testing().test(
+                .GET, "topics/protected-topic",
+                beforeRequest: { req in
+                    req.headers.replaceOrAdd(name: "X-Topic-Password", value: protectedTopicPassword)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let topic = try res.content.decode(TopicResponse.self)
+                    #expect(topic.name == "protected-topic")
+                    #expect(topic.hasPassword)
+                }
+            )
+        }
+    }
+
+    @Test("Topics: GET /topics/:name protected topic as anonymous with wrong password returns 403")
+    func getProtectedTopicAnonymousWithWrongPassword() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            try await app.testing().test(
+                .GET, "topics/protected-topic",
+                beforeRequest: { req in
+                    req.headers.replaceOrAdd(name: "X-Topic-Password", value: "wrong-password")
+                },
+                afterResponse: { res in
+                    #expect(res.status == .forbidden)
+                }
+            )
+        }
+    }
+
     @Test("Topics: GET /topics/:name private topic as anonymous returns 403")
     func getPrivateTopicAnonymous() async throws {
         try await withApp { app in
             try await seedTopics(app)
             try await app.testing().test(
                 .GET, "topics/private-topic",
+                afterResponse: { res in
+                    #expect(res.status == .forbidden)
+                }
+            )
+        }
+    }
+
+    @Test("Topics: GET /topics/:name private topic as anonymous with password returns topic")
+    func getPrivateTopicAnonymousWithPassword() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            try await app.testing().test(
+                .GET, "topics/private-topic",
+                beforeRequest: { req in
+                    req.headers.replaceOrAdd(name: "X-Topic-Password", value: privateTopicPassword)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let topic = try res.content.decode(TopicResponse.self)
+                    #expect(topic.name == "private-topic")
+                    #expect(topic.hasPassword)
+                }
+            )
+        }
+    }
+
+    @Test("Topics: GET /topics/:name private topic as anonymous with wrong password returns 403")
+    func getPrivateTopicAnonymousWithWrongPassword() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            try await app.testing().test(
+                .GET, "topics/private-topic",
+                beforeRequest: { req in
+                    req.headers.replaceOrAdd(name: "X-Topic-Password", value: "wrong-password")
+                },
                 afterResponse: { res in
                     #expect(res.status == .forbidden)
                 }
@@ -86,13 +156,34 @@ extension PingdTests {
                 .POST, "topics",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
-                    try req.content.encode(CreateTopicRequest(name: "new-topic", visibility: .open))
+                    try req.content.encode(CreateTopicRequest(name: "new-topic", visibility: .open, password: nil))
                 },
                 afterResponse: { res in
                     #expect(res.status == .ok)
                     let topic = try res.content.decode(TopicResponse.self)
                     #expect(topic.name == "new-topic")
                     #expect(topic.visibility == .open)
+                    #expect(topic.hasPassword == false)
+                }
+            )
+        }
+    }
+
+    @Test("Topics: POST /topics with password stores password hash")
+    func createTopicWithPassword() async throws {
+        try await withApp { app in
+            let session = try await login(app, username: "jinx", password: "hunter2")
+            try await app.testing().test(
+                .POST, "topics",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(CreateTopicRequest(name: "locked-topic", visibility: .protected, password: "topic-secret"))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let topic = try res.content.decode(TopicResponse.self)
+                    #expect(topic.name == "locked-topic")
+                    #expect(topic.hasPassword)
                 }
             )
         }
@@ -104,7 +195,7 @@ extension PingdTests {
             try await app.testing().test(
                 .POST, "topics",
                 beforeRequest: { req in
-                    try req.content.encode(CreateTopicRequest(name: "new-topic", visibility: .open))
+                    try req.content.encode(CreateTopicRequest(name: "new-topic", visibility: .open, password: nil))
                 },
                 afterResponse: { res in
                     #expect(res.status == .unauthorized)
@@ -121,7 +212,7 @@ extension PingdTests {
                 .POST, "topics",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
-                    try req.content.encode(CreateTopicRequest(name: "ab", visibility: .open))
+                    try req.content.encode(CreateTopicRequest(name: "ab", visibility: .open, password: nil))
                 },
                 afterResponse: { res in
                     #expect(res.status == .badRequest)
@@ -139,7 +230,7 @@ extension PingdTests {
                 .POST, "topics",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
-                    try req.content.encode(CreateTopicRequest(name: "open-topic", visibility: .open))
+                    try req.content.encode(CreateTopicRequest(name: "open-topic", visibility: .open, password: nil))
                 },
                 afterResponse: { res in
                     #expect(res.status == .badRequest)
@@ -163,6 +254,26 @@ extension PingdTests {
                     #expect(res.status == .ok)
                     let topic = try res.content.decode(TopicResponse.self)
                     #expect(topic.visibility == .protected)
+                }
+            )
+        }
+    }
+
+    @Test("Topics: PATCH /topics/:name empty password removes topic password")
+    func updateTopicRemovesPassword() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            let session = try await login(app, username: "jinx", password: "hunter2")
+            try await app.testing().test(
+                .PATCH, "topics/protected-topic",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(UpdateTopicRequest(visibility: nil, password: ""))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let topic = try res.content.decode(TopicResponse.self)
+                    #expect(topic.hasPassword == false)
                 }
             )
         }

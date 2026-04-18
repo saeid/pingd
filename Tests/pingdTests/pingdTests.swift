@@ -1,7 +1,11 @@
 import Fluent
 @testable import pingd
 import Testing
+import Vapor
 import VaporTesting
+
+let protectedTopicPassword = "protected-password"
+let privateTopicPassword = "private-password"
 
 @Suite("Pingd Tests", .serialized)
 struct PingdTests {
@@ -36,8 +40,18 @@ struct PingdTests {
         let jinxID = try jinx.requireID()
         let topics: [Topic] = [
             Topic(name: "open-topic", ownerUserID: jinxID, visibility: .open),
-            Topic(name: "protected-topic", ownerUserID: jinxID, visibility: .protected),
-            Topic(name: "private-topic", ownerUserID: jinxID, visibility: .private),
+            Topic(
+                name: "protected-topic",
+                ownerUserID: jinxID,
+                visibility: .protected,
+                passwordHash: try Bcrypt.hash(protectedTopicPassword)
+            ),
+            Topic(
+                name: "private-topic",
+                ownerUserID: jinxID,
+                visibility: .private,
+                passwordHash: try Bcrypt.hash(privateTopicPassword)
+            ),
         ]
         for topic in topics {
             try await topic.save(on: app.db)
