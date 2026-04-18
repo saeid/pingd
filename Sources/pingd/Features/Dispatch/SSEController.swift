@@ -13,7 +13,7 @@ struct SSEController: RouteCollection, @unchecked Sendable {
             throw Abort(.badRequest)
         }
 
-        _ = try await topicFeature.getTopic(req.optionalUser, name)
+        _ = try await topicFeature.getTopic(req.optionalUser, name, req.topicPassword)
 
         let (listenerID, payloadStream) = await topicBroadcaster.subscribe(topic: name)
         let broadcaster = topicBroadcaster

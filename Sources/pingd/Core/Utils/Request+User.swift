@@ -5,6 +5,10 @@ struct UserStorageKey: StorageKey {
 }
 
 extension Request {
+    var topicPassword: String? {
+        headers.first(name: "X-Topic-Password")
+    }
+
     var user: User {
         get throws {
             guard let user = storage[UserStorageKey.self] else {

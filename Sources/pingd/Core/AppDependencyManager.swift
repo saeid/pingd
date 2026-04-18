@@ -79,9 +79,10 @@ extension AppDependencies {
             ),
             userFeature: UserFeature.live(userClient: userClient),
             tokenFeature: TokenFeature.live(tokenClient: tokenClient, userClient: userClient),
-            topicFeature: TopicFeature.live(topicClient: topicClient),
+            topicFeature: TopicFeature.live(topicClient: topicClient, authClient: authClient),
             messageFeature: MessageFeature.live(
                 topicClient: topicClient,
+                authClient: authClient,
                 messageClient: messageClient,
                 dispatchFeature: dispatchFeature,
                 topicBroadcaster: topicBroadcaster
@@ -145,9 +146,10 @@ extension AppDependencies {
             ),
             userFeature: UserFeature.live(userClient: userClient),
             tokenFeature: TokenFeature.live(tokenClient: tokenClient, userClient: userClient),
-            topicFeature: TopicFeature.live(topicClient: topicClient),
+            topicFeature: TopicFeature.live(topicClient: topicClient, authClient: authClient),
             messageFeature: MessageFeature.live(
                 topicClient: topicClient,
+                authClient: authClient,
                 messageClient: messageClient,
                 dispatchFeature: dispatchFeature,
                 topicBroadcaster: topicBroadcaster

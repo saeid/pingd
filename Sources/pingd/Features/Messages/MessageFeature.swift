@@ -22,12 +22,14 @@ enum MessageError: AbortError {
 struct MessageFeature {
     let listMessages: @Sendable (
         _ currentUser: User?,
-        _ topicName: String
+        _ topicName: String,
+        _ topicPassword: String?
     ) async throws -> [Message]
 
     let publishMessage: @Sendable (
         _ currentUser: User?,
         _ topicName: String,
+        _ topicPassword: String?,
         _ priority: UInt8,
         _ tags: [String]?,
         _ payload: MessagePayload,
@@ -38,39 +40,38 @@ struct MessageFeature {
 extension MessageFeature {
     static func live(
         topicClient: TopicClient,
+        authClient: AuthClient,
         messageClient: MessageClient,
         dispatchFeature: DispatchFeature? = nil,
         topicBroadcaster: TopicBroadcaster? = nil
     ) -> Self {
         MessageFeature(
-            listMessages: { currentUser, topicName in
+            listMessages: { currentUser, topicName, topicPassword in
                 guard let topic = try await topicClient.getByName(topicName) else {
                     throw MessageError.topicNotFound
                 }
-                // open: anyone can read
-                // protected + private: must be authenticated
-                if topic.visibility != .open && currentUser == nil {
+                if try !TopicAccess.canRead(
+                    topic: topic,
+                    currentUser: currentUser,
+                    topicPassword: topicPassword,
+                    authClient: authClient
+                ) {
                     throw MessageError.accessDenied
                 }
                 let topicID = try topic.requireID()
                 return try await messageClient.list(topicID)
             },
-            publishMessage: { currentUser, topicName, priority, tags, payload, time in
+            publishMessage: { currentUser, topicName, topicPassword, priority, tags, payload, time in
                 guard let topic = try await topicClient.getByName(topicName) else {
                     throw MessageError.topicNotFound
                 }
-                switch topic.visibility {
-                case .open:
-                    break
-                case .protected:
-                    guard currentUser != nil else { throw MessageError.accessDenied }
-                case .private:
-                    guard let user = currentUser else { throw MessageError.accessDenied }
-                    let ownerID = topic.$owner.id
-                    let userID = try user.requireID()
-                    guard user.role == .admin || userID == ownerID else {
-                        throw MessageError.accessDenied
-                    }
+                if try !TopicAccess.canPublish(
+                    topic: topic,
+                    currentUser: currentUser,
+                    topicPassword: topicPassword,
+                    authClient: authClient
+                ) {
+                    throw MessageError.accessDenied
                 }
                 let topicID = try topic.requireID()
                 let message = try await messageClient.publish(topicID, priority, tags, payload, time)

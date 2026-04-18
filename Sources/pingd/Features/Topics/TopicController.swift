@@ -2,6 +2,7 @@ import Vapor
 
 struct TopicController: RouteCollection, @unchecked Sendable {
     let topicFeature: TopicFeature
+    let authClient: AuthClient
 
     func boot(routes: any RoutesBuilder) throws {
         let topics = routes.grouped("topics")
@@ -20,29 +21,41 @@ struct TopicController: RouteCollection, @unchecked Sendable {
     func create(_ req: Request) async throws -> TopicResponse {
         try CreateTopicRequest.validate(content: req)
         let body = try req.content.decode(CreateTopicRequest.self)
+        let passwordHash: String?
+        if let password = body.password, !password.isEmpty {
+            passwordHash = try authClient.hashPassword(password)
+        } else {
+            passwordHash = nil
+        }
         let topic = try await topicFeature.createTopic(
             try req.user,
             body.name,
             body.visibility ?? .protected,
-            nil
+            passwordHash
         )
         return try TopicResponse(topic)
     }
 
     func get(_ req: Request) async throws -> TopicResponse {
         guard let name = req.parameters.get("name") else { throw Abort(.badRequest) }
-        let topic = try await topicFeature.getTopic(req.optionalUser, name)
+        let topic = try await topicFeature.getTopic(req.optionalUser, name, req.topicPassword)
         return try TopicResponse(topic)
     }
 
     func update(_ req: Request) async throws -> TopicResponse {
         guard let name = req.parameters.get("name") else { throw Abort(.badRequest) }
         let body = try req.content.decode(UpdateTopicRequest.self)
+        let passwordHash: String?? = try body.password.map { password in
+            if password.isEmpty {
+                return nil
+            }
+            return try authClient.hashPassword(password)
+        }
         let topic = try await topicFeature.updateTopic(
             try req.user,
             name,
             body.visibility,
-            body.password.map { Optional($0) } ?? .none
+            passwordHash
         )
         return try TopicResponse(topic)
     }
@@ -60,6 +73,7 @@ struct TopicResponse: Content {
     let id: UUID
     let name: String
     let visibility: TopicVisibility
+    let hasPassword: Bool
     let ownerUserID: UUID
     let createdAt: Date?
 
@@ -67,6 +81,7 @@ struct TopicResponse: Content {
         self.id = try topic.requireID()
         self.name = topic.name
         self.visibility = topic.visibility
+        self.hasPassword = topic.passwordHash != nil
         self.ownerUserID = topic.$owner.id
         self.createdAt = topic.createdAt
     }
@@ -75,6 +90,7 @@ struct TopicResponse: Content {
 struct CreateTopicRequest: Content, Validatable {
     let name: String
     let visibility: TopicVisibility?
+    let password: String?
 
     static func validations(_ validations: inout Validations) {
         validations.add("name", as: String.self, is: .count(3...) && .characterSet(.alphanumerics + .init(charactersIn: "-_/")))

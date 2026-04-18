@@ -12,7 +12,7 @@ struct MessageController: RouteCollection, @unchecked Sendable {
 
     func list(_ req: Request) async throws -> [MessageResponse] {
         guard let name = req.parameters.get("name") else { throw Abort(.badRequest) }
-        let messages = try await messageFeature.listMessages(req.optionalUser, name)
+        let messages = try await messageFeature.listMessages(req.optionalUser, name, req.topicPassword)
         return try messages.map(MessageResponse.init)
     }
 
@@ -23,6 +23,7 @@ struct MessageController: RouteCollection, @unchecked Sendable {
         let message = try await messageFeature.publishMessage(
             req.optionalUser,
             name,
+            req.topicPassword,
             body.priority ?? 3,
             body.tags,
             body.payload,

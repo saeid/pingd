@@ -16,7 +16,8 @@ func routes(_ app: Application, _ services: AppDependencies) throws {
         OptionalTokenAuthMiddleware(tokenClient: services.tokenClient, now: services.now)
     )
     try optionalAuth.register(collection: TopicController(
-        topicFeature: services.topicFeature
+        topicFeature: services.topicFeature,
+        authClient: services.authClient
     ))
     try optionalAuth.register(collection: MessageController(
         messageFeature: services.messageFeature,

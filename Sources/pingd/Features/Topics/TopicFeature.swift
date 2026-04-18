@@ -28,7 +28,8 @@ struct TopicFeature {
 
     let getTopic: @Sendable (
         _ currentUser: User?,
-        _ name: String
+        _ name: String,
+        _ topicPassword: String?
     ) async throws -> Topic
 
     let createTopic: @Sendable (
@@ -52,7 +53,7 @@ struct TopicFeature {
 }
 
 extension TopicFeature {
-    static func live(topicClient: TopicClient) -> Self {
+    static func live(topicClient: TopicClient, authClient: AuthClient) -> Self {
         TopicFeature(
             listTopics: { currentUser in
                 let all = try await topicClient.list()
@@ -64,11 +65,16 @@ extension TopicFeature {
                     return all.filter { $0.visibility == .open }
                 }
             },
-            getTopic: { currentUser, name in
+            getTopic: { currentUser, name, topicPassword in
                 guard let topic = try await topicClient.getByName(name) else {
                     throw TopicError.notFound
                 }
-                if topic.visibility != .open, currentUser == nil {
+                if try !TopicAccess.canRead(
+                    topic: topic,
+                    currentUser: currentUser,
+                    topicPassword: topicPassword,
+                    authClient: authClient
+                ) {
                     throw TopicError.accessDenied
                 }
                 return topic
