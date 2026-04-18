@@ -2,8 +2,12 @@ const state = {
     token: localStorage.getItem('pingd_token'),
     username: localStorage.getItem('pingd_username'),
     currentTopic: null,
+    topicPasswords: {},
+    subscribedTopics: JSON.parse(localStorage.getItem('pingd_subscribed') || '[]'),
+    topicData: {},
     sseAbort: null,
-    liveEnabled: false,
+    liveTopics: {},
+    pendingTopic: null,
 };
 
 // Elements
@@ -26,10 +30,13 @@ const deleteTopicBtn = document.getElementById('delete-topic-btn');
 const notificationSound = document.getElementById('notification-sound');
 
 // API
-async function api(method, path, body) {
+async function api(method, path, body, topicName) {
     const headers = {};
     if (body) headers['Content-Type'] = 'application/json';
     if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
+    if (topicName && state.topicPasswords[topicName]) {
+        headers['X-Topic-Password'] = state.topicPasswords[topicName];
+    }
 
     const opts = { method, headers };
     if (body) opts.body = JSON.stringify(body);
@@ -91,31 +98,75 @@ function showDashboard() {
     mainView.classList.remove('hidden');
     currentUser.textContent = state.username || 'anonymous';
     logoutBtn.textContent = state.token ? 'sign out' : 'back';
-    loadTopics();
+    loadSubscribedTopics();
 }
 
-// Topics
-async function loadTopics() {
-    try {
-        const topics = await api('GET', '/topics');
-        renderTopics(topics);
-    } catch (err) {
-        if (err.message.startsWith('401')) {
-            showLogin();
+// Subscribed topics
+function saveSubscribedTopics() {
+    localStorage.setItem('pingd_subscribed', JSON.stringify(state.subscribedTopics));
+}
+
+function subscribeTopic(name, topic) {
+    if (!state.subscribedTopics.includes(name)) {
+        state.subscribedTopics.push(name);
+        saveSubscribedTopics();
+    }
+    if (topic) state.topicData[name] = topic;
+    renderSubscribedTopics();
+}
+
+function unsubscribeTopic(name) {
+    state.subscribedTopics = state.subscribedTopics.filter(n => n !== name);
+    saveSubscribedTopics();
+    delete state.topicData[name];
+    delete state.topicPasswords[name];
+    delete state.liveTopics[name];
+    if (state.currentTopic === name) {
+        state.currentTopic = null;
+        disconnectSSE();
+        emptyState.classList.remove('hidden');
+        messagesView.classList.add('hidden');
+    }
+    renderSubscribedTopics();
+}
+
+async function loadSubscribedTopics() {
+    for (const name of state.subscribedTopics) {
+        try {
+            const topic = await api('GET', `/topics/${name}`, null, name);
+            state.topicData[name] = topic;
+        } catch {
+            state.topicData[name] = { name, visibility: 'unknown', hasPassword: false };
         }
     }
+    renderSubscribedTopics();
 }
 
-function renderTopics(topics) {
+function renderSubscribedTopics() {
     topicList.innerHTML = '';
-    topics.forEach(topic => {
+    state.subscribedTopics.forEach(name => {
+        const topic = state.topicData[name] || { name, visibility: 'unknown', hasPassword: false };
         const el = document.createElement('div');
-        el.className = 'topic-item' + (state.currentTopic === topic.name ? ' active' : '');
+        el.className = 'topic-item' + (state.currentTopic === name ? ' active' : '');
 
         const nameEl = document.createElement('span');
         nameEl.className = 'topic-name';
-        nameEl.textContent = topic.name;
+        nameEl.textContent = name;
         el.appendChild(nameEl);
+
+        if (topic.hasPassword) {
+            const lockEl = document.createElement('span');
+            lockEl.className = 'topic-lock';
+            lockEl.textContent = '\u{1F512}';
+            el.appendChild(lockEl);
+        }
+
+        if (state.liveTopics[name]) {
+            const liveEl = document.createElement('span');
+            liveEl.className = 'badge badge-live';
+            liveEl.textContent = 'live';
+            el.appendChild(liveEl);
+        }
 
         const badgeEl = document.createElement('span');
         badgeEl.className = `badge badge-${topic.visibility}`;
@@ -127,15 +178,83 @@ function renderTopics(topics) {
     });
 }
 
+// Join topic by name
+const joinTopicForm = document.getElementById('join-topic-form');
+joinTopicForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('join-topic-name').value.trim();
+    if (!name) return;
+
+    try {
+        const topic = await api('GET', `/topics/${name}`, null, name);
+        document.getElementById('join-topic-name').value = '';
+        subscribeTopic(name, topic);
+        selectTopic(topic);
+    } catch (err) {
+        if (err.message.startsWith('403')) {
+            showPasswordModal(name);
+        } else {
+            alert(err.message);
+        }
+    }
+});
+
+// Password modal
+const passwordModal = document.getElementById('password-modal');
+const passwordForm = document.getElementById('password-form');
+const passwordError = document.getElementById('password-error');
+const passwordCancel = document.getElementById('password-cancel');
+
+function showPasswordModal(topicName) {
+    state.pendingTopic = topicName;
+    passwordError.classList.add('hidden');
+    document.getElementById('topic-password-input').value = '';
+    passwordModal.classList.remove('hidden');
+    document.getElementById('topic-password-input').focus();
+}
+
+passwordCancel.addEventListener('click', () => {
+    passwordModal.classList.add('hidden');
+    state.pendingTopic = null;
+});
+
+passwordForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const password = document.getElementById('topic-password-input').value;
+    const topicName = state.pendingTopic;
+    if (!topicName) return;
+
+    state.topicPasswords[topicName] = password;
+
+    try {
+        const topic = await api('GET', `/topics/${topicName}`, null, topicName);
+        passwordModal.classList.add('hidden');
+        state.pendingTopic = null;
+        document.getElementById('join-topic-name').value = '';
+        subscribeTopic(topicName, topic);
+        selectTopic(topic);
+    } catch (err) {
+        delete state.topicPasswords[topicName];
+        if (err.message.startsWith('403')) {
+            passwordError.textContent = 'Wrong password';
+            passwordError.classList.remove('hidden');
+        } else {
+            passwordError.textContent = err.message;
+            passwordError.classList.remove('hidden');
+        }
+    }
+});
+
 createTopicForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = document.getElementById('topic-name').value;
     const visibility = document.getElementById('topic-visibility').value;
 
     try {
-        await api('POST', '/topics', { name, visibility });
+        const topic = await api('POST', '/topics', { name, visibility });
         document.getElementById('topic-name').value = '';
-        loadTopics();
+        subscribeTopic(name, topic);
+        selectTopic(topic);
     } catch (err) {
         alert(err.message);
     }
@@ -147,11 +266,7 @@ deleteTopicBtn.addEventListener('click', async () => {
 
     try {
         await api('DELETE', `/topics/${state.currentTopic}`);
-        state.currentTopic = null;
-        emptyState.classList.remove('hidden');
-        messagesView.classList.add('hidden');
-        disconnectSSE();
-        loadTopics();
+        unsubscribeTopic(state.currentTopic);
     } catch (err) {
         alert(err.message);
     }
@@ -166,18 +281,18 @@ async function selectTopic(topic) {
     messagesVisibility.textContent = topic.visibility;
     messagesVisibility.className = `badge badge-${topic.visibility}`;
 
-    document.querySelectorAll('.topic-item').forEach(el => {
-        const name = el.querySelector('.topic-name').textContent;
-        el.classList.toggle('active', name === topic.name);
-    });
+    // Update live toggle to reflect this topic's state
+    const isLive = !!state.liveTopics[topic.name];
+    sseToggle.classList.toggle('active', isLive);
 
+    renderSubscribedTopics();
     await loadMessages();
-    if (state.liveEnabled) connectSSE();
+    if (isLive) connectSSE();
 }
 
 async function loadMessages() {
     try {
-        const messages = await api('GET', `/topics/${state.currentTopic}/messages`);
+        const messages = await api('GET', `/topics/${state.currentTopic}/messages`, null, state.currentTopic);
         renderMessages(messages);
     } catch (err) {
         messageList.innerHTML = `<div class="empty-state"><p>${err.message}</p></div>`;
@@ -249,45 +364,55 @@ publishForm.addEventListener('submit', async (e) => {
         await api('POST', `/topics/${state.currentTopic}/messages`, {
             priority: 3,
             payload: { title, subtitle: null, body }
-        });
+        }, state.currentTopic);
         document.getElementById('msg-title').value = '';
         document.getElementById('msg-body').value = '';
-        if (!state.liveEnabled) await loadMessages();
+        if (!state.liveTopics[state.currentTopic]) await loadMessages();
     } catch (err) {
         alert(err.message);
     }
 });
 
-// SSE via fetch (supports auth headers)
+// SSE via fetch (supports auth headers) — per topic
 sseToggle.addEventListener('click', () => {
-    state.liveEnabled = !state.liveEnabled;
-    sseToggle.classList.toggle('active', state.liveEnabled);
-    if (state.liveEnabled && state.currentTopic) {
-        connectSSE();
-    } else {
+    if (!state.currentTopic) return;
+    const topic = state.currentTopic;
+    if (state.liveTopics[topic]) {
         disconnectSSE();
+        delete state.liveTopics[topic];
+        sseToggle.classList.remove('active');
+    } else {
+        state.liveTopics[topic] = true;
+        sseToggle.classList.add('active');
+        connectSSE();
     }
+    renderSubscribedTopics();
 });
 
 async function connectSSE() {
     disconnectSSE();
     if (!state.currentTopic) return;
 
+    const topic = state.currentTopic;
     const abort = new AbortController();
     state.sseAbort = abort;
 
     const headers = {};
     if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
+    if (state.topicPasswords[topic]) {
+        headers['X-Topic-Password'] = state.topicPasswords[topic];
+    }
 
     try {
-        const res = await fetch(`/topics/${state.currentTopic}/stream`, {
+        const res = await fetch(`/topics/${topic}/stream`, {
             headers,
             signal: abort.signal,
         });
 
         if (!res.ok) {
-            state.liveEnabled = false;
+            delete state.liveTopics[topic];
             sseToggle.classList.remove('active');
+            renderSubscribedTopics();
             return;
         }
 
@@ -307,8 +432,10 @@ async function connectSSE() {
                 const line = chunk.trim();
                 if (!line.startsWith('data: ')) continue;
                 try {
-                    const payload = JSON.parse(line.slice(6));
-                    appendMessage({ payload, time: new Date().toISOString() }, true);
+                    const msg = JSON.parse(line.slice(6));
+                    if (state.currentTopic === topic) {
+                        appendMessage(msg, true);
+                    }
 
                     if (notificationSound) {
                         notificationSound.currentTime = 0;
@@ -316,8 +443,8 @@ async function connectSSE() {
                     }
 
                     if (Notification.permission === 'granted') {
-                        new Notification(payload.title || state.currentTopic, {
-                            body: payload.body,
+                        new Notification(msg.payload?.title || topic, {
+                            body: msg.payload?.body,
                         });
                     }
                 } catch {}
@@ -325,8 +452,9 @@ async function connectSSE() {
         }
     } catch (err) {
         if (err.name !== 'AbortError') {
-            state.liveEnabled = false;
+            delete state.liveTopics[topic];
             sseToggle.classList.remove('active');
+            renderSubscribedTopics();
         }
     }
 }
