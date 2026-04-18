@@ -4,3 +4,5 @@ url: $host/topics/my-topic/stream
 headers:
   - name: Authorization
     value: Bearer $token
+  - name: X-Topic-Password
+    value: topic-secret

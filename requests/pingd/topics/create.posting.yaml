@@ -10,6 +10,7 @@ body:
   content: |
     {
       "name": "my-topic",
-      "visibility": "protected"
+      "visibility": "protected",
+      "password": "topic-secret"
     }
   content_type: application/json

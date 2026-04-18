@@ -9,6 +9,7 @@ headers:
 body:
   content: |
     {
-      "visibility": "open"
+      "visibility": "protected",
+      "password": ""
     }
   content_type: application/json

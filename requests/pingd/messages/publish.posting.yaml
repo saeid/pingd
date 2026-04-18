@@ -4,6 +4,8 @@ url: $host/topics/my-topic/messages
 headers:
   - name: Authorization
     value: Bearer $token
+  - name: X-Topic-Password
+    value: topic-secret
   - name: Content-Type
     value: application/json
 body:
