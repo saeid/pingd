@@ -39,6 +39,13 @@ struct TokenDTO: Codable {
     let createdAt: Date?
 }
 
+struct BroadcastDTO: Codable {
+    let priority: UInt8
+    let tags: [String]?
+    let payload: PayloadDTO
+    let time: Date
+}
+
 struct PublishRequest: Codable {
     let priority: UInt8
     let tags: [String]?

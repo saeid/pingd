@@ -84,7 +84,13 @@ extension MessageFeature {
 
                 // broadcast to SSE listeners
                 if let topicBroadcaster {
-                    await topicBroadcaster.broadcast(topic: topicName, payload: payload)
+                    let broadcast = BroadcastMessage(
+                        priority: priority,
+                        tags: tags,
+                        payload: payload,
+                        time: time
+                    )
+                    await topicBroadcaster.broadcast(topic: topicName, message: broadcast)
                 }
 
                 return message

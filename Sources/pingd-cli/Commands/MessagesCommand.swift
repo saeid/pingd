@@ -54,11 +54,15 @@ struct MessagesCommand: AsyncParsableCommand {
         @Option(name: .shortAndLong, help: "Priority 1-5")
         var priority: UInt8 = 3
 
+        @Option(name: .long, help: "Comma-separated tags")
+        var tags: String?
+
         func run() async throws {
             try await withAPIClient { client in
+                let parsedTags = tags?.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
                 let request = PublishRequest(
                     priority: priority,
-                    tags: nil,
+                    tags: parsedTags,
                     payload: PayloadDTO(title: title, subtitle: nil, body: body)
                 )
                 let msg = try await client.post("/topics/\(topic)/messages", body: request, as: MessageDTO.self)
@@ -84,11 +88,11 @@ struct MessagesCommand: AsyncParsableCommand {
                         delay = 2
 
                         try await client.consumeStream(response) { data in
-                            guard let payload = try? JSONDecoder().decode(PayloadDTO.self, from: data) else {
+                            guard let message = try? JSONDecoder().decode(BroadcastDTO.self, from: data) else {
                                 return
                             }
-                            let title = payload.title.map { "\($0): " } ?? ""
-                            print("\(title)\(payload.body)")
+                            let title = message.payload.title.map { "\($0): " } ?? ""
+                            print("\(title)\(message.payload.body)")
                         }
 
                         print("Stream ended.")
