@@ -13,3 +13,4 @@ data/
 default.profraw
 .nvim*
 plan.md
+.local/
