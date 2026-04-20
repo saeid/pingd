@@ -20,6 +20,7 @@ struct MessageController: RouteCollection, @unchecked Sendable {
         guard let name = req.parameters.get("name") else { throw Abort(.badRequest) }
         try PublishMessageRequest.validate(content: req)
         let body = try req.content.decode(PublishMessageRequest.self)
+        try body.validateTags()
         let message = try await messageFeature.publishMessage(
             req.optionalUser,
             name,
@@ -45,13 +46,13 @@ struct MessageResponse: Content {
     let createdAt: Date?
 
     init(_ message: Message) throws {
-        self.id = try message.requireID()
-        self.topicID = message.$topic.id
-        self.time = message.time
-        self.priority = message.priority
-        self.tags = message.tags
-        self.payload = message.payload
-        self.createdAt = message.createdAt
+        id = try message.requireID()
+        topicID = message.$topic.id
+        time = message.time
+        priority = message.priority
+        tags = message.tags
+        payload = message.payload
+        createdAt = message.createdAt
     }
 }
 
@@ -62,5 +63,22 @@ struct PublishMessageRequest: Content, Validatable {
 
     static func validations(_ validations: inout Validations) {
         validations.add("payload", as: MessagePayload.self)
+    }
+
+    func validateTags() throws {
+        guard let tags else { return }
+        let allowedCharacters = CharacterSet.alphanumerics.union(.init(charactersIn: "-_"))
+
+        guard tags.count <= 10 else {
+            throw Abort(.badRequest, reason: "Maximum 10 tags allowed")
+        }
+        for tag in tags {
+            guard tag.count >= 1, tag.count <= 30 else {
+                throw Abort(.badRequest, reason: "Tag must be 1-30 characters")
+            }
+            guard tag.unicodeScalars.allSatisfy({ allowedCharacters.contains($0) }) else {
+                throw Abort(.badRequest, reason: "Tag '\(tag)' contains invalid characters. Only alphanumeric, dash, underscore allowed")
+            }
+        }
     }
 }
