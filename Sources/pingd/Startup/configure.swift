@@ -4,6 +4,9 @@ import Vapor
 
 public func configure(_ app: Application) async throws {
     let isMigrationCommand = CommandLine.arguments.contains("migrate")
+    let appConfig = try AppConfig.load(environment: app.environment)
+    app.appConfig = appConfig
+
     app.http.server.configuration.port = 7685
     app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory, defaultFile: "index.html"))
     app.middleware.use(RequestLoggerMiddleware())
@@ -21,6 +24,11 @@ public func configure(_ app: Application) async throws {
         app.logger.info("Data directory: \(dataDir)")
         app.logger.info("Database: \(databasePath)")
         app.logger.info("Environment: \(app.environment.name)")
+        app.logger.info("Rate limiting: \(appConfig.rateLimit.isEnabled ? "enabled" : "disabled")")
+        app.logger.info("Rate limit: \(appConfig.rateLimit.count)/60s")
+        app.logger.info(
+            "CORS origins: \(appConfig.cors.allowsAllOrigins ? "*" : appConfig.cors.explicitOrigins.joined(separator: ", "))"
+        )
     }
 
     app.migrations.add([
