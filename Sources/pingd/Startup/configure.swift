@@ -6,6 +6,7 @@ public func configure(_ app: Application) async throws {
     let isMigrationCommand = CommandLine.arguments.contains("migrate")
     let appConfig = try AppConfig.load(environment: app.environment)
     app.appConfig = appConfig
+    app.rateLimiter = RateLimiter()
 
     app.http.server.configuration.port = 7685
     app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory, defaultFile: "index.html"))

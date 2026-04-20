@@ -1,18 +1,24 @@
 import Vapor
 
 func routes(_ app: Application, _ services: AppDependencies) throws {
+    let rateLimit = RateLimitMiddleware(
+        rateLimiter: app.rateLimiter,
+        now: services.now
+    )
+    let api = app.routes.grouped(rateLimit)
+
     // Public
-    try app.routes.register(collection: HealthController(
+    try api.register(collection: HealthController(
         healthClient: services.healthClient,
         appInfo: services.appInfo
     ))
-    try app.routes.register(collection: AuthController(
+    try api.register(collection: AuthController(
         authFeature: services.authFeature,
         tokenClient: services.tokenClient
     ))
 
     // Resolve token if present, otherwise anonymous
-    let optionalAuth = app.routes.grouped(
+    let optionalAuth = api.grouped(
         OptionalTokenAuthMiddleware(tokenClient: services.tokenClient, now: services.now)
     )
     try optionalAuth.register(collection: TopicController(
@@ -30,7 +36,7 @@ func routes(_ app: Application, _ services: AppDependencies) throws {
     ))
 
     // Protected
-    let protected = app.routes.grouped(
+    let protected = api.grouped(
         TokenAuthMiddleware(tokenClient: services.tokenClient, now: services.now)
     )
     protected.get("me") { req in
