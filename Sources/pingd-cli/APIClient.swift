@@ -3,13 +3,13 @@ import Foundation
 import NIOCore
 import NIOFoundationCompat
 
-enum APIError: Error, CustomStringConvertible {
+enum APIError: LocalizedError {
     case noToken
     case requestFailed(Int, String)
     case networkError(String)
     case decodingError(String)
 
-    var description: String {
+    var errorDescription: String? {
         switch self {
         case .noToken: "No token configured. Server may not have started yet."
         case .requestFailed(let code, let message): "HTTP \(code): \(message)"
