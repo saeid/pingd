@@ -2,6 +2,24 @@ import Fluent
 import FluentSQLiteDriver
 import Vapor
 
+func makeCORSConfiguration(from config: CORSConfig) -> CORSMiddleware.Configuration {
+    let allowedOrigin: CORSMiddleware.AllowOriginSetting =
+        config.allowsAllOrigins ? .all : .any(config.explicitOrigins)
+
+    return CORSMiddleware.Configuration(
+        allowedOrigin: allowedOrigin,
+        allowedMethods: [.GET, .POST, .PATCH, .DELETE, .OPTIONS],
+        allowedHeaders: [
+            .accept,
+            .authorization,
+            .contentType,
+            .origin,
+            .xRequestedWith,
+            .init("X-Topic-Password"),
+        ]
+    )
+}
+
 public func configure(_ app: Application) async throws {
     let isMigrationCommand = CommandLine.arguments.contains("migrate")
     let appConfig = try AppConfig.load(environment: app.environment)
@@ -9,6 +27,7 @@ public func configure(_ app: Application) async throws {
     app.rateLimiter = RateLimiter()
 
     app.http.server.configuration.port = 7685
+    app.middleware.use(CORSMiddleware(configuration: makeCORSConfiguration(from: appConfig.cors)), at: .beginning)
     app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory, defaultFile: "index.html"))
     app.middleware.use(RequestLoggerMiddleware())
 

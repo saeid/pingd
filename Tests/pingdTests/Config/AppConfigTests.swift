@@ -37,4 +37,59 @@ extension PingdTests {
         #expect(config.cors.allowsAllOrigins)
         #expect(config.cors.explicitOrigins.isEmpty)
     }
+
+    @Test("Config: CORS middleware allows all origins by default")
+    func corsMiddlewareAllowsAllOrigins() async throws {
+        let app = try await Application.make(.testing)
+        var headers = HTTPHeaders()
+        headers.replaceOrAdd(name: .origin, value: "https://client.pingd.io")
+
+        let request = Request(
+            application: app,
+            headers: headers,
+            on: app.eventLoopGroup.next()
+        )
+
+        let configuration = makeCORSConfiguration(
+            from: CORSConfig(allowsAllOrigins: true, explicitOrigins: [])
+        )
+
+        #expect(configuration.allowedOrigin.header(forRequest: request) == "*")
+        #expect(configuration.allowedMethods == "GET, POST, PATCH, DELETE, OPTIONS")
+        #expect(configuration.allowedHeaders.lowercased().contains("x-topic-password"))
+
+        try await app.asyncShutdown()
+    }
+
+    @Test("Config: CORS middleware restricts requests to explicit origins")
+    func corsMiddlewareRestrictsExplicitOrigins() async throws {
+        let app = try await Application.make(.testing)
+        var allowedHeaders = HTTPHeaders()
+        allowedHeaders.replaceOrAdd(name: .origin, value: "https://admin.pingd.io")
+        var blockedHeaders = HTTPHeaders()
+        blockedHeaders.replaceOrAdd(name: .origin, value: "https://other.pingd.io")
+
+        let allowedRequest = Request(
+            application: app,
+            headers: allowedHeaders,
+            on: app.eventLoopGroup.next()
+        )
+        let blockedRequest = Request(
+            application: app,
+            headers: blockedHeaders,
+            on: app.eventLoopGroup.next()
+        )
+
+        let configuration = makeCORSConfiguration(
+            from: CORSConfig(
+                allowsAllOrigins: false,
+                explicitOrigins: ["https://admin.pingd.io"]
+            )
+        )
+
+        #expect(configuration.allowedOrigin.header(forRequest: allowedRequest) == "https://admin.pingd.io")
+        #expect(configuration.allowedOrigin.header(forRequest: blockedRequest).isEmpty)
+
+        try await app.asyncShutdown()
+    }
 }
