@@ -41,6 +41,7 @@ extension MessageFeature {
     static func live(
         topicClient: TopicClient,
         authClient: AuthClient,
+        permissionClient: PermissionClient,
         messageClient: MessageClient,
         dispatchFeature: DispatchFeature? = nil,
         topicBroadcaster: TopicBroadcaster? = nil
@@ -50,11 +51,12 @@ extension MessageFeature {
                 guard let topic = try await topicClient.getByName(topicName) else {
                     throw MessageError.topicNotFound
                 }
-                if try !TopicAccess.canRead(
+                if try await !TopicAccess.canRead(
                     topic: topic,
                     currentUser: currentUser,
                     topicPassword: topicPassword,
-                    authClient: authClient
+                    authClient: authClient,
+                    permissionClient: permissionClient
                 ) {
                     throw MessageError.accessDenied
                 }
@@ -65,11 +67,12 @@ extension MessageFeature {
                 guard let topic = try await topicClient.getByName(topicName) else {
                     throw MessageError.topicNotFound
                 }
-                if try !TopicAccess.canPublish(
+                if try await !TopicAccess.canPublish(
                     topic: topic,
                     currentUser: currentUser,
                     topicPassword: topicPassword,
-                    authClient: authClient
+                    authClient: authClient,
+                    permissionClient: permissionClient
                 ) {
                     throw MessageError.accessDenied
                 }

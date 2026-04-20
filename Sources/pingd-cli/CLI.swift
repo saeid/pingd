@@ -11,6 +11,7 @@ struct PingdCLI: AsyncParsableCommand {
             MessagesCommand.self,
             UsersCommand.self,
             TokensCommand.self,
+            PermissionsCommand.self,
         ]
     )
 }

@@ -10,7 +10,7 @@ enum AccessLevel: String, Codable, CaseIterable {
 
 enum PermissionScope: String, Codable, CaseIterable {
     case user
-    case `public`
+    case global
 }
 
 final class Permission: Model, @unchecked Sendable {

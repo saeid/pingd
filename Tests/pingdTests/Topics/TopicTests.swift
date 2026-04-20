@@ -18,8 +18,8 @@ extension PingdTests {
         }
     }
 
-    @Test("Topics: GET /topics as authenticated returns all topics")
-    func listTopicsAuthenticated() async throws {
+    @Test("Topics: GET /topics as admin returns all topics")
+    func listTopicsAsAdmin() async throws {
         try await withApp { app in
             try await seedTopics(app)
             let session = try await login(app, username: "jinx", password: "hunter2")
@@ -32,6 +32,57 @@ extension PingdTests {
                     #expect(res.status == .ok)
                     let topics = try res.content.decode([TopicResponse].self)
                     #expect(topics.count == 3)
+                }
+            )
+        }
+    }
+
+    @Test("Topics: GET /topics as authenticated without permission hides private topics")
+    func listTopicsAuthenticatedWithoutPermission() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            let session = try await login(app, username: "vi", password: "password1")
+            try await app.testing().test(
+                .GET, "topics",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let topics = try res.content.decode([TopicResponse].self)
+                    #expect(topics.map(\.name).sorted() == ["open-topic", "protected-topic"])
+                }
+            )
+        }
+    }
+
+    @Test("Topics: GET /topics as authenticated with matching permission includes private topic")
+    func listTopicsAuthenticatedWithPermission() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            let vi = try #require(
+                try await User.query(on: app.db)
+                    .filter(\.$username, .equal, "vi")
+                    .first()
+            )
+            let permission = Permission(
+                scope: .user,
+                accessLevel: .readOnly,
+                userId: try vi.requireID(),
+                topicPattern: "private-topic"
+            )
+            try await permission.save(on: app.db)
+
+            let session = try await login(app, username: "vi", password: "password1")
+            try await app.testing().test(
+                .GET, "topics",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let topics = try res.content.decode([TopicResponse].self)
+                    #expect(topics.map(\.name).sorted() == ["open-topic", "private-topic", "protected-topic"])
                 }
             )
         }
@@ -113,7 +164,7 @@ extension PingdTests {
         }
     }
 
-    @Test("Topics: GET /topics/:name private topic as anonymous with password returns topic")
+    @Test("Topics: GET /topics/:name private topic as anonymous with password returns 403")
     func getPrivateTopicAnonymousWithPassword() async throws {
         try await withApp { app in
             try await seedTopics(app)
@@ -123,10 +174,7 @@ extension PingdTests {
                     req.headers.replaceOrAdd(name: "X-Topic-Password", value: privateTopicPassword)
                 },
                 afterResponse: { res in
-                    #expect(res.status == .ok)
-                    let topic = try res.content.decode(TopicResponse.self)
-                    #expect(topic.name == "private-topic")
-                    #expect(topic.hasPassword)
+                    #expect(res.status == .forbidden)
                 }
             )
         }

@@ -47,7 +47,9 @@ extension SubscriptionFeature {
     static func live(
         subscriptionClient: SubscriptionClient,
         deviceClient: DeviceClient,
-        topicClient: TopicClient
+        topicClient: TopicClient,
+        authClient: AuthClient,
+        permissionClient: PermissionClient
     ) -> Self {
         SubscriptionFeature(
             listSubscriptions: { currentUser, deviceID in
@@ -72,6 +74,15 @@ extension SubscriptionFeature {
                 }
                 guard let topic = try await topicClient.getByName(topicName) else {
                     throw SubscriptionError.topicNotFound
+                }
+                if try await !TopicAccess.canRead(
+                    topic: topic,
+                    currentUser: currentUser,
+                    topicPassword: nil,
+                    authClient: authClient,
+                    permissionClient: permissionClient
+                ) {
+                    throw SubscriptionError.accessDenied
                 }
                 let topicID = try topic.requireID()
                 do {

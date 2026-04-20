@@ -25,10 +25,19 @@ struct PermissionFeature {
         _ targetUsername: String
     ) async throws -> [Permission]
 
+    let listGlobalPermissions: @Sendable (
+        _ currentUser: User
+    ) async throws -> [Permission]
+
     let createPermission: @Sendable (
         _ currentUser: User,
         _ targetUsername: String,
-        _ scope: PermissionScope,
+        _ accessLevel: AccessLevel,
+        _ topicPattern: String
+    ) async throws -> Permission
+
+    let createGlobalPermission: @Sendable (
+        _ currentUser: User,
         _ accessLevel: AccessLevel,
         _ topicPattern: String
     ) async throws -> Permission
@@ -50,12 +59,24 @@ extension PermissionFeature {
                 }
                 return try await permissionClient.listForUser(targetID)
             },
-            createPermission: { currentUser, targetUsername, scope, accessLevel, topicPattern in
+            listGlobalPermissions: { currentUser in
+                guard currentUser.role == .admin else {
+                    throw PermissionError.accessDenied
+                }
+                return try await permissionClient.listGlobal()
+            },
+            createPermission: { currentUser, targetUsername, accessLevel, topicPattern in
                 guard currentUser.role == .admin else {
                     throw PermissionError.accessDenied
                 }
                 let targetID = try await userClient.getUserId(for: targetUsername)
-                return try await permissionClient.create(targetID, scope, accessLevel, topicPattern)
+                return try await permissionClient.create(targetID, .user, accessLevel, topicPattern)
+            },
+            createGlobalPermission: { currentUser, accessLevel, topicPattern in
+                guard currentUser.role == .admin else {
+                    throw PermissionError.accessDenied
+                }
+                return try await permissionClient.create(nil, .global, accessLevel, topicPattern)
             },
             deletePermission: { currentUser, permissionID in
                 guard currentUser.role == .admin else {

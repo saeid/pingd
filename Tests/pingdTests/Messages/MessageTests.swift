@@ -252,7 +252,7 @@ extension PingdTests {
         }
     }
 
-    @Test("Messages: GET /topics/:name/messages on private topic as anonymous with password returns messages")
+    @Test("Messages: GET /topics/:name/messages on private topic as anonymous with password returns 403")
     func listMessagesOnPrivateTopicAnonymousWithPassword() async throws {
         try await withApp { app in
             try await seedTopics(app)
@@ -262,9 +262,7 @@ extension PingdTests {
                     req.headers.replaceOrAdd(name: "X-Topic-Password", value: privateTopicPassword)
                 },
                 afterResponse: { res in
-                    #expect(res.status == .ok)
-                    let messages = try res.content.decode([MessageResponse].self)
-                    #expect(messages.isEmpty)
+                    #expect(res.status == .forbidden)
                 }
             )
         }

@@ -53,27 +53,42 @@ struct TopicFeature {
 }
 
 extension TopicFeature {
-    static func live(topicClient: TopicClient, authClient: AuthClient) -> Self {
+    static func live(topicClient: TopicClient, authClient: AuthClient, permissionClient: PermissionClient) -> Self {
         TopicFeature(
             listTopics: { currentUser in
                 let all = try await topicClient.list()
-                if currentUser != nil {
-                    // authenticated: see open + protected + private
-                    return all
-                } else {
-                    // anonymous: only open topics
+
+                guard let user = currentUser else {
                     return all.filter { $0.visibility == .open }
+                }
+                if user.role == .admin { return all }
+
+                let userID = try user.requireID()
+                let userPermissions = try await permissionClient.listForUser(userID)
+                let globalPermissions = try await permissionClient.listGlobal()
+                let allPermissions = userPermissions + globalPermissions
+
+                return all.filter { topic in
+                    let resolved = PermissionResolver.resolve(permissions: allPermissions, topicName: topic.name)
+                    if let resolved {
+                        return resolved != .deny && resolved != .writeOnly
+                    }
+                    switch topic.visibility {
+                    case .open, .protected: return true
+                    case .private: return topic.$owner.id == userID
+                    }
                 }
             },
             getTopic: { currentUser, name, topicPassword in
                 guard let topic = try await topicClient.getByName(name) else {
                     throw TopicError.notFound
                 }
-                if try !TopicAccess.canRead(
+                if try await !TopicAccess.canRead(
                     topic: topic,
                     currentUser: currentUser,
                     topicPassword: topicPassword,
-                    authClient: authClient
+                    authClient: authClient,
+                    permissionClient: permissionClient
                 ) {
                     throw TopicError.accessDenied
                 }

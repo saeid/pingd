@@ -93,7 +93,7 @@ struct CreateTopicRequest: Content, Validatable {
     let password: String?
 
     static func validations(_ validations: inout Validations) {
-        validations.add("name", as: String.self, is: .count(3...) && .characterSet(.alphanumerics + .init(charactersIn: "-_/")))
+        validations.add("name", as: String.self, is: .count(3...) && .characterSet(.alphanumerics + .init(charactersIn: "-_.")))
     }
 }
 

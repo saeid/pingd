@@ -52,6 +52,20 @@ struct PublishRequest: Codable {
     let payload: PayloadDTO
 }
 
+struct PermissionDTO: Codable {
+    let id: UUID
+    let userID: UUID?
+    let scope: String
+    let accessLevel: String
+    let topicPattern: String
+    let createdAt: Date?
+}
+
+struct CreatePermissionDTO: Codable {
+    let accessLevel: String
+    let topicPattern: String
+}
+
 struct DeliveryDTO: Codable {
     let id: UUID
     let messageID: UUID

@@ -79,10 +79,11 @@ extension AppDependencies {
             ),
             userFeature: UserFeature.live(userClient: userClient),
             tokenFeature: TokenFeature.live(tokenClient: tokenClient, userClient: userClient),
-            topicFeature: TopicFeature.live(topicClient: topicClient, authClient: authClient),
+            topicFeature: TopicFeature.live(topicClient: topicClient, authClient: authClient, permissionClient: permissionClient),
             messageFeature: MessageFeature.live(
                 topicClient: topicClient,
                 authClient: authClient,
+                permissionClient: permissionClient,
                 messageClient: messageClient,
                 dispatchFeature: dispatchFeature,
                 topicBroadcaster: topicBroadcaster
@@ -91,7 +92,9 @@ extension AppDependencies {
             subscriptionFeature: SubscriptionFeature.live(
                 subscriptionClient: subscriptionClient,
                 deviceClient: deviceClient,
-                topicClient: topicClient
+                topicClient: topicClient,
+                authClient: authClient,
+                permissionClient: permissionClient
             ),
             permissionFeature: PermissionFeature.live(
                 permissionClient: permissionClient,
@@ -146,10 +149,11 @@ extension AppDependencies {
             ),
             userFeature: UserFeature.live(userClient: userClient),
             tokenFeature: TokenFeature.live(tokenClient: tokenClient, userClient: userClient),
-            topicFeature: TopicFeature.live(topicClient: topicClient, authClient: authClient),
+            topicFeature: TopicFeature.live(topicClient: topicClient, authClient: authClient, permissionClient: permissionClient),
             messageFeature: MessageFeature.live(
                 topicClient: topicClient,
                 authClient: authClient,
+                permissionClient: permissionClient,
                 messageClient: messageClient,
                 dispatchFeature: dispatchFeature,
                 topicBroadcaster: topicBroadcaster
@@ -158,7 +162,9 @@ extension AppDependencies {
             subscriptionFeature: SubscriptionFeature.live(
                 subscriptionClient: subscriptionClient,
                 deviceClient: deviceClient,
-                topicClient: topicClient
+                topicClient: topicClient,
+                authClient: authClient,
+                permissionClient: permissionClient
             ),
             permissionFeature: PermissionFeature.live(
                 permissionClient: permissionClient,

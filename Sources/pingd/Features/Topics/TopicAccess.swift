@@ -1,23 +1,45 @@
 import Vapor
 
-/// `open` allows anonymous read and publish.
-/// `protected` allows authenticated access or anonymous access with a matching topic password.
-/// `private` allows authenticated read or anonymous read with a matching topic password, but publish stays owner/admin only.
+/// `open` — anyone can read and publish.
+/// `protected` — authenticated or password.
+/// `private` — owner/admin or explicit permission only.
 enum TopicAccess {
     static func canRead(
         topic: Topic,
         currentUser: User?,
         topicPassword: String?,
-        authClient: AuthClient
-    ) throws -> Bool {
+        authClient: AuthClient,
+        permissionClient: PermissionClient
+    ) async throws -> Bool {
+        if currentUser?.role == .admin { return true }
+
+        if let user = currentUser {
+            let resolved = try await resolveAccess(
+                user: user,
+                topicName: topic.name,
+                permissionClient: permissionClient
+            )
+            if let resolved {
+                return resolved != .deny && resolved != .writeOnly
+            }
+        }
+
         switch topic.visibility {
         case .open:
             return true
-        case .protected, .private:
-            if currentUser != nil {
-                return true
+        case .protected:
+            if currentUser != nil { return true }
+            return try hasMatchingPassword(
+                topic: topic,
+                topicPassword: topicPassword,
+                authClient: authClient
+            )
+        case .private:
+            if let user = currentUser {
+                let ownerID = topic.$owner.id
+                return try user.requireID() == ownerID
             }
-            return try hasMatchingPassword(topic: topic, topicPassword: topicPassword, authClient: authClient)
+            return false
         }
     }
 
@@ -25,24 +47,50 @@ enum TopicAccess {
         topic: Topic,
         currentUser: User?,
         topicPassword: String?,
-        authClient: AuthClient
-    ) throws -> Bool {
+        authClient: AuthClient,
+        permissionClient: PermissionClient
+    ) async throws -> Bool {
+        if currentUser?.role == .admin { return true }
+
+        if let user = currentUser {
+            let resolved = try await resolveAccess(
+                user: user,
+                topicName: topic.name,
+                permissionClient: permissionClient
+            )
+            if let resolved {
+                return resolved == .readWrite || resolved == .writeOnly
+            }
+        }
+
         switch topic.visibility {
         case .open:
             return true
         case .protected:
-            if currentUser != nil {
-                return true
-            }
-            return try hasMatchingPassword(topic: topic, topicPassword: topicPassword, authClient: authClient)
+            if currentUser != nil { return true }
+            return try hasMatchingPassword(
+                topic: topic,
+                topicPassword: topicPassword,
+                authClient: authClient
+            )
         case .private:
-            guard let user = currentUser else {
-                return false
+            if let user = currentUser {
+                let ownerID = topic.$owner.id
+                return try user.requireID() == ownerID
             }
-            let ownerID = topic.$owner.id
-            let userID = try user.requireID()
-            return user.role == .admin || userID == ownerID
+            return false
         }
+    }
+
+    private static func resolveAccess(
+        user: User,
+        topicName: String,
+        permissionClient: PermissionClient
+    ) async throws -> AccessLevel? {
+        let userID = try user.requireID()
+        let userPermissions = try await permissionClient.listForUser(userID)
+        let globalPermissions = try await permissionClient.listGlobal()
+        return PermissionResolver.resolve(permissions: userPermissions + globalPermissions, topicName: topicName)
     }
 
     private static func hasMatchingPassword(

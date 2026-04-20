@@ -4,7 +4,7 @@ struct CreatePermission: AsyncMigration {
     func prepare(on database: any Database) async throws {
         let scopeEnum = try await database.enum("permission_scope")
             .case("user")
-            .case("public")
+            .case("global")
             .create()
 
         let accessLevelEnum = try await database.enum("access_level")

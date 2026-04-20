@@ -4,6 +4,7 @@ import Foundation
 
 struct PermissionClient {
     let listForUser: @Sendable (_ userID: UUID) async throws -> [Permission]
+    let listGlobal: @Sendable () async throws -> [Permission]
     let create: @Sendable (
         _ userID: UUID?,
         _ scope: PermissionScope,
@@ -20,6 +21,11 @@ extension PermissionClient {
             listForUser: { userID in
                 try await Permission.query(on: app.db)
                     .filter(\.$user.$id == userID)
+                    .all()
+            },
+            listGlobal: {
+                try await Permission.query(on: app.db)
+                    .filter(\.$scope == .global)
                     .all()
             },
             create: { userID, scope, accessLevel, topicPattern in
@@ -44,12 +50,13 @@ extension PermissionClient {
 
     static func mock(
         listForUser: @escaping @Sendable (UUID) async throws -> [Permission] = { _ in [] },
+        listGlobal: @escaping @Sendable () async throws -> [Permission] = { [] },
         create: @escaping @Sendable (UUID?, PermissionScope, AccessLevel, String) async throws -> Permission = { userID, scope, accessLevel, topicPattern in
             Permission(scope: scope, accessLevel: accessLevel, userId: userID, topicPattern: topicPattern)
         },
         delete: @escaping @Sendable (UUID) async throws -> Void = { _ in },
         get: @escaping @Sendable (UUID) async throws -> Permission? = { _ in nil }
     ) -> Self {
-        PermissionClient(listForUser: listForUser, create: create, delete: delete, get: get)
+        PermissionClient(listForUser: listForUser, listGlobal: listGlobal, create: create, delete: delete, get: get)
     }
 }
