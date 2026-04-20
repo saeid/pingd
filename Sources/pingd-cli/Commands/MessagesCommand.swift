@@ -20,8 +20,13 @@ struct MessagesCommand: AsyncParsableCommand {
         @Flag(name: .shortAndLong, help: "Show all messages")
         var all: Bool = false
 
+        @Option(name: .long, help: "Topic password")
+        var password: String?
+
         func run() async throws {
             try await withAPIClient { client in
+                var client = client
+                client.topicPassword = password
                 var messages = try await client.get("/topics/\(topic)/messages", as: [MessageDTO].self)
                 if messages.isEmpty {
                     print("No messages")
@@ -57,8 +62,13 @@ struct MessagesCommand: AsyncParsableCommand {
         @Option(name: .long, help: "Comma-separated tags")
         var tags: String?
 
+        @Option(name: .long, help: "Topic password")
+        var password: String?
+
         func run() async throws {
             try await withAPIClient { client in
+                var client = client
+                client.topicPassword = password
                 let parsedTags = tags?.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
                 let request = PublishRequest(
                     priority: priority,
@@ -77,9 +87,14 @@ struct MessagesCommand: AsyncParsableCommand {
         @Option(name: .shortAndLong, help: "Topic name")
         var topic: String
 
+        @Option(name: .long, help: "Topic password")
+        var password: String?
+
         func run() async throws {
             print("Watching '\(topic)' (Ctrl+C to stop)")
             try await withAPIClient { client in
+                var client = client
+                client.topicPassword = password
                 var delay: UInt64 = 2
                 while !Task.isCancelled {
                     do {

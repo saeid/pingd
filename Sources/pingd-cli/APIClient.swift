@@ -22,6 +22,7 @@ enum APIError: Error, CustomStringConvertible {
 struct APIClient {
     let config: CLIConfig
     let httpClient: HTTPClient
+    var topicPassword: String?
 
     private var baseURL: String { config.serverURL }
 
@@ -35,6 +36,10 @@ struct APIClient {
 
         guard let token = config.token else { throw APIError.noToken }
         req.headers.add(name: "Authorization", value: "Bearer \(token)")
+
+        if let topicPassword {
+            req.headers.add(name: "X-Topic-Password", value: topicPassword)
+        }
 
         if let body {
             req.headers.add(name: "Content-Type", value: "application/json")
@@ -85,6 +90,10 @@ struct APIClient {
         guard let token = config.token else { throw APIError.noToken }
         req.headers.add(name: "Authorization", value: "Bearer \(token)")
         req.headers.add(name: "Accept", value: "text/event-stream")
+
+        if let topicPassword {
+            req.headers.add(name: "X-Topic-Password", value: topicPassword)
+        }
 
         let response = try await httpClient.execute(req, timeout: .hours(24))
         guard response.status == .ok else {
