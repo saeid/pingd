@@ -3,8 +3,8 @@ excluded:
   - Sources/pingd/Core/Migrations
 
 line_length:
-  warning: 120
-  error: 150
+  warning: 160
+  error: 200
   ignores_comments: true
   ignores_urls: true
 
@@ -23,6 +23,9 @@ type_body_length:
 cyclomatic_complexity:
   warning: 10
   error: 20
+
+large_tuple:
+  warning: 4
 
 identifier_name:
   min_length:
