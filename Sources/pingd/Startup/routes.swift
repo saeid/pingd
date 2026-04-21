@@ -14,7 +14,8 @@ func routes(_ app: Application, _ services: AppDependencies) throws {
     ))
     try api.register(collection: AuthController(
         authFeature: services.authFeature,
-        tokenClient: services.tokenClient
+        tokenClient: services.tokenClient,
+        auditLogger: services.auditLogger
     ))
 
     // Resolve token if present, otherwise anonymous
@@ -23,11 +24,13 @@ func routes(_ app: Application, _ services: AppDependencies) throws {
     )
     try optionalAuth.register(collection: TopicController(
         topicFeature: services.topicFeature,
-        authClient: services.authClient
+        authClient: services.authClient,
+        auditLogger: services.auditLogger
     ))
     try optionalAuth.register(collection: MessageController(
         messageFeature: services.messageFeature,
-        now: services.now
+        now: services.now,
+        auditLogger: services.auditLogger
     ))
 
     try optionalAuth.register(collection: SSEController(
@@ -44,19 +47,24 @@ func routes(_ app: Application, _ services: AppDependencies) throws {
     }
     try protected.register(collection: UserController(
         userFeature: services.userFeature,
-        authClient: services.authClient
+        authClient: services.authClient,
+        auditLogger: services.auditLogger
     ))
     try protected.register(collection: TokenController(
-        tokenFeature: services.tokenFeature
+        tokenFeature: services.tokenFeature,
+        auditLogger: services.auditLogger
     ))
     try protected.register(collection: DeviceController(
-        deviceFeature: services.deviceFeature
+        deviceFeature: services.deviceFeature,
+        auditLogger: services.auditLogger
     ))
     try protected.register(collection: SubscriptionController(
-        subscriptionFeature: services.subscriptionFeature
+        subscriptionFeature: services.subscriptionFeature,
+        auditLogger: services.auditLogger
     ))
     try protected.register(collection: PermissionController(
-        permissionFeature: services.permissionFeature
+        permissionFeature: services.permissionFeature,
+        auditLogger: services.auditLogger
     ))
     try protected.register(collection: DispatchController(
         dispatchFeature: services.dispatchFeature

@@ -3,6 +3,7 @@ import Vapor
 struct TopicController: RouteCollection, @unchecked Sendable {
     let topicFeature: TopicFeature
     let authClient: AuthClient
+    let auditLogger: AuditLogger
 
     func boot(routes: any RoutesBuilder) throws {
         let topics = routes.grouped("topics")
@@ -19,6 +20,7 @@ struct TopicController: RouteCollection, @unchecked Sendable {
     }
 
     func create(_ req: Request) async throws -> TopicResponse {
+        let currentUser = try req.user
         try CreateTopicRequest.validate(content: req)
         let body = try req.content.decode(CreateTopicRequest.self)
         let passwordHash: String?
@@ -27,13 +29,33 @@ struct TopicController: RouteCollection, @unchecked Sendable {
         } else {
             passwordHash = nil
         }
-        let topic = try await topicFeature.createTopic(
-            try req.user,
-            body.name,
-            body.visibility ?? .protected,
-            passwordHash
-        )
-        return try TopicResponse(topic)
+        do {
+            let topic = try await topicFeature.createTopic(
+                currentUser,
+                body.name,
+                body.visibility ?? .protected,
+                passwordHash
+            )
+            auditLogger.log("topic.create", req: req, metadata: [
+                "actor_username": currentUser.username,
+                "actor_role": currentUser.role.rawValue,
+                "topic_name": topic.name,
+                "visibility": topic.visibility.rawValue,
+                "has_password": topic.passwordHash == nil ? "false" : "true",
+                "ip": req.clientIP,
+            ])
+            return try TopicResponse(topic)
+        } catch {
+            auditLogger.logError("topic.create", req: req, error: error, metadata: [
+                "actor_username": currentUser.username,
+                "actor_role": currentUser.role.rawValue,
+                "topic_name": body.name,
+                "visibility": (body.visibility ?? .protected).rawValue,
+                "has_password": passwordHash == nil ? "false" : "true",
+                "ip": req.clientIP,
+            ])
+            throw error
+        }
     }
 
     func get(_ req: Request) async throws -> TopicResponse {
@@ -43,6 +65,7 @@ struct TopicController: RouteCollection, @unchecked Sendable {
     }
 
     func update(_ req: Request) async throws -> TopicResponse {
+        let currentUser = try req.user
         guard let name = req.parameters.get("name") else { throw Abort(.badRequest) }
         let body = try req.content.decode(UpdateTopicRequest.self)
         let passwordHash: String?? = try body.password.map { password in
@@ -51,20 +74,59 @@ struct TopicController: RouteCollection, @unchecked Sendable {
             }
             return try authClient.hashPassword(password)
         }
-        let topic = try await topicFeature.updateTopic(
-            try req.user,
-            name,
-            body.visibility,
-            passwordHash
-        )
-        return try TopicResponse(topic)
+        do {
+            let topic = try await topicFeature.updateTopic(
+                currentUser,
+                name,
+                body.visibility,
+                passwordHash
+            )
+            auditLogger.log("topic.update", req: req, metadata: [
+                "actor_username": currentUser.username,
+                "actor_role": currentUser.role.rawValue,
+                "topic_name": topic.name,
+                "visibility": topic.visibility.rawValue,
+                "password_changed": body.password == nil ? "false" : "true",
+                "has_password": topic.passwordHash == nil ? "false" : "true",
+                "ip": req.clientIP,
+            ])
+            return try TopicResponse(topic)
+        } catch {
+            auditLogger.logError("topic.update", req: req, error: error, metadata: [
+                "actor_username": currentUser.username,
+                "actor_role": currentUser.role.rawValue,
+                "topic_name": name,
+                "visibility": body.visibility?.rawValue ?? "",
+                "password_changed": body.password == nil ? "false" : "true",
+                "ip": req.clientIP,
+            ])
+            throw error
+        }
     }
 
     func delete(_ req: Request) async throws -> HTTPStatus {
+        let currentUser = try req.user
         guard let name = req.parameters.get("name") else { throw Abort(.badRequest) }
-        try await topicFeature.deleteTopic(try req.user, name)
-        return .noContent
+        do {
+            try await topicFeature.deleteTopic(currentUser, name)
+            auditLogger.log("topic.delete", req: req, metadata: [
+                "actor_username": currentUser.username,
+                "actor_role": currentUser.role.rawValue,
+                "topic_name": name,
+                "ip": req.clientIP,
+            ])
+            return .noContent
+        } catch {
+            auditLogger.logError("topic.delete", req: req, error: error, metadata: [
+                "actor_username": currentUser.username,
+                "actor_role": currentUser.role.rawValue,
+                "topic_name": name,
+                "ip": req.clientIP,
+            ])
+            throw error
+        }
     }
+
 }
 
 // MARK: - DTOs

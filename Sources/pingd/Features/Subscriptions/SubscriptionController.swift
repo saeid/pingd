@@ -2,6 +2,7 @@ import Vapor
 
 struct SubscriptionController: RouteCollection, @unchecked Sendable {
     let subscriptionFeature: SubscriptionFeature
+    let auditLogger: AuditLogger
 
     func boot(routes: any RoutesBuilder) throws {
         let subs = routes.grouped("devices", ":id", "subscriptions")
@@ -19,22 +20,56 @@ struct SubscriptionController: RouteCollection, @unchecked Sendable {
     }
 
     func subscribe(_ req: Request) async throws -> SubscriptionResponse {
+        let currentUser = try req.user
         guard let id = req.parameters.get("id", as: UUID.self) else {
             throw Abort(.badRequest)
         }
         let body = try req.content.decode(SubscribeRequest.self)
-        let sub = try await subscriptionFeature.subscribe(try req.user, id, body.topicName)
-        return try SubscriptionResponse(sub)
+        do {
+            let sub = try await subscriptionFeature.subscribe(currentUser, id, body.topicName)
+            auditLogger.log("subscription.create", req: req, metadata: [
+                "actor_username": currentUser.username,
+                "device_id": id.uuidString,
+                "topic_name": body.topicName,
+                "ip": req.clientIP,
+            ])
+            return try SubscriptionResponse(sub)
+        } catch {
+            auditLogger.logError("subscription.create", req: req, error: error, metadata: [
+                "actor_username": currentUser.username,
+                "device_id": id.uuidString,
+                "topic_name": body.topicName,
+                "ip": req.clientIP,
+            ])
+            throw error
+        }
     }
 
     func unsubscribe(_ req: Request) async throws -> HTTPStatus {
+        let currentUser = try req.user
         guard let id = req.parameters.get("id", as: UUID.self),
               let topicName = req.parameters.get("topicName")
         else {
             throw Abort(.badRequest)
         }
-        try await subscriptionFeature.unsubscribe(try req.user, id, topicName)
-        return .noContent
+        do {
+            try await subscriptionFeature.unsubscribe(currentUser, id, topicName)
+            auditLogger.log("subscription.delete", req: req, metadata: [
+                "actor_username": currentUser.username,
+                "device_id": id.uuidString,
+                "topic_name": topicName,
+                "ip": req.clientIP,
+            ])
+            return .noContent
+        } catch {
+            auditLogger.logError("subscription.delete", req: req, error: error, metadata: [
+                "actor_username": currentUser.username,
+                "device_id": id.uuidString,
+                "topic_name": topicName,
+                "ip": req.clientIP,
+            ])
+            throw error
+        }
     }
 }
 

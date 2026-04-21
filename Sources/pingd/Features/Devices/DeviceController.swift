@@ -2,6 +2,7 @@ import Vapor
 
 struct DeviceController: RouteCollection, @unchecked Sendable {
     let deviceFeature: DeviceFeature
+    let auditLogger: AuditLogger
 
     func boot(routes: any RoutesBuilder) throws {
         let devices = routes.grouped("devices")
@@ -17,16 +18,33 @@ struct DeviceController: RouteCollection, @unchecked Sendable {
     }
 
     func register(_ req: Request) async throws -> DeviceResponse {
+        let currentUser = try req.user
         try RegisterDeviceRequest.validate(content: req)
         let body = try req.content.decode(RegisterDeviceRequest.self)
-        let device = try await deviceFeature.registerDevice(
-            try req.user,
-            body.name,
-            body.platform,
-            body.pushType,
-            body.pushToken
-        )
-        return try DeviceResponse(device)
+        do {
+            let device = try await deviceFeature.registerDevice(
+                currentUser,
+                body.name,
+                body.platform,
+                body.pushType,
+                body.pushToken
+            )
+            auditLogger.log("device.register", req: req, metadata: [
+                "actor_username": currentUser.username,
+                "device_name": body.name,
+                "platform": body.platform.rawValue,
+                "ip": req.clientIP,
+            ])
+            return try DeviceResponse(device)
+        } catch {
+            auditLogger.logError("device.register", req: req, error: error, metadata: [
+                "actor_username": currentUser.username,
+                "device_name": body.name,
+                "platform": body.platform.rawValue,
+                "ip": req.clientIP,
+            ])
+            throw error
+        }
     }
 
     func update(_ req: Request) async throws -> DeviceResponse {
@@ -43,9 +61,24 @@ struct DeviceController: RouteCollection, @unchecked Sendable {
     }
 
     func delete(_ req: Request) async throws -> HTTPStatus {
+        let currentUser = try req.user
         guard let id = req.parameters.get("id", as: UUID.self) else { throw Abort(.badRequest) }
-        try await deviceFeature.deleteDevice(try req.user, id)
-        return .noContent
+        do {
+            try await deviceFeature.deleteDevice(currentUser, id)
+            auditLogger.log("device.delete", req: req, metadata: [
+                "actor_username": currentUser.username,
+                "device_id": id.uuidString,
+                "ip": req.clientIP,
+            ])
+            return .noContent
+        } catch {
+            auditLogger.logError("device.delete", req: req, error: error, metadata: [
+                "actor_username": currentUser.username,
+                "device_id": id.uuidString,
+                "ip": req.clientIP,
+            ])
+            throw error
+        }
     }
 }
 

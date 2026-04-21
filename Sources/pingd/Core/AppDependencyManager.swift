@@ -25,6 +25,7 @@ struct AppDependencies {
     let permissionFeature: PermissionFeature
     let dispatchFeature: DispatchFeature
     let dispatchWorker: DispatchWorker?
+    let auditLogger: AuditLogger
 }
 
 extension AppDependencies {
@@ -101,7 +102,8 @@ extension AppDependencies {
                 userClient: userClient
             ),
             dispatchFeature: dispatchFeature,
-            dispatchWorker: dispatchWorker
+            dispatchWorker: dispatchWorker,
+            auditLogger: AuditLogger(logger: app.logger)
         )
     }
 
@@ -171,7 +173,8 @@ extension AppDependencies {
                 userClient: userClient
             ),
             dispatchFeature: dispatchFeature,
-            dispatchWorker: nil
+            dispatchWorker: nil,
+            auditLogger: AuditLogger(logger: Logger(label: "test"))
         )
     }
 
@@ -199,7 +202,8 @@ extension AppDependencies {
         subscriptionFeature: SubscriptionFeature? = nil,
         permissionFeature: PermissionFeature? = nil,
         dispatchFeature: DispatchFeature? = nil,
-        dispatchWorker: DispatchWorker? = nil
+        dispatchWorker: DispatchWorker? = nil,
+        auditLogger: AuditLogger? = nil
     ) -> AppDependencies {
         AppDependencies(
             appInfo: appInfo ?? self.appInfo,
@@ -225,7 +229,8 @@ extension AppDependencies {
             subscriptionFeature: subscriptionFeature ?? self.subscriptionFeature,
             permissionFeature: permissionFeature ?? self.permissionFeature,
             dispatchFeature: dispatchFeature ?? self.dispatchFeature,
-            dispatchWorker: dispatchWorker ?? self.dispatchWorker
+            dispatchWorker: dispatchWorker ?? self.dispatchWorker,
+            auditLogger: auditLogger ?? self.auditLogger
         )
     }
 }

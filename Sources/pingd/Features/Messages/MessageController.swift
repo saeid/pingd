@@ -3,6 +3,7 @@ import Vapor
 struct MessageController: RouteCollection, @unchecked Sendable {
     let messageFeature: MessageFeature
     let now: @Sendable () -> Date
+    let auditLogger: AuditLogger
 
     func boot(routes: any RoutesBuilder) throws {
         let messages = routes.grouped("topics", ":name", "messages")
@@ -21,16 +22,25 @@ struct MessageController: RouteCollection, @unchecked Sendable {
         try PublishMessageRequest.validate(content: req)
         let body = try req.content.decode(PublishMessageRequest.self)
         try body.validateTags()
-        let message = try await messageFeature.publishMessage(
-            req.optionalUser,
-            name,
-            req.topicPassword,
-            body.priority ?? 3,
-            body.tags,
-            body.payload,
-            now()
-        )
-        return try MessageResponse(message)
+        do {
+            let message = try await messageFeature.publishMessage(
+                req.optionalUser,
+                name,
+                req.topicPassword,
+                body.priority ?? 3,
+                body.tags,
+                body.payload,
+                now()
+            )
+            return try MessageResponse(message)
+        } catch {
+            auditLogger.logError("message.publish", req: req, error: error, metadata: [
+                "actor_username": (try? req.user)?.username ?? "anonymous",
+                "topic_name": name,
+                "ip": req.clientIP,
+            ])
+            throw error
+        }
     }
 }
 

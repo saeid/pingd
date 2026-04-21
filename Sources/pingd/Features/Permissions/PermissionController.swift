@@ -2,6 +2,7 @@ import Vapor
 
 struct PermissionController: RouteCollection, @unchecked Sendable {
     let permissionFeature: PermissionFeature
+    let auditLogger: AuditLogger
 
     func boot(routes: any RoutesBuilder) throws {
         let permissions = routes.grouped("permissions")
@@ -13,45 +14,109 @@ struct PermissionController: RouteCollection, @unchecked Sendable {
     }
 
     func listGlobal(_ req: Request) async throws -> [PermissionResponse] {
-        let permissions = try await permissionFeature.listGlobalPermissions(try req.user)
+        let permissions = try await permissionFeature.listGlobalPermissions(req.user)
         return try permissions.map(PermissionResponse.init)
     }
 
     func createGlobal(_ req: Request) async throws -> PermissionResponse {
+        let currentUser = try req.user
         try CreateGlobalPermissionRequest.validate(content: req)
         let body = try req.content.decode(CreateGlobalPermissionRequest.self)
-        let permission = try await permissionFeature.createGlobalPermission(
-            try req.user,
-            body.accessLevel,
-            body.topicPattern
-        )
-        return try PermissionResponse(permission)
+        do {
+            let permission = try await permissionFeature.createGlobalPermission(
+                currentUser,
+                body.accessLevel,
+                body.topicPattern
+            )
+            auditLogger.log("permission.create", req: req, metadata: [
+                "actor_username": currentUser.username,
+                "actor_role": currentUser.role.rawValue,
+                "scope": permission.scope.rawValue,
+                "access_level": permission.accessLevel.rawValue,
+                "topic_pattern": permission.topicPattern,
+                "permission_id": permission.id?.uuidString ?? "unknown",
+                "ip": req.clientIP,
+            ])
+            return try PermissionResponse(permission)
+        } catch {
+            auditLogger.logError("permission.create", req: req, error: error, metadata: [
+                "actor_username": currentUser.username,
+                "actor_role": currentUser.role.rawValue,
+                "scope": PermissionScope.global.rawValue,
+                "access_level": body.accessLevel.rawValue,
+                "topic_pattern": body.topicPattern,
+                "ip": req.clientIP,
+            ])
+            throw error
+        }
     }
 
     func list(_ req: Request) async throws -> [PermissionResponse] {
         guard let username = req.parameters.get("username") else { throw Abort(.badRequest) }
-        let permissions = try await permissionFeature.listPermissions(try req.user, username)
+        let permissions = try await permissionFeature.listPermissions(req.user, username)
         return try permissions.map(PermissionResponse.init)
     }
 
     func create(_ req: Request) async throws -> PermissionResponse {
+        let currentUser = try req.user
         guard let username = req.parameters.get("username") else { throw Abort(.badRequest) }
         try CreatePermissionRequest.validate(content: req)
         let body = try req.content.decode(CreatePermissionRequest.self)
-        let permission = try await permissionFeature.createPermission(
-            try req.user,
-            username,
-            body.accessLevel,
-            body.topicPattern
-        )
-        return try PermissionResponse(permission)
+        do {
+            let permission = try await permissionFeature.createPermission(
+                currentUser,
+                username,
+                body.accessLevel,
+                body.topicPattern
+            )
+            auditLogger.log("permission.create", req: req, metadata: [
+                "actor_username": currentUser.username,
+                "actor_role": currentUser.role.rawValue,
+                "target_username": username,
+                "scope": permission.scope.rawValue,
+                "access_level": permission.accessLevel.rawValue,
+                "topic_pattern": permission.topicPattern,
+                "permission_id": permission.id?.uuidString ?? "unknown",
+                "ip": req.clientIP,
+            ])
+            return try PermissionResponse(permission)
+        } catch {
+            auditLogger.logError("permission.create", req: req, error: error, metadata: [
+                "actor_username": currentUser.username,
+                "actor_role": currentUser.role.rawValue,
+                "target_username": username,
+                "scope": PermissionScope.user.rawValue,
+                "access_level": body.accessLevel.rawValue,
+                "topic_pattern": body.topicPattern,
+                "ip": req.clientIP,
+            ])
+            throw error
+        }
     }
 
     func delete(_ req: Request) async throws -> HTTPStatus {
+        let currentUser = try req.user
         guard let id = req.parameters.get("id", as: UUID.self) else { throw Abort(.badRequest) }
-        try await permissionFeature.deletePermission(try req.user, id)
-        return .noContent
+        do {
+            try await permissionFeature.deletePermission(currentUser, id)
+            auditLogger.log("permission.delete", req: req, metadata: [
+                "actor_username": currentUser.username,
+                "actor_role": currentUser.role.rawValue,
+                "permission_id": id.uuidString,
+                "ip": req.clientIP,
+            ])
+            return .noContent
+        } catch {
+            auditLogger.logError("permission.delete", req: req, error: error, metadata: [
+                "actor_username": currentUser.username,
+                "actor_role": currentUser.role.rawValue,
+                "permission_id": id.uuidString,
+                "ip": req.clientIP,
+            ])
+            throw error
+        }
     }
+
 }
 
 // MARK: - DTOs
@@ -65,12 +130,12 @@ struct PermissionResponse: Content {
     let createdAt: Date?
 
     init(_ permission: Permission) throws {
-        self.id = try permission.requireID()
-        self.userID = permission.$user.id
-        self.scope = permission.scope
-        self.accessLevel = permission.accessLevel
-        self.topicPattern = permission.topicPattern
-        self.createdAt = permission.createdAt
+        id = try permission.requireID()
+        userID = permission.$user.id
+        scope = permission.scope
+        accessLevel = permission.accessLevel
+        topicPattern = permission.topicPattern
+        createdAt = permission.createdAt
     }
 }
 

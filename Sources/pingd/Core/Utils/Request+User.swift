@@ -21,4 +21,8 @@ extension Request {
     var optionalUser: User? {
         storage[UserStorageKey.self]
     }
+
+    var clientIP: String {
+        headers.forwarded.first?.for ?? remoteAddress?.ipAddress ?? "unknown"
+    }
 }

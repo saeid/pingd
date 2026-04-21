@@ -11,7 +11,7 @@ struct RateLimitMiddleware: AsyncMiddleware {
         }
 
         let decision = await rateLimiter.check(
-            key: clientIP(for: req),
+            key: req.clientIP,
             limit: config.count,
             now: now()
         )
@@ -28,7 +28,4 @@ struct RateLimitMiddleware: AsyncMiddleware {
         return try await next.respond(to: req)
     }
 
-    private func clientIP(for req: Request) -> String {
-        req.headers.forwarded.first?.for ?? req.remoteAddress?.ipAddress ?? ""
-    }
 }
