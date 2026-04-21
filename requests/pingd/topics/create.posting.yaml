@@ -9,7 +9,7 @@ headers:
 body:
   content: |
     {
-      "name": "my-topic",
+      "name": "alerts.critical",
       "visibility": "protected",
       "password": "topic-secret"
     }

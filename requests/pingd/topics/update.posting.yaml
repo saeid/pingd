@@ -1,6 +1,6 @@
 name: Update Topic
 method: PATCH
-url: $host/topics/my-topic
+url: $host/topics/alerts.critical
 headers:
   - name: Authorization
     value: Bearer $token

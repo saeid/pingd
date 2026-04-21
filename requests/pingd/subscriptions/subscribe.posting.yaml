@@ -9,6 +9,6 @@ headers:
 body:
   content: |
     {
-      "topicName": "my-topic"
+      "topicName": "alerts.critical"
     }
   content_type: application/json

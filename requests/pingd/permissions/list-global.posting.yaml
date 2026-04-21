@@ -1,6 +1,6 @@
-name: List User Permissions
+name: List Global Permissions
 method: GET
-url: $host/permissions/username
+url: $host/permissions
 headers:
   - name: Authorization
     value: Bearer $token

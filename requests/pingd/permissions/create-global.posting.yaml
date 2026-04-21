@@ -1,6 +1,6 @@
-name: Create User Permission
+name: Create Global Permission
 method: POST
-url: $host/permissions/username
+url: $host/permissions
 headers:
   - name: Authorization
     value: Bearer $token
@@ -9,7 +9,7 @@ headers:
 body:
   content: |
     {
-      "accessLevel": "rw",
-      "topicPattern": "news.*"
+      "accessLevel": "ro",
+      "topicPattern": "*"
     }
   content_type: application/json
