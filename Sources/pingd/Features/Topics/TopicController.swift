@@ -10,6 +10,7 @@ struct TopicController: RouteCollection, @unchecked Sendable {
         topics.get(use: list)
         topics.post(use: create)
         topics.get(":name", use: get)
+        topics.get(":name", "stats", use: stats)
         topics.patch(":name", use: update)
         topics.delete(":name", use: delete)
     }
@@ -62,6 +63,13 @@ struct TopicController: RouteCollection, @unchecked Sendable {
         guard let name = req.parameters.get("name") else { throw Abort(.badRequest) }
         let topic = try await topicFeature.getTopic(req.optionalUser, name, req.topicPassword)
         return try TopicResponse(topic)
+    }
+
+    func stats(_ req: Request) async throws -> TopicStatsResponse {
+        let currentUser = try req.user
+        guard let name = req.parameters.get("name") else { throw Abort(.badRequest) }
+        let stats = try await topicFeature.topicStats(currentUser, name)
+        return TopicStatsResponse(stats)
     }
 
     func update(_ req: Request) async throws -> TopicResponse {
@@ -146,6 +154,34 @@ struct TopicResponse: Content {
         self.hasPassword = topic.passwordHash != nil
         self.ownerUserID = topic.$owner.id
         self.createdAt = topic.createdAt
+    }
+}
+
+struct TopicStatsResponse: Content {
+    let subscriberCount: Int
+    let messageCount: Int
+    let lastMessageAt: Date?
+    let deliveryStats: TopicDeliveryStatsResponse
+
+    init(_ stats: TopicStats) {
+        self.subscriberCount = stats.subscriberCount
+        self.messageCount = stats.messageCount
+        self.lastMessageAt = stats.lastMessageAt
+        self.deliveryStats = TopicDeliveryStatsResponse(stats.deliveryStats)
+    }
+}
+
+struct TopicDeliveryStatsResponse: Content {
+    let pending: Int
+    let ongoing: Int
+    let delivered: Int
+    let failed: Int
+
+    init(_ stats: TopicDeliveryStats) {
+        self.pending = stats.pending
+        self.ongoing = stats.ongoing
+        self.delivered = stats.delivered
+        self.failed = stats.failed
     }
 }
 

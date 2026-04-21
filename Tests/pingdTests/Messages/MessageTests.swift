@@ -1,3 +1,4 @@
+import Fluent
 @testable import pingd
 import Testing
 import VaporTesting
@@ -211,6 +212,106 @@ extension PingdTests {
             try await seedTopics(app)
             try await app.testing().test(
                 .GET, "topics/protected-topic/messages",
+                afterResponse: { res in
+                    #expect(res.status == .forbidden)
+                }
+            )
+        }
+    }
+
+    @Test("Messages: GET /topics/:name/stats as admin returns topic stats")
+    func topicStatsAsAdmin() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            try await seedDevices(app)
+
+            guard let topic = try await Topic.query(on: app.db)
+                .filter(\.$name == "open-topic")
+                .first()
+            else {
+                Issue.record("Expected seeded topic")
+                return
+            }
+            let topicID = try topic.requireID()
+
+            let devices = try await Device.query(on: app.db).all()
+            #expect(devices.count >= 2)
+
+            try await DeviceSubscription(deviceId: try devices[0].requireID(), topicId: topicID).save(on: app.db)
+            try await DeviceSubscription(deviceId: try devices[1].requireID(), topicId: topicID).save(on: app.db)
+
+            let firstMessage = Message(
+                topicID: topicID,
+                time: Date(timeIntervalSince1970: 1_000),
+                payload: MessagePayload(title: nil, subtitle: nil, body: "first")
+            )
+            try await firstMessage.save(on: app.db)
+
+            let secondMessage = Message(
+                topicID: topicID,
+                time: Date(timeIntervalSince1970: 2_000),
+                payload: MessagePayload(title: nil, subtitle: nil, body: "second")
+            )
+            try await secondMessage.save(on: app.db)
+
+            try await MessageDelivery(
+                messageId: try firstMessage.requireID(),
+                deviceId: try devices[0].requireID(),
+                status: .pending,
+                retryCount: 0
+            ).save(on: app.db)
+            try await MessageDelivery(
+                messageId: try firstMessage.requireID(),
+                deviceId: try devices[1].requireID(),
+                status: .ongoing,
+                retryCount: 1
+            ).save(on: app.db)
+            try await MessageDelivery(
+                messageId: try secondMessage.requireID(),
+                deviceId: try devices[0].requireID(),
+                status: .delivered,
+                retryCount: 0
+            ).save(on: app.db)
+            try await MessageDelivery(
+                messageId: try secondMessage.requireID(),
+                deviceId: try devices[1].requireID(),
+                status: .failed,
+                retryCount: 3
+            ).save(on: app.db)
+
+            let adminSession = try await login(app, username: "jinx", password: "hunter2")
+
+            try await app.testing().test(
+                .GET, "topics/open-topic/stats",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: adminSession.token)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let stats = try res.content.decode(TopicStatsResponse.self)
+                    #expect(stats.subscriberCount == 2)
+                    #expect(stats.messageCount == 2)
+                    #expect(stats.lastMessageAt == Date(timeIntervalSince1970: 2_000))
+                    #expect(stats.deliveryStats.pending == 1)
+                    #expect(stats.deliveryStats.ongoing == 1)
+                    #expect(stats.deliveryStats.delivered == 1)
+                    #expect(stats.deliveryStats.failed == 1)
+                }
+            )
+        }
+    }
+
+    @Test("Messages: GET /topics/:name/stats as non-admin returns 403")
+    func topicStatsAsNonAdmin() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            let session = try await login(app, username: "vi", password: "password1")
+
+            try await app.testing().test(
+                .GET, "topics/open-topic/stats",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                },
                 afterResponse: { res in
                     #expect(res.status == .forbidden)
                 }

@@ -5,7 +5,7 @@ struct TopicsCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "topics",
         abstract: "Manage topics",
-        subcommands: [List.self, Create.self, Delete.self]
+        subcommands: [List.self, Stats.self, Create.self, Delete.self]
     )
 
     struct List: AsyncParsableCommand {
@@ -39,6 +39,28 @@ struct TopicsCommand: AsyncParsableCommand {
                 let body = ["name": name, "visibility": visibility]
                 let topic = try await client.post("/topics", body: body, as: TopicDTO.self)
                 print("Created topic '\(topic.name)' (\(topic.visibility))")
+            }
+        }
+    }
+
+    struct Stats: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(abstract: "Get admin stats for a topic")
+
+        @Option(name: .shortAndLong, help: "Topic name")
+        var name: String
+
+        func run() async throws {
+            try await withAPIClient { client in
+                let stats = try await client.get("/topics/\(name)/stats", as: TopicStatsDTO.self)
+                let formatter = ISO8601DateFormatter()
+
+                print("Topic: \(name)")
+                print("Subscribers: \(stats.subscriberCount)")
+                print("Messages: \(stats.messageCount)")
+                print("Last message at: \(stats.lastMessageAt.map(formatter.string(from:)) ?? "none")")
+                print(
+                    "Deliveries: pending=\(stats.deliveryStats.pending) ongoing=\(stats.deliveryStats.ongoing) delivered=\(stats.deliveryStats.delivered) failed=\(stats.deliveryStats.failed)"
+                )
             }
         }
     }

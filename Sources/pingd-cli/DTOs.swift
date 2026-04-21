@@ -8,6 +8,20 @@ struct TopicDTO: Codable {
     let createdAt: Date?
 }
 
+struct TopicStatsDTO: Codable {
+    let subscriberCount: Int
+    let messageCount: Int
+    let lastMessageAt: Date?
+    let deliveryStats: TopicDeliveryStatsDTO
+}
+
+struct TopicDeliveryStatsDTO: Codable {
+    let pending: Int
+    let ongoing: Int
+    let delivered: Int
+    let failed: Int
+}
+
 struct MessageDTO: Codable {
     let id: UUID
     let topicID: UUID
