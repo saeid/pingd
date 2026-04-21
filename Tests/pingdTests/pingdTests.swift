@@ -74,13 +74,14 @@ struct PingdTests {
     func login(
         _ app: Application,
         username: String,
-        password: String
+        password: String,
+        label: String = "test"
     ) async throws -> LoginResponse {
         var result: LoginResponse?
         try await app.testing().test(
             .POST, "auth/login",
             beforeRequest: { req in
-                try req.content.encode(LoginRequest(username: username, password: password, label: nil))
+                try req.content.encode(LoginRequest(username: username, password: password, label: label))
             },
             afterResponse: { res in
                 guard res.status == .ok else {

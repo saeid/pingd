@@ -3,6 +3,7 @@ import Vapor
 struct AuthController: RouteCollection, @unchecked Sendable {
     let authFeature: AuthFeature
     let tokenClient: TokenClient
+    let auditLogger: AuditLogger
 
     func boot(routes: any RoutesBuilder) throws {
         let auth = routes.grouped("auth")
@@ -14,9 +15,27 @@ struct AuthController: RouteCollection, @unchecked Sendable {
 
     func login(_ req: Request) async throws -> LoginResponse {
         let body = try req.content.decode(LoginRequest.self)
-        let user = try await authFeature.doBasicAuth(body.username, body.password)
-        let token = try await tokenClient.createToken(user.requireID(), body.label, nil)
-        return LoginResponse(token: token.tokenHash, userID: user.id!, username: user.username)
+        do {
+            let user = try await authFeature.doBasicAuth(body.username, body.password)
+            let userID = try user.requireID()
+            let token: Token
+            if let existing = try await tokenClient.findByLabel(userID, body.label) {
+                token = existing
+            } else {
+                token = try await tokenClient.createToken(userID, body.label, nil)
+            }
+            auditLogger.log("login.success", req: req, metadata: [
+                "username": body.username,
+                "ip": req.clientIP,
+            ])
+            return LoginResponse(token: token.tokenHash, userID: user.id!, username: user.username)
+        } catch {
+            auditLogger.logError("login.failure", req: req, error: error, metadata: [
+                "username": body.username,
+                "ip": req.clientIP,
+            ])
+            throw error
+        }
     }
 
     func me(_ req: Request) async throws -> UserResponse {
@@ -27,9 +46,20 @@ struct AuthController: RouteCollection, @unchecked Sendable {
         guard let bearerToken = req.headers.bearerAuthorization?.token else {
             throw Abort(.unauthorized)
         }
-        try await tokenClient.revokeByHash(bearerToken)
-        return .noContent
+        do {
+            try await tokenClient.revokeByHash(bearerToken)
+            auditLogger.log("logout", req: req, metadata: [
+                "ip": req.clientIP,
+            ])
+            return .noContent
+        } catch {
+            auditLogger.logError("logout", req: req, error: error, metadata: [
+                "ip": req.clientIP,
+            ])
+            throw error
+        }
     }
+
 }
 
 // MARK: - DTOs
@@ -37,7 +67,7 @@ struct AuthController: RouteCollection, @unchecked Sendable {
 struct LoginRequest: Content {
     let username: String
     let password: String
-    let label: String?
+    let label: String
 }
 
 struct LoginResponse: Content {

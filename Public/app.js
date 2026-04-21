@@ -58,7 +58,7 @@ loginForm.addEventListener('submit', async (e) => {
     loginError.classList.add('hidden');
 
     try {
-        const data = await api('POST', '/auth/login', { username, password });
+        const data = await api('POST', '/auth/login', { username, password, label: 'web-ui' });
         state.token = data.token;
         state.username = data.username;
         localStorage.setItem('pingd_token', data.token);

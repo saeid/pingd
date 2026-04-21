@@ -125,7 +125,7 @@ extension PingdTests {
             try await app.testing().test(
                 .POST, "auth/login",
                 beforeRequest: { req in
-                    try req.content.encode(LoginRequest(username: "vi", password: "newpass123", label: nil))
+                    try req.content.encode(LoginRequest(username: "vi", password: "newpass123", label: "test"))
                 },
                 afterResponse: { res in
                     #expect(res.status == .ok)

@@ -1,3 +1,4 @@
+import Fluent
 @testable import pingd
 import Testing
 import VaporTesting
@@ -37,6 +38,75 @@ extension PingdTests {
                     #expect(tokens.count >= 1)
                 }
             )
+        }
+    }
+
+    @Test("Tokens: expired token is rejected with 401")
+    func expiredTokenRejected() async throws {
+        try await withApp { app in
+            let jinx = try await User.query(on: app.db).filter(\.$username == "jinx").first()!
+            let expired = Token(
+                userID: try jinx.requireID(),
+                tokenHash: "expired-token-hash",
+                label: "expired",
+                expiresAt: Date().addingTimeInterval(-3600)
+            )
+            try await expired.save(on: app.db)
+
+            try await app.testing().test(
+                .GET, "me",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: "expired-token-hash")
+                },
+                afterResponse: { res in
+                    #expect(res.status == .unauthorized)
+                }
+            )
+        }
+    }
+
+    @Test("Tokens: expired tokens excluded from list")
+    func expiredTokensExcludedFromList() async throws {
+        try await withApp { app in
+            let session = try await login(app, username: "jinx", password: "hunter2")
+            let jinx = try await User.query(on: app.db).filter(\.$username == "jinx").first()!
+            let expired = Token(
+                userID: try jinx.requireID(),
+                tokenHash: "expired-list-token",
+                label: "should-not-appear",
+                expiresAt: Date().addingTimeInterval(-3600)
+            )
+            try await expired.save(on: app.db)
+
+            try await app.testing().test(
+                .GET, "users/jinx/tokens",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let tokens = try res.content.decode([TokenResponse].self)
+                    #expect(tokens.allSatisfy { $0.label != "should-not-appear" })
+                }
+            )
+        }
+    }
+
+    @Test("Tokens: login with same label returns same token")
+    func loginUpsertSameLabel() async throws {
+        try await withApp { app in
+            let first = try await login(app, username: "jinx", password: "hunter2", label: "my-device")
+            let second = try await login(app, username: "jinx", password: "hunter2", label: "my-device")
+            #expect(first.token == second.token)
+        }
+    }
+
+    @Test("Tokens: login with different labels returns different tokens")
+    func loginDifferentLabels() async throws {
+        try await withApp { app in
+            let web = try await login(app, username: "jinx", password: "hunter2", label: "web-ui")
+            let cli = try await login(app, username: "jinx", password: "hunter2", label: "cli")
+            #expect(web.token != cli.token)
         }
     }
 

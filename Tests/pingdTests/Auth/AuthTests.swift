@@ -9,7 +9,7 @@ extension PingdTests {
             try await app.testing().test(
                 .POST, "auth/login",
                 beforeRequest: { req in
-                    try req.content.encode(LoginRequest(username: "jinx", password: "hunter2", label: nil))
+                    try req.content.encode(LoginRequest(username: "jinx", password: "hunter2", label: "test"))
                 },
                 afterResponse: { res in
                     #expect(res.status == .ok)
@@ -27,7 +27,7 @@ extension PingdTests {
             try await app.testing().test(
                 .POST, "auth/login",
                 beforeRequest: { req in
-                    try req.content.encode(LoginRequest(username: "jinx", password: "wrongpassword", label: nil))
+                    try req.content.encode(LoginRequest(username: "jinx", password: "wrongpassword", label: "test"))
                 },
                 afterResponse: { res in
                     #expect(res.status == .unauthorized)
@@ -42,7 +42,7 @@ extension PingdTests {
             try await app.testing().test(
                 .POST, "auth/login",
                 beforeRequest: { req in
-                    try req.content.encode(LoginRequest(username: "nobody", password: "password", label: nil))
+                    try req.content.encode(LoginRequest(username: "nobody", password: "password", label: "test"))
                 },
                 afterResponse: { res in
                     #expect(res.status == .unauthorized)

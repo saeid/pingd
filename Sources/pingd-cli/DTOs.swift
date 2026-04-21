@@ -34,9 +34,9 @@ struct UserDTO: Codable {
 struct TokenDTO: Codable {
     let id: UUID
     let label: String?
-    let tokenHash: String
     let expiresAt: Date?
     let createdAt: Date?
+    let lastUsedAt: Date?
 }
 
 struct BroadcastDTO: Codable {
