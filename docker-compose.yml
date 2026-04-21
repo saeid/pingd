@@ -9,6 +9,8 @@ services:
       - ADMIN_USERNAME=admin
       - ADMIN_PASSWORD=changeme
       - PINGD_DATA_DIR=/data
+      - PINGD_LOG_FORMAT=json
+      - LOG_LEVEL=info
     volumes:
       - ./data:/data
     restart: unless-stopped

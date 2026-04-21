@@ -7,7 +7,18 @@ import Vapor
 enum Entrypoint {
     static func main() async throws {
         var env = try Environment.detect()
-        try LoggingSystem.bootstrap(from: &env)
+        let logFormat = Environment.get("PINGD_LOG_FORMAT") ?? "text"
+        try LoggingSystem.bootstrap(from: &env) { level in
+            { label in
+                if logFormat == "json" {
+                    return JSONLogHandler(label: label, level: level)
+                }
+                return StreamLogHandler.standardOutput(
+                    label: label,
+                    metadataProvider: LoggingSystem.metadataProvider
+                )
+            }
+        }
 
         let app = try await Application.make(env)
 

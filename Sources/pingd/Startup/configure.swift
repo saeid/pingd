@@ -27,9 +27,11 @@ public func configure(_ app: Application) async throws {
     app.rateLimiter = RateLimiter()
 
     app.http.server.configuration.port = 7685
+    app.middleware = .init()
     app.middleware.use(CORSMiddleware(configuration: makeCORSConfiguration(from: appConfig.cors)), at: .beginning)
     app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory, defaultFile: "index.html"))
     app.middleware.use(RequestLoggerMiddleware())
+    app.middleware.use(ErrorMiddleware.default(environment: app.environment))
 
     if app.environment == .testing {
         app.databases.use(DatabaseConfigurationFactory.sqlite(.memory), as: .sqlite)
@@ -41,14 +43,6 @@ public func configure(_ app: Application) async throws {
             .path
         app.databases.use(DatabaseConfigurationFactory.sqlite(.file(databasePath)), as: .sqlite)
         app.logger.info("Starting Pingd \(AppInfo.current.version) (build \(AppInfo.current.build))")
-        app.logger.info("Data directory: \(dataDir)")
-        app.logger.info("Database: \(databasePath)")
-        app.logger.info("Environment: \(app.environment.name)")
-        app.logger.info("Rate limiting: \(appConfig.rateLimit.isEnabled ? "enabled" : "disabled")")
-        app.logger.info("Rate limit: \(appConfig.rateLimit.count)/60s")
-        app.logger.info(
-            "CORS origins: \(appConfig.cors.allowsAllOrigins ? "*" : appConfig.cors.explicitOrigins.joined(separator: ", "))"
-        )
     }
 
     app.migrations.add([
