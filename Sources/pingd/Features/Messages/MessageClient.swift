@@ -20,7 +20,10 @@ extension MessageClient {
     static func live(app: Application) -> Self {
         MessageClient(
             get: { id in
-                try await Message.find(id, on: app.db)
+                try await Message.query(on: app.db)
+                    .filter(\.$id == id)
+                    .with(\.$topic)
+                    .first()
             },
             list: { topicID in
                 try await Message.query(on: app.db)

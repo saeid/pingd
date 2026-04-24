@@ -2,9 +2,11 @@ import Vapor
 
 struct DispatchController: RouteCollection, @unchecked Sendable {
     let dispatchFeature: DispatchFeature
+    let pushProvider: PushProvider
 
     func boot(routes: any RoutesBuilder) throws {
         routes.get("messages", ":id", "deliveries", use: listDeliveries)
+        routes.post("apns", "push", use: relayPush)
     }
 
     func listDeliveries(_ req: Request) async throws -> [DeliveryResponse] {
@@ -13,6 +15,22 @@ struct DispatchController: RouteCollection, @unchecked Sendable {
         }
         let deliveries = try await dispatchFeature.listDeliveries(id)
         return try deliveries.map(DeliveryResponse.init)
+    }
+
+    func relayPush(_ req: Request) async throws -> HTTPStatus {
+        let relayRequest = try req.content.decode(RelayPushRequest.self)
+        let result = try await pushProvider.send(
+            relayRequest.deviceToken,
+            .apns,
+            relayRequest.payload,
+            relayRequest.metadata
+        )
+
+        guard result.success else {
+            throw Abort(.badGateway, reason: result.error ?? "APNS delivery failed")
+        }
+
+        return .ok
     }
 }
 

@@ -29,7 +29,7 @@ struct AppDependencies {
 }
 
 extension AppDependencies {
-    static func live(with app: Application) -> AppDependencies {
+    static func live(with app: Application, apnsMode: APNSPushMode?) -> AppDependencies {
         let now: @Sendable () -> Date = { Date() }
         let authClient = AuthClient.live()
         let tokenClient = TokenClient.live(app: app)
@@ -40,8 +40,16 @@ extension AppDependencies {
         let subscriptionClient = SubscriptionClient.live(app: app)
         let permissionClient = PermissionClient.live(app: app)
         let dispatchClient = DispatchClient.live(app: app)
-        let pushProvider = PushProvider.mock(logger: app.logger)
         let topicBroadcaster = TopicBroadcaster()
+
+        let pushProvider: PushProvider = switch apnsMode {
+        case .direct(let config):
+            .apns(application: app, config: config, logger: app.logger)
+        case .relay(let config):
+            .relay(config: config, logger: app.logger)
+        case nil:
+            .mock(logger: app.logger)
+        }
 
         let dispatchFeature = DispatchFeature.live(
             dispatchClient: dispatchClient,
@@ -111,84 +119,6 @@ extension AppDependencies {
             dispatchFeature: dispatchFeature,
             dispatchWorker: dispatchWorker,
             auditLogger: AuditLogger(logger: app.logger)
-        )
-    }
-
-    static func test(
-        appInfo: AppInfo = AppInfo(version: "test", build: "test"),
-        fixedNow: Date,
-        healthClient: HealthClient = .mock(),
-        authClient: AuthClient = .mock(),
-        tokenClient: TokenClient = .mock(),
-        userClient: UserClient = .mock(),
-        topicClient: TopicClient = .mock(),
-        messageClient: MessageClient = .mock(),
-        deviceClient: DeviceClient = .mock(),
-        subscriptionClient: SubscriptionClient = .mock(),
-        permissionClient: PermissionClient = .mock(),
-        dispatchClient: DispatchClient = .mock()
-    ) -> AppDependencies {
-        let now: @Sendable () -> Date = { fixedNow }
-        let topicBroadcaster = TopicBroadcaster()
-        let dispatchFeature = DispatchFeature.live(
-            dispatchClient: dispatchClient,
-            subscriptionClient: subscriptionClient,
-            deviceClient: deviceClient
-        )
-        return AppDependencies(
-            appInfo: appInfo,
-            now: now,
-            healthClient: healthClient,
-            authClient: authClient,
-            tokenClient: tokenClient,
-            userClient: userClient,
-            topicClient: topicClient,
-            messageClient: messageClient,
-            deviceClient: deviceClient,
-            subscriptionClient: subscriptionClient,
-            permissionClient: permissionClient,
-            dispatchClient: dispatchClient,
-            pushProvider: PushProvider.mock(logger: Logger(label: "test")),
-            topicBroadcaster: topicBroadcaster,
-            authFeature: AuthFeature.live(
-                userClient: userClient,
-                authClient: authClient,
-                tokenClient: tokenClient,
-                now: now
-            ),
-            userFeature: UserFeature.live(userClient: userClient),
-            tokenFeature: TokenFeature.live(tokenClient: tokenClient, userClient: userClient),
-            topicFeature: TopicFeature.live(
-                topicClient: topicClient,
-                authClient: authClient,
-                permissionClient: permissionClient,
-                messageClient: messageClient,
-                subscriptionClient: subscriptionClient,
-                dispatchClient: dispatchClient
-            ),
-            messageFeature: MessageFeature.live(
-                topicClient: topicClient,
-                authClient: authClient,
-                permissionClient: permissionClient,
-                messageClient: messageClient,
-                dispatchFeature: dispatchFeature,
-                topicBroadcaster: topicBroadcaster
-            ),
-            deviceFeature: DeviceFeature.live(deviceClient: deviceClient),
-            subscriptionFeature: SubscriptionFeature.live(
-                subscriptionClient: subscriptionClient,
-                deviceClient: deviceClient,
-                topicClient: topicClient,
-                authClient: authClient,
-                permissionClient: permissionClient
-            ),
-            permissionFeature: PermissionFeature.live(
-                permissionClient: permissionClient,
-                userClient: userClient
-            ),
-            dispatchFeature: dispatchFeature,
-            dispatchWorker: nil,
-            auditLogger: AuditLogger(logger: Logger(label: "test"))
         )
     }
 

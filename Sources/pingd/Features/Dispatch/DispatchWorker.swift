@@ -92,7 +92,20 @@ actor DispatchWorker {
                 return
             }
 
-            let result = try await pushProvider.send(device.pushToken, device.pushType, message.payload)
+            guard let topicName = message.$topic.value?.name else {
+                logger.warning("[DispatchWorker] Topic missing for message \(messageID), marking failed")
+                try await dispatchClient.updateStatus(deliveryID, .failed, delivery.retryCount)
+                return
+            }
+
+            let metadata = PingdAPNSPayload(
+                messageID: messageID,
+                topic: topicName,
+                priority: message.priority,
+                tags: message.tags,
+                time: message.time
+            )
+            let result = try await pushProvider.send(device.pushToken, device.pushType, message.payload, metadata)
 
             if result.success {
                 try await dispatchClient.updateStatus(deliveryID, .delivered, delivery.retryCount)

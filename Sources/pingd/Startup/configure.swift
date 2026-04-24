@@ -1,6 +1,10 @@
+import APNS
+import APNSCore
+import Crypto
 import Fluent
 import FluentSQLiteDriver
 import Vapor
+import VaporAPNS
 
 func makeCORSConfiguration(from config: CORSConfig) -> CORSMiddleware.Configuration {
     let allowedOrigin: CORSMiddleware.AllowOriginSetting =
@@ -64,7 +68,25 @@ public func configure(_ app: Application) async throws {
         try await app.autoMigrate()
     }
 
-    let services = AppDependencies.live(with: app)
+    let apnsMode = try PushProvider.loadAPNSConfiguration()
+
+    switch apnsMode {
+    case .direct(let config):
+        let keyData = try String(contentsOfFile: config.keyPath, encoding: .utf8)
+        let authMethod = APNSClientConfiguration.AuthenticationMethod.jwt(
+            privateKey: try .loadFrom(string: keyData),
+            keyIdentifier: config.keyID,
+            teamIdentifier: config.teamID
+        )
+        await app.apns.configure(authMethod)
+        app.logger.info("APNS configured in direct mode (\(config.environment))")
+    case .relay(let config):
+        app.logger.info("APNS configured in relay mode (\(config.baseURL))")
+    case nil:
+        app.logger.info("APNS not configured, using mock provider")
+    }
+
+    let services = AppDependencies.live(with: app, apnsMode: apnsMode)
 
     if app.environment != .testing, !isMigrationCommand {
         app.lifecycle.use(TopicBroadcasterLifecycleHandler(broadcaster: services.topicBroadcaster))
