@@ -14,6 +14,8 @@ func routes(_ app: Application, _ services: AppDependencies) throws {
     ))
     try api.register(collection: AuthController(
         authFeature: services.authFeature,
+        userClient: services.userClient,
+        authClient: services.authClient,
         tokenClient: services.tokenClient,
         deviceClient: services.deviceClient,
         auditLogger: services.auditLogger

@@ -15,6 +15,7 @@ enum AppConfigError: LocalizedError {
 struct AppConfig {
     let rateLimit: RateLimitConfig
     let cors: CORSConfig
+    let allowRegistration: Bool
 
     static func load(
         environment: Environment,
@@ -25,7 +26,10 @@ struct AppConfig {
                 environment: environment,
                 environmentVariables: environmentVariables
             ),
-            cors: .load(environmentVariables: environmentVariables)
+            cors: .load(environmentVariables: environmentVariables),
+            allowRegistration: environmentVariables["PINGD_ALLOW_REGISTRATION"]?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased() == "true"
         )
     }
 }

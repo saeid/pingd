@@ -139,4 +139,133 @@ extension PingdTests {
             )
         }
     }
+
+    @Test("Tokens: user can create own token")
+    func userCreateOwnToken() async throws {
+        try await withApp { app in
+            let session = try await login(app, username: "vi", password: "password1")
+            try await app.testing().test(
+                .POST, "users/vi/tokens",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(CreateTokenRequest(label: "self-service", expiresAt: nil))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let token = try res.content.decode(TokenResponse.self)
+                    #expect(token.label == "self-service")
+                }
+            )
+        }
+    }
+
+    @Test("Tokens: user can list own tokens")
+    func userListOwnTokens() async throws {
+        try await withApp { app in
+            let session = try await login(app, username: "vi", password: "password1")
+            try await app.testing().test(
+                .GET, "users/vi/tokens",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                }
+            )
+        }
+    }
+
+    @Test("Tokens: user cannot create token for another user")
+    func userCannotCreateOtherToken() async throws {
+        try await withApp { app in
+            let session = try await login(app, username: "vi", password: "password1")
+            try await app.testing().test(
+                .POST, "users/jinx/tokens",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(CreateTokenRequest(label: "sneaky", expiresAt: nil))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .forbidden)
+                }
+            )
+        }
+    }
+
+    @Test("Tokens: user cannot list another user's tokens")
+    func userCannotListOtherTokens() async throws {
+        try await withApp { app in
+            let session = try await login(app, username: "vi", password: "password1")
+            try await app.testing().test(
+                .GET, "users/jinx/tokens",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .forbidden)
+                }
+            )
+        }
+    }
+
+    @Test("Tokens: user can revoke own token")
+    func userRevokeOwnToken() async throws {
+        try await withApp { app in
+            let session = try await login(app, username: "vi", password: "password1")
+
+            var createdToken: TokenResponse?
+            try await app.testing().test(
+                .POST, "users/vi/tokens",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(CreateTokenRequest(label: "to-revoke", expiresAt: nil))
+                },
+                afterResponse: { res in
+                    createdToken = try res.content.decode(TokenResponse.self)
+                }
+            )
+
+            let tokenID = try #require(createdToken?.id)
+            try await app.testing().test(
+                .DELETE, "tokens/\(tokenID)",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .noContent)
+                }
+            )
+        }
+    }
+
+    @Test("Tokens: user cannot revoke another user's token")
+    func userCannotRevokeOtherToken() async throws {
+        try await withApp { app in
+            let adminSession = try await login(app, username: "jinx", password: "hunter2")
+
+            var createdToken: TokenResponse?
+            try await app.testing().test(
+                .POST, "users/jinx/tokens",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: adminSession.token)
+                    try req.content.encode(CreateTokenRequest(label: "admin-token", expiresAt: nil))
+                },
+                afterResponse: { res in
+                    createdToken = try res.content.decode(TokenResponse.self)
+                }
+            )
+
+            let tokenID = try #require(createdToken?.id)
+            let viSession = try await login(app, username: "vi", password: "password1")
+            try await app.testing().test(
+                .DELETE, "tokens/\(tokenID)",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: viSession.token)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .forbidden)
+                }
+            )
+        }
+    }
 }

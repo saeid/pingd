@@ -12,7 +12,8 @@ extension PingdTests {
                     isEnabled: true,
                     count: 1
                 ),
-                cors: app.appConfig.cors
+                cors: app.appConfig.cors,
+                allowRegistration: false
             )
 
             try await app.testing().test(
@@ -42,7 +43,8 @@ extension PingdTests {
                     isEnabled: true,
                     count: 1
                 ),
-                cors: app.appConfig.cors
+                cors: app.appConfig.cors,
+                allowRegistration: false
             )
 
             try await seedTopics(app)
@@ -76,7 +78,8 @@ extension PingdTests {
                     isEnabled: true,
                     count: 2
                 ),
-                cors: app.appConfig.cors
+                cors: app.appConfig.cors,
+                allowRegistration: false
             )
 
             try await seedTopics(app)

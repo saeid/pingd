@@ -2,17 +2,40 @@ import Vapor
 
 struct AuthController: RouteCollection, @unchecked Sendable {
     let authFeature: AuthFeature
+    let userClient: UserClient
+    let authClient: AuthClient
     let tokenClient: TokenClient
     let deviceClient: DeviceClient
     let auditLogger: AuditLogger
 
     func boot(routes: any RoutesBuilder) throws {
         let auth = routes.grouped("auth")
+        auth.post("register", use: handleRegister)
         auth.post("login", use: login)
         auth.delete("logout", use: logout)
     }
 
     // MARK: - Handlers
+
+    func handleRegister(_ req: Request) async throws -> LoginResponse {
+        guard req.application.appConfig.allowRegistration else {
+            throw Abort(.forbidden, reason: "Registration is disabled")
+        }
+        try RegisterRequest.validate(content: req)
+        let body = try req.content.decode(RegisterRequest.self)
+        if try await userClient.getByUsername(body.username) != nil {
+            throw UserError.userAlreadyExists
+        }
+        let passwordHash = try authClient.hashPassword(body.password)
+        let user = try await userClient.create(body.username, passwordHash, .user)
+        let userID = try user.requireID()
+        let token = try await tokenClient.createToken(userID, body.label, nil)
+        auditLogger.log("register", req: req, metadata: [
+            "username": body.username,
+            "ip": req.clientIP,
+        ])
+        return LoginResponse(token: token.tokenHash, userID: userID, username: user.username)
+    }
 
     func login(_ req: Request) async throws -> LoginResponse {
         let body = try req.content.decode(LoginRequest.self)
@@ -80,4 +103,15 @@ struct LoginResponse: Content {
     let token: String
     let userID: UUID
     let username: String
+}
+
+struct RegisterRequest: Content, Validatable {
+    let username: String
+    let password: String
+    let label: String?
+
+    static func validations(_ validations: inout Validations) {
+        validations.add("username", as: String.self, is: .count(3...) && .characterSet(.alphanumerics + .init(charactersIn: "-_")))
+        validations.add("password", as: String.self, is: .count(6...))
+    }
 }

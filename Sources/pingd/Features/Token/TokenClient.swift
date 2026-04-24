@@ -4,6 +4,7 @@ import Fluent
 
 struct TokenClient {
     let createToken: @Sendable (UUID, String?, Date?) async throws -> Token
+    let get: @Sendable (UUID) async throws -> Token?
     let findByLabel: @Sendable (UUID, String) async throws -> Token?
     let listUserTokens: @Sendable (UUID) async throws -> [Token]
     let revokeToken: @Sendable (UUID) async throws -> Void
@@ -23,6 +24,9 @@ extension TokenClient {
                 )
                 try await token.save(on: app.db)
                 return token
+            },
+            get: { id in
+                try await Token.find(id, on: app.db)
             },
             findByLabel: { userId, label in
                 try await Token.query(on: app.db)
@@ -86,6 +90,7 @@ extension TokenClient {
                     expiresAt: nil
                 )
             },
+            get: { _ in nil },
             findByLabel: { _, _ in nil },
             listUserTokens: { _ in [] },
             revokeToken: { _ in },
