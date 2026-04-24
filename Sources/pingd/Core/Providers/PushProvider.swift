@@ -169,7 +169,7 @@ extension PushProvider {
 
     static func mock(logger: Logger) -> Self {
         PushProvider(
-            send: { deviceToken, pushType, payload, metadata in
+            send: { _, pushType, payload, metadata in
                 logger.info("[PushProvider.mock] \(pushType) | topic=\(metadata.topic) priority=\(metadata.priority) title=\(payload.title ?? "-") body=\(payload.body)")
                 return PushResult(success: true, error: nil)
             }

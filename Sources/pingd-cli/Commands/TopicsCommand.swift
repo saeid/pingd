@@ -58,9 +58,9 @@ struct TopicsCommand: AsyncParsableCommand {
                 print("Subscribers: \(stats.subscriberCount)")
                 print("Messages: \(stats.messageCount)")
                 print("Last message at: \(stats.lastMessageAt.map(formatter.string(from:)) ?? "none")")
-                print(
-                    "Deliveries: pending=\(stats.deliveryStats.pending) ongoing=\(stats.deliveryStats.ongoing) delivered=\(stats.deliveryStats.delivered) failed=\(stats.deliveryStats.failed)"
-                )
+                let deliveries = stats.deliveryStats
+                print("Deliveries: pending=\(deliveries.pending) ongoing=\(deliveries.ongoing) " +
+                    "delivered=\(deliveries.delivered) failed=\(deliveries.failed)")
             }
         }
     }
