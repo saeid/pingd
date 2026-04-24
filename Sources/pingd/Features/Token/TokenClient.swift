@@ -85,7 +85,7 @@ extension TokenClient {
                 Token(
                     id: UUID(),
                     userID: UUID(),
-                    tokenHash: "mock-token-123",
+                    tokenHash: "pgd_mocktoken1234567890abcdef",
                     label: "some-usage",
                     expiresAt: nil
                 )
@@ -102,6 +102,10 @@ extension TokenClient {
     }
 
     private static func generateToken(length: Int = 32) -> String {
-        [UInt8].random(count: 32).base64
+        let randomPart = [UInt8].random(count: length).base64
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        return "pgd_\(randomPart)"
     }
 }

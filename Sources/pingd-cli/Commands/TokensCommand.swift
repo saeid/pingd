@@ -21,9 +21,13 @@ struct TokensCommand: AsyncParsableCommand {
                     print("No tokens")
                     return
                 }
+                let formatter = DateFormatter()
+                formatter.dateStyle = .medium
+                formatter.timeStyle = .short
                 for token in tokens {
                     let label = token.label ?? "no label"
-                    print("\(token.id)  \(label)")
+                    let expiry = token.expiresAt.map { formatter.string(from: $0) } ?? "never"
+                    print("\(token.id)  \(label)  \(expiry)  \(token.token)")
                 }
             }
         }
@@ -54,7 +58,7 @@ struct TokensCommand: AsyncParsableCommand {
                     body["expiresAt"] = ISO8601DateFormatter().string(from: expiresAt)
                 }
                 let token = try await client.post("/users/\(username)/tokens", body: body, as: TokenDTO.self)
-                print("Created token: \(token.id)")
+                print("Created token: \(token.id)  \(token.token)")
             }
         }
 

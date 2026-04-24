@@ -47,6 +47,7 @@ struct UserDTO: Codable {
 
 struct TokenDTO: Codable {
     let id: UUID
+    let token: String
     let label: String?
     let expiresAt: Date?
     let createdAt: Date?

@@ -17,8 +17,10 @@ struct TokenController: RouteCollection, @unchecked Sendable {
         guard let username = req.parameters.get("username") else {
             throw Abort(.badRequest)
         }
-        let tokens = try await tokenFeature.listUserTokens(try req.user, username)
-        return tokens.map(TokenResponse.init)
+        let currentUser = try req.user
+        let tokens = try await tokenFeature.listUserTokens(currentUser, username)
+        let showFullToken = currentUser.role == .admin
+        return tokens.map { TokenResponse($0, showFullToken: showFullToken) }
     }
 
     func create(_ req: Request) async throws -> TokenResponse {
@@ -37,7 +39,7 @@ struct TokenController: RouteCollection, @unchecked Sendable {
                 "label": token.label ?? "",
                 "ip": req.clientIP,
             ])
-            return TokenResponse(token)
+            return TokenResponse(token, showFullToken: true)
         } catch {
             auditLogger.logError("token.create", req: req, error: error, metadata: [
                 "actor_username": currentUser.username,
@@ -55,8 +57,9 @@ struct TokenController: RouteCollection, @unchecked Sendable {
         guard let id = req.parameters.get("id", as: UUID.self) else {
             throw Abort(.badRequest)
         }
+        let activeToken = req.headers.bearerAuthorization?.token
         do {
-            try await tokenFeature.revokeToken(currentUser, id)
+            try await tokenFeature.revokeToken(currentUser, id, activeToken)
             auditLogger.log("token.revoke", req: req, metadata: [
                 "actor_username": currentUser.username,
                 "actor_role": currentUser.role.rawValue,
@@ -81,13 +84,15 @@ struct TokenController: RouteCollection, @unchecked Sendable {
 
 struct TokenResponse: Content {
     let id: UUID
+    let token: String
     let label: String?
     let createdAt: Date?
     let expiresAt: Date?
     let lastUsedAt: Date?
 
-    init(_ token: Token) {
+    init(_ token: Token, showFullToken: Bool = false) {
         self.id = token.id!
+        self.token = showFullToken ? token.tokenHash : "pgd_****\(token.tokenHash.suffix(4))"
         self.label = token.label
         self.createdAt = token.createdAt
         self.expiresAt = token.expiresAt
