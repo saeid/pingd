@@ -27,7 +27,7 @@ struct MessageController: RouteCollection, @unchecked Sendable {
                 req.optionalUser,
                 name,
                 req.topicPassword,
-                body.priority ?? 3,
+                body.priority ?? 2,
                 body.tags,
                 body.payload,
                 now()

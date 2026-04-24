@@ -26,7 +26,12 @@ struct SubscriptionController: RouteCollection, @unchecked Sendable {
         }
         let body = try req.content.decode(SubscribeRequest.self)
         do {
-            let sub = try await subscriptionFeature.subscribe(currentUser, id, body.topicName)
+            let sub = try await subscriptionFeature.subscribe(
+                currentUser,
+                id,
+                body.topicName,
+                req.topicPassword
+            )
             auditLogger.log("subscription.create", req: req, metadata: [
                 "actor_username": currentUser.username,
                 "device_id": id.uuidString,

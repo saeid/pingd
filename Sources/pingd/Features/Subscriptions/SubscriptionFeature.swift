@@ -33,7 +33,8 @@ struct SubscriptionFeature {
     let subscribe: @Sendable (
         _ currentUser: User,
         _ deviceID: UUID,
-        _ topicName: String
+        _ topicName: String,
+        _ topicPassword: String?
     ) async throws -> DeviceSubscription
 
     let unsubscribe: @Sendable (
@@ -63,7 +64,7 @@ extension SubscriptionFeature {
                 }
                 return try await subscriptionClient.list(deviceID)
             },
-            subscribe: { currentUser, deviceID, topicName in
+            subscribe: { currentUser, deviceID, topicName, topicPassword in
                 guard let device = try await deviceClient.get(deviceID) else {
                     throw SubscriptionError.deviceNotFound
                 }
@@ -78,7 +79,7 @@ extension SubscriptionFeature {
                 if try await !TopicAccess.canRead(
                     topic: topic,
                     currentUser: currentUser,
-                    topicPassword: nil,
+                    topicPassword: topicPassword,
                     authClient: authClient,
                     permissionClient: permissionClient
                 ) {

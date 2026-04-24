@@ -34,9 +34,16 @@ struct TopicsCommand: AsyncParsableCommand {
         @Option(name: .shortAndLong, help: "Visibility: open, protected, private")
         var visibility: String = "protected"
 
+        @Option(name: .shortAndLong, help: "Topic password")
+        var password: String?
+
         func run() async throws {
             try await withAPIClient { client in
-                let body = ["name": name, "visibility": visibility]
+                let body: [String: String?] = [
+                    "name": name,
+                    "visibility": visibility,
+                    "password": password,
+                ]
                 let topic = try await client.post("/topics", body: body, as: TopicDTO.self)
                 print("Created topic '\(topic.name)' (\(topic.visibility))")
             }

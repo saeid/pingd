@@ -56,8 +56,8 @@ struct MessagesCommand: AsyncParsableCommand {
         @Option(name: .long, help: "Message title")
         var title: String?
 
-        @Option(name: .shortAndLong, help: "Priority 1-5")
-        var priority: UInt8 = 3
+        @Option(name: .shortAndLong, help: "Priority 1-3 (low, default, urgent)")
+        var priority: UInt8 = 2
 
         @Option(name: .long, help: "Comma-separated tags")
         var tags: String?
