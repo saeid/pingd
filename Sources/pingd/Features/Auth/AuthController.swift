@@ -3,6 +3,7 @@ import Vapor
 struct AuthController: RouteCollection, @unchecked Sendable {
     let authFeature: AuthFeature
     let tokenClient: TokenClient
+    let deviceClient: DeviceClient
     let auditLogger: AuditLogger
 
     func boot(routes: any RoutesBuilder) throws {
@@ -47,6 +48,11 @@ struct AuthController: RouteCollection, @unchecked Sendable {
             throw Abort(.unauthorized)
         }
         do {
+            if let pushToken: String = req.query["pushToken"],
+               let device = try await deviceClient.findByPushToken(pushToken) {
+                let deviceID = try device.requireID()
+                _ = try await deviceClient.update(deviceID, nil, nil, false)
+            }
             try await tokenClient.revokeByHash(bearerToken)
             auditLogger.log("logout", req: req, metadata: [
                 "ip": req.clientIP,

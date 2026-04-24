@@ -15,6 +15,7 @@ func routes(_ app: Application, _ services: AppDependencies) throws {
     try api.register(collection: AuthController(
         authFeature: services.authFeature,
         tokenClient: services.tokenClient,
+        deviceClient: services.deviceClient,
         auditLogger: services.auditLogger
     ))
 
@@ -67,6 +68,7 @@ func routes(_ app: Application, _ services: AppDependencies) throws {
         auditLogger: services.auditLogger
     ))
     try protected.register(collection: DispatchController(
-        dispatchFeature: services.dispatchFeature
+        dispatchFeature: services.dispatchFeature,
+        pushProvider: services.pushProvider
     ))
 }
