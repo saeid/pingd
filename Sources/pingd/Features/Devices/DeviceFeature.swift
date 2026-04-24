@@ -56,6 +56,13 @@ extension DeviceFeature {
             },
             registerDevice: { currentUser, name, platform, pushType, pushToken in
                 let userID = try currentUser.requireID()
+                if let existing = try await deviceClient.findByPushToken(pushToken) {
+                    let deviceID = try existing.requireID()
+                    guard let updated = try await deviceClient.update(deviceID, name, nil, true) else {
+                        throw DeviceError.notFound
+                    }
+                    return updated
+                }
                 return try await deviceClient.create(userID, name, platform, pushType, pushToken)
             },
             updateDevice: { currentUser, deviceID, name, pushToken, isActive in

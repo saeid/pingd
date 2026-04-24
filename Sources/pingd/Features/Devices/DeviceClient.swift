@@ -6,6 +6,7 @@ struct DeviceClient {
     let list: @Sendable () async throws -> [Device]
     let listForUser: @Sendable (_ userID: UUID) async throws -> [Device]
     let get: @Sendable (UUID) async throws -> Device?
+    let findByPushToken: @Sendable (_ pushToken: String) async throws -> Device?
     let create: @Sendable (
         _ userID: UUID,
         _ name: String,
@@ -35,6 +36,11 @@ extension DeviceClient {
             },
             get: { id in
                 try await Device.find(id, on: app.db)
+            },
+            findByPushToken: { pushToken in
+                try await Device.query(on: app.db)
+                    .filter(\.$pushToken == pushToken)
+                    .first()
             },
             create: { userID, name, platform, pushType, pushToken in
                 let device = Device(
@@ -68,12 +74,13 @@ extension DeviceClient {
         list: @escaping @Sendable () async throws -> [Device] = { [] },
         listForUser: @escaping @Sendable (UUID) async throws -> [Device] = { _ in [] },
         get: @escaping @Sendable (UUID) async throws -> Device? = { _ in nil },
+        findByPushToken: @escaping @Sendable (String) async throws -> Device? = { _ in nil },
         create: @escaping @Sendable (UUID, String, Platform, PushType, String) async throws -> Device = { userID, name, platform, pushType, pushToken in
             Device(userID: userID, name: name, platform: platform, pushType: pushType, pushToken: pushToken)
         },
         update: @escaping @Sendable (UUID, String?, String?, Bool?) async throws -> Device? = { _, _, _, _ in nil },
         delete: @escaping @Sendable (UUID) async throws -> Void = { _ in }
     ) -> Self {
-        DeviceClient(list: list, listForUser: listForUser, get: get, create: create, update: update, delete: delete)
+        DeviceClient(list: list, listForUser: listForUser, get: get, findByPushToken: findByPushToken, create: create, update: update, delete: delete)
     }
 }
