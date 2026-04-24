@@ -65,7 +65,7 @@ struct UserController: RouteCollection, @unchecked Sendable {
         let body = try req.content.decode(UpdateUserRequest.self)
         let passwordHash = try body.password.map { try authClient.hashPassword($0) }
         do {
-            let updated = try await userFeature.updateUser(currentUser, username, passwordHash, body.role)
+            let updated = try await userFeature.updateUser(currentUser, username, passwordHash, body.role, body.currentPassword)
             auditLogger.log("user.update", req: req, metadata: [
                 "actor_username": currentUser.username,
                 "actor_role": currentUser.role.rawValue,
@@ -144,6 +144,7 @@ struct CreateUserRequest: Content, Validatable {
 
 struct UpdateUserRequest: Content, Validatable {
     let password: String?
+    let currentPassword: String?
     let role: UserRole?
 
     static func validations(_ validations: inout Validations) {

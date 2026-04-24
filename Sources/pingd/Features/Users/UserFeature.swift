@@ -5,11 +5,13 @@ enum UserError: AbortError {
     case needAtLeastOneAdmin
     case notFound
     case userAlreadyExists
+    case wrongPassword
 
     var status: HTTPResponseStatus {
         switch self {
         case .accessDenied: .forbidden
         case .notFound: .notFound
+        case .wrongPassword: .unauthorized
         case .needAtLeastOneAdmin, .userAlreadyExists: .badRequest
         }
     }
@@ -20,6 +22,7 @@ enum UserError: AbortError {
         case .notFound: "User not found"
         case .needAtLeastOneAdmin: "At least one admin must remain"
         case .userAlreadyExists: "Username already taken"
+        case .wrongPassword: "Current password is incorrect"
         }
     }
 }
@@ -43,7 +46,8 @@ struct UserFeature {
         _ currentUser: User,
         _ targetUser: String,
         _ passwordHash: String?,
-        _ role: UserRole?
+        _ role: UserRole?,
+        _ currentPassword: String?
     ) async throws -> User
 
     let deleteUser: @Sendable (
@@ -53,7 +57,7 @@ struct UserFeature {
 }
 
 extension UserFeature {
-    static func live(userClient: UserClient) -> Self {
+    static func live(userClient: UserClient, authClient: AuthClient) -> Self {
         UserFeature(listUsers: { user in
             try userClient.checkAdminPermission(for: user)
             return try await userClient.list()
@@ -70,10 +74,39 @@ extension UserFeature {
                 throw UserError.userAlreadyExists
             }
             return try await userClient.create(username, passwordHash, role ?? .user)
-        }, updateUser: { user, target, passwordHash, role in
-            try userClient.checkAdminPermission(for: user)
-            let userId = try await userClient.getUserId(for: target)
-            guard let updatedUser = try await userClient.update(userId, passwordHash, role) else {
+        }, updateUser: { user, target, passwordHash, role, currentPassword in
+            let targetId = try await userClient.getUserId(for: target)
+            guard let targetUser = try await userClient.get(targetId) else {
+                throw UserError.notFound
+            }
+
+            let isSelf = user.username == target
+            let isAdmin = user.role == .admin
+
+            guard isAdmin || isSelf else {
+                throw UserError.accessDenied
+            }
+
+            if !isAdmin && role != nil {
+                throw UserError.accessDenied
+            }
+
+            if passwordHash != nil && !isAdmin {
+                guard let currentPassword,
+                      try authClient.verifyPassword(currentPassword, targetUser.passwordHash)
+                else {
+                    throw UserError.wrongPassword
+                }
+            }
+
+            if targetUser.role == .admin, let role, role != .admin {
+                let adminCount = try await userClient.list().filter { $0.role == .admin }.count
+                if adminCount <= 1 {
+                    throw UserError.needAtLeastOneAdmin
+                }
+            }
+
+            guard let updatedUser = try await userClient.update(targetId, passwordHash, isAdmin ? role : nil) else {
                 throw UserError.notFound
             }
             return updatedUser

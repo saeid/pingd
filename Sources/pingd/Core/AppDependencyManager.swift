@@ -86,7 +86,7 @@ extension AppDependencies {
                 tokenClient: tokenClient,
                 now: now
             ),
-            userFeature: UserFeature.live(userClient: userClient),
+            userFeature: UserFeature.live(userClient: userClient, authClient: authClient),
             tokenFeature: TokenFeature.live(tokenClient: tokenClient, userClient: userClient),
             topicFeature: TopicFeature.live(
                 topicClient: topicClient,

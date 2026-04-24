@@ -110,18 +110,78 @@ extension PingdTests {
     @Test("Users: PATCH /users/:username updates password")
     func updateUserPassword() async throws {
         try await withApp { app in
-            let session = try await login(app, username: "jinx", password: "hunter2")
+            let session = try await login(app, username: "vi", password: "password1")
             try await app.testing().test(
                 .PATCH, "users/vi",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
-                    try req.content.encode(UpdateUserRequest(password: "newpass123", role: nil))
+                    try req.content.encode(UpdateUserRequest(password: "newpass123", currentPassword: "password1", role: nil))
                 },
                 afterResponse: { res in
                     #expect(res.status == .ok)
                 }
             )
             // verify new password works
+            try await app.testing().test(
+                .POST, "auth/login",
+                beforeRequest: { req in
+                    try req.content.encode(LoginRequest(username: "vi", password: "newpass123", label: "test"))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                }
+            )
+        }
+    }
+
+    @Test("Users: PATCH /users/:username with wrong current password returns 401")
+    func updateUserPasswordWrongCurrentPassword() async throws {
+        try await withApp { app in
+            let session = try await login(app, username: "vi", password: "password1")
+            try await app.testing().test(
+                .PATCH, "users/vi",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(UpdateUserRequest(password: "newpass123", currentPassword: "wrong-password", role: nil))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .unauthorized)
+                }
+            )
+        }
+    }
+
+    @Test("Users: PATCH /users/:username without current password returns 401")
+    func updateUserPasswordMissingCurrentPassword() async throws {
+        try await withApp { app in
+            let session = try await login(app, username: "vi", password: "password1")
+            try await app.testing().test(
+                .PATCH, "users/vi",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(UpdateUserRequest(password: "newpass123", currentPassword: nil, role: nil))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .unauthorized)
+                }
+            )
+        }
+    }
+
+    @Test("Users: PATCH /users/:username as admin updates password without current password")
+    func updateUserPasswordAsAdmin() async throws {
+        try await withApp { app in
+            let session = try await login(app, username: "jinx", password: "hunter2")
+            try await app.testing().test(
+                .PATCH, "users/vi",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(UpdateUserRequest(password: "newpass123", currentPassword: nil, role: nil))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                }
+            )
             try await app.testing().test(
                 .POST, "auth/login",
                 beforeRequest: { req in
@@ -142,12 +202,48 @@ extension PingdTests {
                 .PATCH, "users/vi",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
-                    try req.content.encode(UpdateUserRequest(password: nil, role: .admin))
+                    try req.content.encode(UpdateUserRequest(password: nil, currentPassword: nil, role: .admin))
                 },
                 afterResponse: { res in
                     #expect(res.status == .ok)
                     let user = try res.content.decode(UserResponse.self)
                     #expect(user.role == .admin)
+                }
+            )
+        }
+    }
+
+    @Test("Users: PATCH /users/:username admin can demote self while another admin exists")
+    func updateOwnRoleAsAdmin() async throws {
+        try await withApp { app in
+            let session = try await login(app, username: "jinx", password: "hunter2")
+            try await app.testing().test(
+                .PATCH, "users/jinx",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(UpdateUserRequest(password: nil, currentPassword: nil, role: .user))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let user = try res.content.decode(UserResponse.self)
+                    #expect(user.role == .user)
+                }
+            )
+        }
+    }
+
+    @Test("Users: PATCH /users/:username as self cannot update role")
+    func updateOwnRoleAsNonAdmin() async throws {
+        try await withApp { app in
+            let session = try await login(app, username: "vi", password: "password1")
+            try await app.testing().test(
+                .PATCH, "users/vi",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(UpdateUserRequest(password: nil, currentPassword: nil, role: .admin))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .forbidden)
                 }
             )
         }
