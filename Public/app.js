@@ -1,479 +1,1480 @@
+const app = document.getElementById("app");
+const modalRoot = document.getElementById("modal-root");
+const toastRoot = document.getElementById("toast-root");
+
 const state = {
-    token: localStorage.getItem('pingd_token'),
-    username: localStorage.getItem('pingd_username'),
-    currentTopic: null,
-    topicPasswords: {},
-    subscribedTopics: JSON.parse(localStorage.getItem('pingd_subscribed') || '[]'),
-    topicData: {},
-    sseAbort: null,
-    liveTopics: {},
-    pendingTopic: null,
+    token: localStorage.getItem("pingd_token"),
+    guest: false,
+    user: null,
+    topics: [],
+    currentTab: "topics",
+    currentTopicName: null,
+    messagesByTopic: {},
+    topicStatsByTopic: {},
+    topicPasswords: JSON.parse(localStorage.getItem("pingd_topic_passwords") || "{}"),
+    authMode: "login",
+    authError: "",
+    modal: null,
+    toast: null,
+    toastTimer: null,
+    liveConnections: {},
+    tokens: [],
+    tokensLoaded: false,
 };
 
-// Elements
-const loginView = document.getElementById('login-view');
-const mainView = document.getElementById('main-view');
-const loginForm = document.getElementById('login-form');
-const loginError = document.getElementById('login-error');
-const currentUser = document.getElementById('current-user');
-const logoutBtn = document.getElementById('logout-btn');
-const topicList = document.getElementById('topic-list');
-const createTopicForm = document.getElementById('create-topic-form');
-const emptyState = document.getElementById('empty-state');
-const messagesView = document.getElementById('messages-view');
-const messagesTopicName = document.getElementById('messages-topic-name');
-const messagesVisibility = document.getElementById('messages-visibility');
-const publishForm = document.getElementById('publish-form');
-const messageList = document.getElementById('message-list');
-const sseToggle = document.getElementById('sse-toggle');
-const deleteTopicBtn = document.getElementById('delete-topic-btn');
-const notificationSound = document.getElementById('notification-sound');
-
-// API
-async function api(method, path, body, topicName) {
-    const headers = {};
-    if (body) headers['Content-Type'] = 'application/json';
-    if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
-    if (topicName && state.topicPasswords[topicName]) {
-        headers['X-Topic-Password'] = state.topicPasswords[topicName];
-    }
-
-    const opts = { method, headers };
-    if (body) opts.body = JSON.stringify(body);
-
-    const res = await fetch(path, opts);
-    if (res.status === 204) return null;
-    if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`${res.status}: ${text}`);
-    }
-    return res.json();
+function escapeHtml(value) {
+    return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
 }
 
-// Auth
-loginForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const username = document.getElementById('login-username').value;
-    const password = document.getElementById('login-password').value;
-    loginError.classList.add('hidden');
+function encodePath(value) {
+    return encodeURIComponent(value);
+}
 
+function hasSession() {
+    return Boolean(state.token || state.guest);
+}
+
+function currentTopic() {
+    return state.topics.find((topic) => topic.name === state.currentTopicName) || null;
+}
+
+function saveTopicPasswords() {
+    localStorage.setItem("pingd_topic_passwords", JSON.stringify(state.topicPasswords));
+}
+
+function safeJsonParse(text) {
     try {
-        const data = await api('POST', '/auth/login', { username, password, label: 'web-ui' });
-        state.token = data.token;
-        state.username = data.username;
-        localStorage.setItem('pingd_token', data.token);
-        localStorage.setItem('pingd_username', data.username);
-        document.getElementById('login-username').value = '';
-        document.getElementById('login-password').value = '';
-        showDashboard();
+        return JSON.parse(text);
     } catch {
-        loginError.textContent = 'Invalid credentials';
-        loginError.classList.remove('hidden');
+        return null;
     }
-});
+}
 
-document.getElementById('skip-login').addEventListener('click', () => {
-    showDashboard();
-});
-
-logoutBtn.addEventListener('click', async () => {
+async function api(method, path, { body, topicName } = {}) {
+    const headers = {};
+    if (body !== undefined) {
+        headers["Content-Type"] = "application/json";
+    }
     if (state.token) {
-        try { await api('DELETE', '/auth/logout'); } catch {}
+        headers.Authorization = `Bearer ${state.token}`;
     }
+    if (topicName && state.topicPasswords[topicName]) {
+        headers["X-Topic-Password"] = state.topicPasswords[topicName];
+    }
+
+    const response = await fetch(path, {
+        method,
+        headers,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+
+    if (response.status === 204) {
+        return null;
+    }
+
+    const raw = await response.text();
+    const data = raw ? safeJsonParse(raw) : null;
+
+    if (!response.ok) {
+        const error = new Error(
+            data?.reason ||
+            data?.error ||
+            raw ||
+            `${response.status} ${response.statusText}`
+        );
+        error.status = response.status;
+        error.payload = data;
+        throw error;
+    }
+
+    return data;
+}
+
+function setToast(message, tone = "default") {
+    state.toast = { message, tone };
+    clearTimeout(state.toastTimer);
+    state.toastTimer = setTimeout(() => {
+        state.toast = null;
+        renderToast();
+    }, 2600);
+    renderToast();
+}
+
+function clearSession() {
     state.token = null;
-    state.username = null;
-    localStorage.removeItem('pingd_token');
-    localStorage.removeItem('pingd_username');
+    state.user = null;
+    state.guest = false;
+    state.tokens = [];
+    state.tokensLoaded = false;
+    localStorage.removeItem("pingd_token");
     disconnectSSE();
-    showLogin();
-});
-
-function showLogin() {
-    loginView.classList.remove('hidden');
-    mainView.classList.add('hidden');
 }
 
-function showDashboard() {
-    loginView.classList.add('hidden');
-    mainView.classList.remove('hidden');
-    currentUser.textContent = state.username || 'anonymous';
-    logoutBtn.textContent = state.token ? 'sign out' : 'back';
-    loadSubscribedTopics();
+function persistToken(token) {
+    state.token = token;
+    localStorage.setItem("pingd_token", token);
 }
 
-// Subscribed topics
-function saveSubscribedTopics() {
-    localStorage.setItem('pingd_subscribed', JSON.stringify(state.subscribedTopics));
+function towerMark(size = 20) {
+    const stroke = Math.max(1, size * 0.04);
+
+    return `
+        <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" fill="none" aria-hidden="true">
+            <path d="M${size * 0.08} ${size * 0.48}A${size * 0.42} ${size * 0.42} 0 0 1 ${size * 0.92} ${size * 0.48}" stroke="currentColor" stroke-width="${stroke}" stroke-linecap="round" opacity="0.24"/>
+            <path d="M${size * 0.2} ${size * 0.48}A${size * 0.3} ${size * 0.3} 0 0 1 ${size * 0.8} ${size * 0.48}" stroke="currentColor" stroke-width="${stroke}" stroke-linecap="round" opacity="0.58"/>
+            <path d="M${size * 0.32} ${size * 0.48}A${size * 0.18} ${size * 0.18} 0 0 1 ${size * 0.68} ${size * 0.48}" stroke="currentColor" stroke-width="${stroke}" stroke-linecap="round"/>
+            <line x1="${size * 0.5}" y1="${size * 0.48}" x2="${size * 0.5}" y2="${size * 0.76}" stroke="currentColor" stroke-width="${stroke}" stroke-linecap="round"/>
+            <line x1="${size * 0.5}" y1="${size * 0.66}" x2="${size * 0.32}" y2="${size * 0.76}" stroke="currentColor" stroke-width="${stroke}" stroke-linecap="round"/>
+            <line x1="${size * 0.5}" y1="${size * 0.66}" x2="${size * 0.68}" y2="${size * 0.76}" stroke="currentColor" stroke-width="${stroke}" stroke-linecap="round"/>
+        </svg>
+    `;
 }
 
-function subscribeTopic(name, topic) {
-    if (!state.subscribedTopics.includes(name)) {
-        state.subscribedTopics.push(name);
-        saveSubscribedTopics();
+function icon(name) {
+    const icons = {
+        topics: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+        account: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+        refresh: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.5 9a9 9 0 0 1 14.12-3.36L23 10M1 14l5.38 4.36A9 9 0 0 0 20.5 15"/></svg>`,
+        stream: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 12h4"/><path d="M18 12h4"/><path d="M7 12a5 5 0 0 1 10 0"/><path d="M12 17a1 1 0 1 1 0-2 1 1 0 0 1 0 2"/></svg>`,
+        trash: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>`,
+        globe: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`,
+        protected: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 19 5.9v5.2c0 4.4-2.9 8.4-7 10.1-4.1-1.7-7-5.7-7-10.1V5.9L12 2.8Z"/><path d="M12 6.4v11.8"/></svg>`,
+        private: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
+        logout: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
+    };
+
+    return icons[name] || "";
+}
+
+function visibilityBadge(visibility) {
+    const value = visibility || "unknown";
+    const className = {
+        open: "badge-open",
+        protected: "badge-protected",
+        private: "badge-private",
+    }[value] || "badge-off";
+
+    return `<span class="badge ${className}">${escapeHtml(value)}</span>`;
+}
+
+function visibilityIcon(visibility) {
+    switch (visibility) {
+    case "open":
+        return icon("globe");
+    case "protected":
+        return icon("protected");
+    case "private":
+        return icon("private");
+    default:
+        return "";
     }
-    if (topic) state.topicData[name] = topic;
-    renderSubscribedTopics();
 }
 
-function unsubscribeTopic(name) {
-    state.subscribedTopics = state.subscribedTopics.filter(n => n !== name);
-    saveSubscribedTopics();
-    delete state.topicData[name];
-    delete state.topicPasswords[name];
-    delete state.liveTopics[name];
-    if (state.currentTopic === name) {
-        state.currentTopic = null;
-        disconnectSSE();
-        emptyState.classList.remove('hidden');
-        messagesView.classList.add('hidden');
-    }
-    renderSubscribedTopics();
+function priorityClass(priority) {
+    const p = Number(priority);
+    if (p >= 3) return "priority-urgent";
+    if (p <= 1) return "priority-low";
+    return "priority-default";
 }
 
-async function loadSubscribedTopics() {
-    for (const name of state.subscribedTopics) {
-        try {
-            const topic = await api('GET', `/topics/${name}`, null, name);
-            state.topicData[name] = topic;
-        } catch {
-            state.topicData[name] = { name, visibility: 'unknown', hasPassword: false };
-        }
-    }
-    renderSubscribedTopics();
+function priorityLabel(priority) {
+    const labels = { 1: "low", 2: "default", 3: "urgent" };
+    return labels[Number(priority)] || `p${priority}`;
 }
 
-function renderSubscribedTopics() {
-    topicList.innerHTML = '';
-    state.subscribedTopics.forEach(name => {
-        const topic = state.topicData[name] || { name, visibility: 'unknown', hasPassword: false };
-        const el = document.createElement('div');
-        el.className = 'topic-item' + (state.currentTopic === name ? ' active' : '');
-
-        const nameEl = document.createElement('span');
-        nameEl.className = 'topic-name';
-        nameEl.textContent = name;
-        el.appendChild(nameEl);
-
-        if (topic.hasPassword) {
-            const lockEl = document.createElement('span');
-            lockEl.className = 'topic-lock';
-            lockEl.textContent = '\u{1F512}';
-            el.appendChild(lockEl);
-        }
-
-        if (state.liveTopics[name]) {
-            const liveEl = document.createElement('span');
-            liveEl.className = 'badge badge-live';
-            liveEl.textContent = 'live';
-            el.appendChild(liveEl);
-        }
-
-        const badgeEl = document.createElement('span');
-        badgeEl.className = `badge badge-${topic.visibility}`;
-        badgeEl.textContent = topic.visibility;
-        el.appendChild(badgeEl);
-
-        el.addEventListener('click', () => selectTopic(topic));
-        topicList.appendChild(el);
+function formatDate(value) {
+    if (!value) return "—";
+    return new Date(value).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
     });
 }
 
-// Join topic by name
-const joinTopicForm = document.getElementById('join-topic-form');
-joinTopicForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const name = document.getElementById('join-topic-name').value.trim();
+function formatDateTime(value) {
+    if (!value) return "—";
+    return new Date(value).toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+}
+
+function truncateId(value) {
+    if (!value) return "—";
+    return value.length > 12 ? `${value.slice(0, 12)}…` : value;
+}
+
+function maskToken(value) {
+    if (!value) return "—";
+    return value.length > 16 ? `${value.slice(0, 10)}••••••${value.slice(-6)}` : value;
+}
+
+function isCurrentSessionToken(tokenValue) {
+    if (!state.token || !tokenValue) return false;
+    if (tokenValue === state.token) return true;
+    return state.token.endsWith(tokenValue.slice(-4)) && tokenValue.startsWith("pgd_****");
+}
+
+function upsertTopic(topic) {
+    const existing = state.topics.findIndex((item) => item.name === topic.name);
+    if (existing >= 0) {
+        state.topics[existing] = topic;
+    } else {
+        state.topics.push(topic);
+        state.topics.sort((left, right) => left.name.localeCompare(right.name));
+    }
+}
+
+async function loadMe() {
+    state.user = await api("GET", "/me");
+}
+
+async function loadTopics() {
+    state.topics = (await api("GET", "/topics")) || [];
+    if (
+        state.currentTopicName &&
+        !state.topics.some((topic) => topic.name === state.currentTopicName)
+    ) {
+        state.currentTopicName = null;
+        disconnectSSE();
+    }
+}
+
+async function loadTokens() {
+    if (!state.user?.username) {
+        state.tokens = [];
+        state.tokensLoaded = false;
+        return;
+    }
+
+    state.tokens = await api("GET", `/users/${encodePath(state.user.username)}/tokens`);
+    state.tokensLoaded = true;
+}
+
+async function loadTopicStats(topicName) {
+    if (state.user?.role !== "admin") {
+        delete state.topicStatsByTopic[topicName];
+        return;
+    }
+
+    try {
+        state.topicStatsByTopic[topicName] = await api(
+            "GET",
+            `/topics/${encodePath(topicName)}/stats`
+        );
+    } catch (error) {
+        if (error.status !== 403) {
+            setToast(error.message, "error");
+        }
+        delete state.topicStatsByTopic[topicName];
+    }
+}
+
+async function loadMessages(topicName) {
+    state.messagesByTopic[topicName] = await api(
+        "GET",
+        `/topics/${encodePath(topicName)}/messages`,
+        { topicName }
+    );
+}
+
+async function bootstrapAuthenticatedSession() {
+    await loadMe();
+    await loadTopics();
+    if (state.currentTab === "account") {
+        await loadTokens();
+    }
+    render();
+}
+
+async function bootstrapGuestSession() {
+    await loadTopics();
+    render();
+}
+
+function openModal(modal) {
+    state.modal = modal;
+    renderModal();
+}
+
+function closeModal() {
+    state.modal = null;
+    renderModal();
+}
+
+function openPasswordModal(topicName, onSuccess, errorMessage = "") {
+    openModal({
+        type: "password",
+        topicName,
+        onSuccess,
+        errorMessage,
+    });
+}
+
+async function handleProtectedAction(topicName, action) {
+    try {
+        await action();
+    } catch (error) {
+        if (error.status === 403) {
+            const hadPassword = !!state.topicPasswords[topicName];
+            if (hadPassword) {
+                delete state.topicPasswords[topicName];
+                saveTopicPasswords();
+            }
+            openPasswordModal(topicName, action, hadPassword ? "Wrong password" : "");
+            return;
+        }
+        setToast(error.message, "error");
+    }
+}
+
+async function lookupTopicByName(topicName) {
+    const name = topicName.trim();
     if (!name) return;
 
     try {
-        const topic = await api('GET', `/topics/${name}`, null, name);
-        document.getElementById('join-topic-name').value = '';
-        subscribeTopic(name, topic);
-        selectTopic(topic);
-    } catch (err) {
-        if (err.message.startsWith('403')) {
-            showPasswordModal(name);
-        } else {
-            alert(err.message);
-        }
-    }
-});
-
-// Password modal
-const passwordModal = document.getElementById('password-modal');
-const passwordForm = document.getElementById('password-form');
-const passwordError = document.getElementById('password-error');
-const passwordCancel = document.getElementById('password-cancel');
-
-function showPasswordModal(topicName) {
-    state.pendingTopic = topicName;
-    passwordError.classList.add('hidden');
-    document.getElementById('topic-password-input').value = '';
-    passwordModal.classList.remove('hidden');
-    document.getElementById('topic-password-input').focus();
-}
-
-passwordCancel.addEventListener('click', () => {
-    passwordModal.classList.add('hidden');
-    state.pendingTopic = null;
-});
-
-passwordForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const password = document.getElementById('topic-password-input').value;
-    const topicName = state.pendingTopic;
-    if (!topicName) return;
-
-    state.topicPasswords[topicName] = password;
-
-    try {
-        const topic = await api('GET', `/topics/${topicName}`, null, topicName);
-        passwordModal.classList.add('hidden');
-        state.pendingTopic = null;
-        document.getElementById('join-topic-name').value = '';
-        subscribeTopic(topicName, topic);
-        selectTopic(topic);
-    } catch (err) {
-        delete state.topicPasswords[topicName];
-        if (err.message.startsWith('403')) {
-            passwordError.textContent = 'Wrong password';
-            passwordError.classList.remove('hidden');
-        } else {
-            passwordError.textContent = err.message;
-            passwordError.classList.remove('hidden');
-        }
-    }
-});
-
-createTopicForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const name = document.getElementById('topic-name').value;
-    const visibility = document.getElementById('topic-visibility').value;
-
-    try {
-        const topic = await api('POST', '/topics', { name, visibility });
-        document.getElementById('topic-name').value = '';
-        subscribeTopic(name, topic);
-        selectTopic(topic);
-    } catch (err) {
-        alert(err.message);
-    }
-});
-
-deleteTopicBtn.addEventListener('click', async () => {
-    if (!state.currentTopic) return;
-    if (!confirm(`Delete topic "${state.currentTopic}"?`)) return;
-
-    try {
-        await api('DELETE', `/topics/${state.currentTopic}`);
-        unsubscribeTopic(state.currentTopic);
-    } catch (err) {
-        alert(err.message);
-    }
-});
-
-// Messages
-async function selectTopic(topic) {
-    state.currentTopic = topic.name;
-    emptyState.classList.add('hidden');
-    messagesView.classList.remove('hidden');
-    messagesTopicName.textContent = topic.name;
-    messagesVisibility.textContent = topic.visibility;
-    messagesVisibility.className = `badge badge-${topic.visibility}`;
-
-    // Update live toggle to reflect this topic's state
-    const isLive = !!state.liveTopics[topic.name];
-    sseToggle.classList.toggle('active', isLive);
-
-    renderSubscribedTopics();
-    await loadMessages();
-    if (isLive) connectSSE();
-}
-
-async function loadMessages() {
-    try {
-        const messages = await api('GET', `/topics/${state.currentTopic}/messages`, null, state.currentTopic);
-        renderMessages(messages);
-    } catch (err) {
-        messageList.innerHTML = `<div class="empty-state"><p>${err.message}</p></div>`;
-    }
-}
-
-function renderMessages(messages) {
-    messageList.innerHTML = '';
-    if (messages.length === 0) {
-        messageList.innerHTML = '<div class="empty-state"><p>No messages yet</p></div>';
-        return;
-    }
-    messages.forEach(msg => appendMessage(msg, false));
-}
-
-function appendMessage(msg, isNew) {
-    // remove "no messages" placeholder
-    const placeholder = messageList.querySelector('.empty-state');
-    if (placeholder) placeholder.remove();
-
-    const el = document.createElement('div');
-    el.className = 'message-item' + (isNew ? ' new' : '');
-
-    const payload = msg.payload || msg;
-    const time = msg.time ? new Date(msg.time).toLocaleTimeString() : new Date().toLocaleTimeString();
-
-    if (payload.title) {
-        const titleEl = document.createElement('div');
-        titleEl.className = 'message-title';
-        titleEl.textContent = payload.title;
-        el.appendChild(titleEl);
-    }
-
-    const bodyEl = document.createElement('div');
-    bodyEl.className = 'message-body';
-    bodyEl.textContent = payload.body || '';
-    el.appendChild(bodyEl);
-
-    if (msg.tags?.length) {
-        const tagsEl = document.createElement('div');
-        tagsEl.className = 'message-tags';
-        msg.tags.forEach(t => {
-            const tag = document.createElement('span');
-            tag.className = 'message-tag';
-            tag.textContent = t;
-            tagsEl.appendChild(tag);
-        });
-        el.appendChild(tagsEl);
-    }
-
-    const metaEl = document.createElement('div');
-    metaEl.className = 'message-meta';
-    metaEl.textContent = time;
-    el.appendChild(metaEl);
-
-    if (isNew) {
-        messageList.prepend(el);
-    } else {
-        messageList.appendChild(el);
-    }
-}
-
-publishForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const title = document.getElementById('msg-title').value || null;
-    const body = document.getElementById('msg-body').value;
-
-    try {
-        await api('POST', `/topics/${state.currentTopic}/messages`, {
-            priority: 3,
-            payload: { title, subtitle: null, body }
-        }, state.currentTopic);
-        document.getElementById('msg-title').value = '';
-        document.getElementById('msg-body').value = '';
-        if (!state.liveTopics[state.currentTopic]) await loadMessages();
-    } catch (err) {
-        alert(err.message);
-    }
-});
-
-// SSE via fetch (supports auth headers) — per topic
-sseToggle.addEventListener('click', () => {
-    if (!state.currentTopic) return;
-    const topic = state.currentTopic;
-    if (state.liveTopics[topic]) {
-        disconnectSSE();
-        delete state.liveTopics[topic];
-        sseToggle.classList.remove('active');
-    } else {
-        state.liveTopics[topic] = true;
-        sseToggle.classList.add('active');
-        connectSSE();
-    }
-    renderSubscribedTopics();
-});
-
-async function connectSSE() {
-    disconnectSSE();
-    if (!state.currentTopic) return;
-
-    const topic = state.currentTopic;
-    const abort = new AbortController();
-    state.sseAbort = abort;
-
-    const headers = {};
-    if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
-    if (state.topicPasswords[topic]) {
-        headers['X-Topic-Password'] = state.topicPasswords[topic];
-    }
-
-    try {
-        const res = await fetch(`/topics/${topic}/stream`, {
-            headers,
-            signal: abort.signal,
-        });
-
-        if (!res.ok) {
-            delete state.liveTopics[topic];
-            sseToggle.classList.remove('active');
-            renderSubscribedTopics();
+        const topic = await api("GET", `/topics/${encodePath(name)}`, { topicName: name });
+        upsertTopic(topic);
+        state.currentTab = "topics";
+        state.currentTopicName = topic.name;
+        await Promise.all([loadMessages(topic.name), loadTopicStats(topic.name)]);
+        render();
+    } catch (error) {
+        if (error.status === 403 && state.topicPasswords[name]) {
+            delete state.topicPasswords[name];
+            saveTopicPasswords();
+            openPasswordModal(name, () => lookupTopicByName(name), "Wrong password");
             return;
         }
+        if (error.status === 403 && state.guest) {
+            openPasswordModal(name, () => lookupTopicByName(name));
+            return;
+        }
+        setToast(error.status === 403 ? "Permission denied" : error.message, "error");
+    }
+}
 
-        const reader = res.body.getReader();
+async function selectTopic(topicName) {
+    await lookupTopicByName(topicName);
+}
+
+async function createTopic(form) {
+    const name = form.get("name").trim();
+    const visibility = form.get("visibility");
+    const password = form.get("password").trim();
+
+    if (!name) {
+        throw new Error("Topic name is required");
+    }
+    if (visibility === "protected" && !password) {
+        throw new Error("Protected topics require a password");
+    }
+
+    const body = {
+        name,
+        visibility,
+        password: password || null,
+    };
+
+    const topic = await api("POST", "/topics", { body });
+    upsertTopic(topic);
+    if (password) {
+        state.topicPasswords[name] = password;
+        saveTopicPasswords();
+    }
+    closeModal();
+    setToast(`Created topic ${name}`, "success");
+    await selectTopic(name);
+    await loadTopics();
+    render();
+}
+
+async function publishCurrentTopic(form) {
+    const topic = currentTopic();
+    if (!topic) return;
+
+    const title = form.get("title").trim();
+    const body = form.get("body").trim();
+    const tags = form.get("tags")
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean);
+    const priority = Number(form.get("priority") || 3);
+
+    if (!body) {
+        throw new Error("Message body is required");
+    }
+
+    await handleProtectedAction(topic.name, async () => {
+        const message = await api(
+            "POST",
+            `/topics/${encodePath(topic.name)}/messages`,
+            {
+                topicName: topic.name,
+                body: {
+                    priority,
+                    tags: tags.length ? tags : null,
+                    payload: {
+                        title: title || null,
+                        subtitle: null,
+                        body,
+                    },
+                },
+            }
+        );
+
+        const existing = state.messagesByTopic[topic.name] || [];
+        if (!isTopicLive(topic.name)) {
+            state.messagesByTopic[topic.name] = [...existing, message];
+            await loadTopicStats(topic.name);
+            render();
+        }
+
+        setToast(`Published to ${topic.name}`, "success");
+    });
+}
+
+async function removeCurrentTopic() {
+    const topic = currentTopic();
+    if (!topic) return;
+
+    await api("DELETE", `/topics/${encodePath(topic.name)}`);
+    delete state.messagesByTopic[topic.name];
+    delete state.topicStatsByTopic[topic.name];
+    delete state.topicPasswords[topic.name];
+    saveTopicPasswords();
+    disconnectSSE(topic.name);
+    if (state.currentTopicName === topic.name) {
+        state.currentTopicName = null;
+    }
+    await loadTopics();
+    closeModal();
+    render();
+    setToast(`Deleted topic ${topic.name}`);
+}
+
+async function createToken(form) {
+    const label = form.get("label").trim();
+    if (!label) {
+        throw new Error("Token label is required");
+    }
+
+    const created = await api("POST", `/users/${encodePath(state.user.username)}/tokens`, {
+        body: {
+            label,
+            expiresAt: null,
+        },
+    });
+
+    await loadTokens();
+    state.modal = { type: "token-created", token: created.token, label: created.label };
+    render();
+    renderModal();
+}
+
+async function revokeToken(tokenID) {
+    await api("DELETE", `/tokens/${encodePath(tokenID)}`);
+    await loadTokens();
+    closeModal();
+    render();
+    setToast("Token revoked");
+}
+
+async function handleLogin(form) {
+    const username = form.get("username").trim();
+    const password = form.get("password");
+
+    try {
+        const data = await api("POST", "/auth/login", {
+            body: {
+                username,
+                password,
+                label: "dashboard",
+            },
+        });
+        persistToken(data.token);
+        state.guest = false;
+        state.authError = "";
+        await bootstrapAuthenticatedSession();
+        setToast(`Welcome back ${data.username}`, "success");
+    } catch (error) {
+        state.authError = error.message;
+        render();
+    }
+}
+
+async function handleRegister(form) {
+    const username = form.get("username").trim();
+    const password = form.get("password");
+    const confirmPassword = form.get("confirmPassword");
+
+    if (password !== confirmPassword) {
+        state.authError = "Passwords do not match";
+        render();
+        return;
+    }
+
+    try {
+        const data = await api("POST", "/auth/register", {
+            body: {
+                username,
+                password,
+                label: "dashboard",
+            },
+        });
+        persistToken(data.token);
+        state.guest = false;
+        state.authError = "";
+        await bootstrapAuthenticatedSession();
+        setToast(`Account created for ${data.username}`, "success");
+    } catch (error) {
+        state.authError = error.message;
+        render();
+    }
+}
+
+async function logout() {
+    if (state.token) {
+        try {
+            await api("DELETE", "/auth/logout");
+        } catch {}
+    }
+    clearSession();
+    state.currentTab = "topics";
+    state.currentTopicName = null;
+    render();
+}
+
+async function continueAsGuest() {
+    clearSession();
+    state.guest = true;
+    state.authError = "";
+    await bootstrapGuestSession();
+}
+
+function renderAuth() {
+    const isLogin = state.authMode === "login";
+
+    app.innerHTML = `
+        <div class="auth-shell">
+            <section class="auth-card">
+                <div class="brand-lockup">
+                    <div class="brand-mark">${towerMark(26)}</div>
+                    <div class="brand-title">pingd</div>
+                    <div class="brand-subtitle">Control topics, publish messages, inspect delivery.</div>
+                </div>
+
+                <div class="auth-tabs">
+                    <button type="button" class="auth-tab ${isLogin ? "active" : ""}" data-auth-mode="login">Sign in</button>
+                    <button type="button" class="auth-tab ${!isLogin ? "active" : ""}" data-auth-mode="register">Register</button>
+                </div>
+
+                <form id="auth-form" class="auth-form">
+                    <div class="field">
+                        <label for="auth-username">Username</label>
+                        <input class="input" id="auth-username" name="username" autocomplete="username" placeholder="your username" required>
+                    </div>
+
+                    <div class="field">
+                        <label for="auth-password">Password</label>
+                        <input class="input" id="auth-password" name="password" type="password" autocomplete="current-password" placeholder="your password" required>
+                    </div>
+
+                    ${!isLogin ? `
+                        <div class="field">
+                            <label for="auth-password-confirm">Confirm password</label>
+                            <input class="input" id="auth-password-confirm" name="confirmPassword" type="password" autocomplete="new-password" placeholder="repeat password" required>
+                        </div>
+                    ` : ""}
+
+                    ${state.authError ? `<div class="error-text">${escapeHtml(state.authError)}</div>` : ""}
+
+                    <div class="auth-actions">
+                        <button class="btn btn-primary" type="submit">${isLogin ? "Sign in" : "Create account"}</button>
+                        <button class="btn btn-outline" id="guest-button" type="button">Continue without login</button>
+                    </div>
+                </form>
+
+                <p class="auth-note" style="margin-top: 16px;">
+                    Registration depends on server configuration. If it is disabled, the dashboard will show the API error directly.
+                </p>
+            </section>
+        </div>
+    `;
+
+    app.querySelectorAll("[data-auth-mode]").forEach((button) => {
+        button.addEventListener("click", () => {
+            state.authMode = button.dataset.authMode;
+            state.authError = "";
+            render();
+        });
+    });
+
+    app.querySelector("#auth-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        if (state.authMode === "login") {
+            await handleLogin(form);
+        } else {
+            await handleRegister(form);
+        }
+    });
+
+    app.querySelector("#guest-button").addEventListener("click", continueAsGuest);
+}
+
+function renderTopicItems() {
+    if (!state.topics.length) {
+        return `<div class="empty-panel" style="height:auto;padding:18px;"><p>No topics visible yet.</p></div>`;
+    }
+
+    return state.topics.map((topic) => `
+        <button class="topic-item ${state.currentTopicName === topic.name ? "active" : ""}" data-topic="${escapeHtml(topic.name)}" type="button">
+            ${visibilityIcon(topic.visibility)}
+            <span class="topic-name">${escapeHtml(topic.name)}</span>
+            ${isTopicLive(topic.name) ? '<span class="badge badge-live">live</span>' : ""}
+        </button>
+    `).join("");
+}
+
+function renderMessagesPanel() {
+    const topic = currentTopic();
+    if (!topic) {
+        return `
+            <section class="panel message-layout">
+                <div class="empty-panel">
+                    <p>Select a topic from the left rail or open one by name to inspect messages and publish new events.</p>
+                </div>
+            </section>
+        `;
+    }
+
+    const messages = state.messagesByTopic[topic.name] || [];
+
+    return `
+        <section class="panel message-layout">
+            <header class="panel-header">
+                <div class="panel-title">
+                    <h2 class="mono">/${escapeHtml(topic.name)}</h2>
+                </div>
+                <div class="topbar-actions">
+                    ${topic.hasPassword ? '<span class="badge badge-muted" title="Password protected">' + icon("protected") + '</span>' : ""}
+                    ${visibilityBadge(topic.visibility)}
+                    <button class="btn btn-outline btn-small" data-action="toggle-live" type="button">
+                        ${icon("stream")}
+                        ${isTopicLive(topic.name) ? "Stop live" : "Go live"}
+                    </button>
+                    ${state.user?.role === "admin" || state.user?.id === topic.ownerUserID ? `
+                        <button class="btn btn-danger btn-small" data-action="delete-topic" type="button">
+                            ${icon("trash")}
+                        </button>
+                    ` : ""}
+                </div>
+            </header>
+
+            <form id="publish-form" class="composer">
+                <input class="input composer-title-input" name="title" placeholder="Title (optional)">
+                <textarea class="textarea composer-body-input" name="body" placeholder="Message body…" required></textarea>
+                <div class="composer-row">
+                    <input class="input" name="tags" placeholder="tags">
+                    <select class="select" name="priority">
+                        <option value="1">Low</option>
+                        <option value="2" selected>Default</option>
+                        <option value="3">Urgent</option>
+                    </select>
+                    <button class="btn btn-primary" type="submit">Publish</button>
+                </div>
+            </form>
+
+            <div class="message-list">
+                ${messages.length ? messages.map((message) => `
+                    <article class="message-item">
+                        <div class="message-priority ${priorityClass(message.priority)}"></div>
+                        <div class="message-copy">
+                            ${message.payload?.title ? `<div class="message-title">${escapeHtml(message.payload.title)}</div>` : ""}
+                            <div class="message-body">${escapeHtml(message.payload?.body || "")}</div>
+                            <div class="message-meta">
+                                <span class="mono">${formatDateTime(message.time)}</span>
+                                <span class="mono">${escapeHtml(priorityLabel(message.priority))}</span>
+                                <span class="mono">${truncateId(message.id)}</span>
+                            </div>
+                            ${message.tags?.length ? `
+                                <div class="message-tags" style="margin-top: 10px;">
+                                    ${message.tags.map((tag) => `<span class="tag mono">${escapeHtml(tag)}</span>`).join("")}
+                                </div>
+                            ` : ""}
+                        </div>
+                    </article>
+                `).join("") : `
+                    <div class="empty-panel">
+                        <p>No messages yet. Publish the first event to see it here.</p>
+                    </div>
+                `}
+            </div>
+        </section>
+    `;
+}
+
+function renderTopicRail() {
+    const topic = currentTopic();
+    const stats = topic ? state.topicStatsByTopic[topic.name] : null;
+
+    if (state.user?.role !== "admin" || !topic) {
+        return "";
+    }
+
+    return `
+        <section class="panel">
+            <header class="panel-header">
+                <div class="panel-title">
+                    <h3>Delivery Stats</h3>
+                </div>
+            </header>
+            <div class="panel-body">
+                ${stats ? `
+                    <div class="stat-grid">
+                        <div class="stat-card"><strong>${stats.subscriberCount}</strong><span>Subscribers</span></div>
+                        <div class="stat-card"><strong>${stats.messageCount}</strong><span>Messages</span></div>
+                        <div class="stat-card"><strong>${stats.deliveryStats.delivered}</strong><span>Delivered</span></div>
+                        <div class="stat-card"><strong>${stats.deliveryStats.failed}</strong><span>Failed</span></div>
+                    </div>
+                    <dl class="detail-list" style="margin-top: 14px;">
+                        <div class="detail-row"><dt>Pending</dt><dd>${stats.deliveryStats.pending}</dd></div>
+                        <div class="detail-row"><dt>Ongoing</dt><dd>${stats.deliveryStats.ongoing}</dd></div>
+                        <div class="detail-row"><dt>Last message</dt><dd>${formatDateTime(stats.lastMessageAt)}</dd></div>
+                    </dl>
+                ` : `
+                    <div class="empty-panel" style="height:auto;padding:0;">
+                        <p>Select a topic and stats will load here.</p>
+                    </div>
+                `}
+            </div>
+        </section>
+    `;
+}
+
+function renderTopicsWorkspace() {
+    const rail = renderTopicRail();
+    return `
+        <div class="topics-layout ${rail ? "" : "topics-layout-single"}">
+            ${renderMessagesPanel()}
+            ${rail}
+        </div>
+    `;
+}
+
+function renderAccountWorkspace() {
+    return `
+        <div class="account-stack">
+            <section class="panel">
+                <header class="panel-header">
+                    <div class="panel-title">
+                        <h2>Account</h2>
+                    </div>
+                </header>
+                <div class="panel-body">
+                    <dl class="detail-list">
+                        <div class="detail-row"><dt>Username</dt><dd class="mono">${escapeHtml(state.user?.username || "—")}</dd></div>
+                        <div class="detail-row">
+                            <dt>Password</dt>
+                            <dd>
+                                <span class="mono">*****</span>
+                                <button class="btn btn-outline btn-small" type="button" data-action="change-password" style="margin-left:8px;">Change</button>
+                            </dd>
+                        </div>
+                    </dl>
+                </div>
+            </section>
+
+            <section class="panel panel-scroll">
+                <header class="panel-header">
+                    <div class="panel-title">
+                        <h3>Access Tokens</h3>
+                    </div>
+                    <button class="btn btn-primary btn-small" type="button" data-action="new-token">New token</button>
+                </header>
+
+                <div class="token-list">
+                    ${state.tokensLoaded && state.tokens.length ? state.tokens.map((token) => `
+                        <article class="token-row">
+                            <div>
+                                <div class="token-title-row">
+                                    <div class="token-title">${escapeHtml(token.label || "Untitled token")}</div>
+                                    ${isCurrentSessionToken(token.token)
+                                        ? '<span class="token-session-label mono">current session</span>'
+                                        : ""}
+                                </div>
+                                <div class="token-copy mono">${escapeHtml(maskToken(token.token))}</div>
+                                <div class="token-meta mono">
+                                    <span>last used ${formatDateTime(token.lastUsedAt)}</span>
+                                    <span>expires ${formatDateTime(token.expiresAt)}</span>
+                                </div>
+                            </div>
+                            <div style="display:flex;gap:8px;">
+                                ${isCurrentSessionToken(token.token)
+                                    ? ''
+                                    : `<button class="btn btn-danger btn-small" type="button" data-action="revoke-token" data-token-id="${escapeHtml(token.id)}">Revoke</button>`}
+                            </div>
+                        </article>
+                    `).join("") : `
+                        <div class="empty-panel">
+                            <p>${state.tokensLoaded ? "No tokens created yet." : "Token records will load when you open this tab."}</p>
+                        </div>
+                    `}
+                </div>
+            </section>
+        </div>
+    `;
+}
+
+function renderTopbar() {
+    const topic = currentTopic();
+    const subtitle = state.currentTab === "account"
+        ? "Manage your authenticated session"
+        : topic
+            ? `/${topic.name}`
+            : "Select a topic";
+
+    return `
+        <header class="topbar">
+            <div class="topbar-title">
+                <strong>${state.currentTab === "account" ? "Account" : "Topics"}</strong>
+                <span class="mono">${escapeHtml(subtitle)}</span>
+            </div>
+            <div class="topbar-actions">
+                <button class="btn btn-outline btn-small" type="button" data-action="refresh">${icon("refresh")}Refresh</button>
+            </div>
+        </header>
+    `;
+}
+
+function renderAppShell() {
+    const topic = currentTopic();
+    const displayUser = state.guest ? "guest" : (state.user?.username || "user");
+    const userInitial = displayUser[0]?.toLowerCase() || "?";
+
+    app.innerHTML = `
+        <div class="app-shell">
+            <aside class="sidebar">
+                <div class="sidebar-top">
+                    <div class="brand-mark">${towerMark(18)}</div>
+                    <div class="brand-title">pingd</div>
+                </div>
+
+                <div class="sidebar-nav">
+                    <button class="nav-item ${state.currentTab === "topics" ? "active" : ""}" type="button" data-tab="topics">
+                        ${icon("topics")}
+                        <span>Topics</span>
+                    </button>
+                    ${state.token ? `
+                        <button class="nav-item ${state.currentTab === "account" ? "active" : ""}" type="button" data-tab="account">
+                            ${icon("account")}
+                            <span>Account</span>
+                        </button>
+                    ` : ""}
+                </div>
+
+                <div class="sidebar-section-title">Topics</div>
+                <div class="topic-list">${renderTopicItems()}</div>
+
+                <div class="topic-quick-actions">
+                    <button class="btn btn-outline" type="button" data-action="open-topic">Open topic</button>
+                    ${state.token ? `<button class="btn btn-outline" type="button" data-action="create-topic">Create topic</button>` : ""}
+                </div>
+
+                <div class="sidebar-footer">
+                    <div class="sidebar-user">
+                        <div class="user-badge mono">${escapeHtml(userInitial)}</div>
+                        <div>
+                            <div style="font-size: 12px; color: var(--text-muted);">${escapeHtml(displayUser)}</div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-ghost btn-small" data-action="logout">${icon("logout")}</button>
+                </div>
+            </aside>
+
+            <main class="main-shell">
+                ${renderTopbar()}
+                <section class="content-shell">
+                    ${state.currentTab === "account" && state.token ? renderAccountWorkspace() : renderTopicsWorkspace(topic)}
+                </section>
+            </main>
+        </div>
+    `;
+
+    bindAppEvents();
+}
+
+function renderToast() {
+    if (!state.toast) {
+        toastRoot.innerHTML = "";
+        return;
+    }
+
+    toastRoot.innerHTML = `
+        <div class="toast toast-${state.toast.tone}">
+            ${escapeHtml(state.toast.message)}
+        </div>
+    `;
+}
+
+function renderModal() {
+    if (!state.modal) {
+        modalRoot.innerHTML = "";
+        return;
+    }
+
+    if (state.modal.type === "create-topic") {
+        modalRoot.innerHTML = `
+            <div class="modal-overlay">
+                <section class="modal">
+                    <header class="modal-header">
+                        <h3>Create topic</h3>
+                        <p>Set the topic name and visibility. Protected topics require a password.</p>
+                    </header>
+                    <form id="create-topic-modal-form">
+                        <div class="modal-body">
+                            ${state.modal.error ? `<div class="error-text">${escapeHtml(state.modal.error)}</div>` : ""}
+                            <div class="field">
+                                <label for="modal-topic-name">Topic name</label>
+                                <input class="input mono" id="modal-topic-name" name="name" placeholder="alerts.critical" required>
+                            </div>
+                            <div class="field">
+                                <label for="modal-topic-visibility">Visibility</label>
+                                <select class="select" id="modal-topic-visibility" name="visibility">
+                                    <option value="open">Open</option>
+                                    <option value="protected" selected>Protected</option>
+                                    <option value="private">Private</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label for="modal-topic-password">Password</label>
+                                <input class="input" id="modal-topic-password" name="password" type="password" placeholder="optional password">
+                            </div>
+                        </div>
+                        <footer class="modal-footer">
+                            <button class="btn btn-outline" type="button" data-action="close-modal">Cancel</button>
+                            <button class="btn btn-primary" type="submit">Create</button>
+                        </footer>
+                    </form>
+                </section>
+            </div>
+        `;
+    }
+
+    if (state.modal.type === "password") {
+        modalRoot.innerHTML = `
+            <div class="modal-overlay">
+                <section class="modal">
+                    <header class="modal-header">
+                        <h3>Topic password</h3>
+                        <p>Access to <span class="mono">/${escapeHtml(state.modal.topicName)}</span> requires a topic password.</p>
+                    </header>
+                    <form id="topic-password-form">
+                        <div class="modal-body">
+                            ${state.modal.errorMessage ? `<div class="error-text">${escapeHtml(state.modal.errorMessage)}</div>` : ""}
+                            <div class="field">
+                                <label for="topic-password-input">Password</label>
+                                <input class="input" id="topic-password-input" name="password" type="password" placeholder="topic password" required>
+                            </div>
+                        </div>
+                        <footer class="modal-footer">
+                            <button class="btn btn-outline" type="button" data-action="close-modal">Cancel</button>
+                            <button class="btn btn-primary" type="submit">Unlock</button>
+                        </footer>
+                    </form>
+                </section>
+            </div>
+        `;
+    }
+
+    if (state.modal.type === "delete-topic") {
+        modalRoot.innerHTML = `
+            <div class="modal-overlay">
+                <section class="modal">
+                    <header class="modal-header">
+                        <h3>Delete topic</h3>
+                        <p>This permanently removes <span class="mono">/${escapeHtml(state.modal.topicName)}</span> and its stored messages.</p>
+                    </header>
+                    <footer class="modal-footer">
+                        <button class="btn btn-outline" type="button" data-action="close-modal">Cancel</button>
+                        <button class="btn btn-danger" type="button" data-action="confirm-delete-topic">Delete</button>
+                    </footer>
+                </section>
+            </div>
+        `;
+    }
+
+    if (state.modal.type === "open-topic") {
+        modalRoot.innerHTML = `
+            <div class="modal-overlay">
+                <section class="modal">
+                    <header class="modal-header">
+                        <h3>Open topic</h3>
+                        <p>Enter the name of a topic to open.</p>
+                    </header>
+                    <form id="open-topic-form">
+                        <div class="modal-body">
+                            <div class="field">
+                                <label for="open-topic-input">Topic name</label>
+                                <input class="input mono" id="open-topic-input" name="topicName" placeholder="my-topic" autocomplete="off" required>
+                            </div>
+                        </div>
+                        <footer class="modal-footer">
+                            <button class="btn btn-outline" type="button" data-action="close-modal">Cancel</button>
+                            <button class="btn btn-primary" type="submit">Open</button>
+                        </footer>
+                    </form>
+                </section>
+            </div>
+        `;
+    }
+
+    if (state.modal.type === "change-password") {
+        modalRoot.innerHTML = `
+            <div class="modal-overlay">
+                <section class="modal">
+                    <header class="modal-header">
+                        <h3>Change password</h3>
+                    </header>
+                    <form id="change-password-form">
+                        <div class="modal-body">
+                            ${state.modal.error ? `<div class="error-text">${escapeHtml(state.modal.error)}</div>` : ""}
+                            <div class="field">
+                                <label for="current-password">Current password</label>
+                                <input class="input" id="current-password" name="currentPassword" type="password" placeholder="Current password" required minlength="6">
+                            </div>
+                            <div class="field">
+                                <label for="new-password">New password</label>
+                                <input class="input" id="new-password" name="password" type="password" placeholder="New password" required minlength="8">
+                            </div>
+                            <div class="field">
+                                <label for="confirm-password">Confirm password</label>
+                                <input class="input" id="confirm-password" name="confirmPassword" type="password" placeholder="Confirm new password" required minlength="8">
+                            </div>
+                        </div>
+                        <footer class="modal-footer">
+                            <button class="btn btn-outline" type="button" data-action="close-modal">Cancel</button>
+                            <button class="btn btn-primary" type="submit">Update</button>
+                        </footer>
+                    </form>
+                </section>
+            </div>
+        `;
+    }
+
+    if (state.modal.type === "new-token") {
+        modalRoot.innerHTML = `
+            <div class="modal-overlay">
+                <section class="modal">
+                    <header class="modal-header">
+                        <h3>Create token</h3>
+                        <p>Creates a new token for your account.</p>
+                    </header>
+                    <form id="create-token-form">
+                        <div class="modal-body">
+                            ${state.modal.error ? `<div class="error-text">${escapeHtml(state.modal.error)}</div>` : ""}
+                            <div class="field">
+                                <label for="token-label-input">Label</label>
+                                <input class="input" id="token-label-input" name="label" placeholder="dashboard automation" required>
+                            </div>
+                        </div>
+                        <footer class="modal-footer">
+                            <button class="btn btn-outline" type="button" data-action="close-modal">Cancel</button>
+                            <button class="btn btn-primary" type="submit">Create</button>
+                        </footer>
+                    </form>
+                </section>
+            </div>
+        `;
+    }
+
+    if (state.modal.type === "token-created") {
+        modalRoot.innerHTML = `
+            <div class="modal-overlay">
+                <section class="modal">
+                    <header class="modal-header">
+                        <h3>Token created</h3>
+                        <p>Copy your token now. It won't be shown again.</p>
+                    </header>
+                    <div class="modal-body">
+                        <div class="field">
+                            <label>Token for "${escapeHtml(state.modal.label)}"</label>
+                            <div class="token-created-value">
+                                <input class="input mono" id="created-token-value" value="${escapeHtml(state.modal.token)}" readonly>
+                                <button class="btn btn-primary btn-small" type="button" data-action="copy-created-token">Copy</button>
+                            </div>
+                        </div>
+                    </div>
+                    <footer class="modal-footer">
+                        <button class="btn btn-outline" type="button" data-action="close-modal">Done</button>
+                    </footer>
+                </section>
+            </div>
+        `;
+    }
+
+    if (state.modal.type === "revoke-token") {
+        modalRoot.innerHTML = `
+            <div class="modal-overlay">
+                <section class="modal">
+                    <header class="modal-header">
+                        <h3>Revoke token</h3>
+                        <p>Revoke token <span class="mono">${escapeHtml(truncateId(state.modal.tokenID))}</span>? This cannot be undone.</p>
+                    </header>
+                    <footer class="modal-footer">
+                        <button class="btn btn-outline" type="button" data-action="close-modal">Cancel</button>
+                        <button class="btn btn-danger" type="button" data-action="confirm-revoke-token">Revoke</button>
+                    </footer>
+                </section>
+            </div>
+        `;
+    }
+
+    bindModalEvents();
+}
+
+function render() {
+    if (!hasSession()) {
+        renderAuth();
+    } else {
+        renderAppShell();
+    }
+    renderModal();
+    renderToast();
+}
+
+function bindAppEvents() {
+    app.querySelectorAll("[data-tab]").forEach((button) => {
+        button.addEventListener("click", async () => {
+            const nextTab = button.dataset.tab;
+            state.currentTab = nextTab;
+            if (nextTab === "account" && state.token && !state.tokensLoaded) {
+                await loadTokens();
+            }
+            render();
+        });
+    });
+
+    app.querySelectorAll("[data-topic]").forEach((button) => {
+        button.addEventListener("click", async () => {
+            await selectTopic(button.dataset.topic);
+        });
+    });
+
+    app.querySelectorAll("[data-action='logout']").forEach((button) => {
+        button.addEventListener("click", logout);
+    });
+
+    app.querySelectorAll("[data-action='refresh']").forEach((button) => {
+        button.addEventListener("click", async () => {
+            await loadTopics();
+            if (state.currentTopicName) {
+                await selectTopic(state.currentTopicName);
+            } else {
+                render();
+            }
+            setToast("Dashboard refreshed", "success");
+        });
+    });
+
+    app.querySelectorAll("[data-action='open-topic']").forEach((button) => {
+        button.addEventListener("click", () => {
+            openModal({ type: "open-topic" });
+        });
+    });
+
+    app.querySelectorAll("[data-action='create-topic']").forEach((button) => {
+        button.addEventListener("click", () => {
+            openModal({ type: "create-topic", error: "" });
+        });
+    });
+
+    app.querySelectorAll("[data-action='toggle-live']").forEach((button) => {
+        button.addEventListener("click", async () => {
+            const topicName = state.currentTopicName;
+            if (!topicName) return;
+            if (isTopicLive(topicName)) {
+                disconnectSSE(topicName);
+                render();
+                return;
+            }
+            await connectSSE(topicName);
+        });
+    });
+
+    app.querySelectorAll("[data-action='delete-topic']").forEach((button) => {
+        button.addEventListener("click", () => {
+            const topic = currentTopic();
+            if (!topic) return;
+            openModal({ type: "delete-topic", topicName: topic.name });
+        });
+    });
+
+    app.querySelectorAll("[data-action='change-password']").forEach((button) => {
+        button.addEventListener("click", () => {
+            openModal({ type: "change-password", error: "" });
+        });
+    });
+
+    app.querySelectorAll("[data-action='new-token']").forEach((button) => {
+        button.addEventListener("click", () => {
+            openModal({ type: "new-token", error: "" });
+        });
+    });
+
+    app.querySelectorAll("[data-action='revoke-token']").forEach((button) => {
+        button.addEventListener("click", () => {
+            openModal({ type: "revoke-token", tokenID: button.dataset.tokenId });
+        });
+    });
+
+    const publishForm = app.querySelector("#publish-form");
+    if (publishForm) {
+        publishForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const formElement = event.currentTarget;
+            try {
+                await publishCurrentTopic(new FormData(formElement));
+                formElement.reset();
+            } catch (error) {
+                setToast(error.message, "error");
+            }
+        });
+    }
+
+}
+
+function bindModalEvents() {
+    modalRoot.querySelectorAll("[data-action='close-modal']").forEach((button) => {
+        button.addEventListener("click", closeModal);
+    });
+
+    const createTopicForm = modalRoot.querySelector("#create-topic-modal-form");
+    if (createTopicForm) {
+        createTopicForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const formElement = event.currentTarget;
+            try {
+                await createTopic(new FormData(formElement));
+            } catch (error) {
+                state.modal.error = error.message;
+                renderModal();
+            }
+        });
+    }
+
+    const changePasswordForm = modalRoot.querySelector("#change-password-form");
+    if (changePasswordForm) {
+        changePasswordForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const form = new FormData(event.currentTarget);
+            const currentPassword = form.get("currentPassword");
+            const password = form.get("password");
+            const confirmPassword = form.get("confirmPassword");
+            if (password !== confirmPassword) {
+                state.modal.error = "Passwords do not match";
+                renderModal();
+                return;
+            }
+            try {
+                await api("PATCH", `/users/${encodeURIComponent(state.user.username)}`, {
+                    body: {
+                        currentPassword,
+                        password,
+                    },
+                });
+                closeModal();
+                setToast("Password updated", "success");
+            } catch (error) {
+                state.modal.error = error.message;
+                renderModal();
+            }
+        });
+    }
+
+    const openTopicForm = modalRoot.querySelector("#open-topic-form");
+    if (openTopicForm) {
+        openTopicForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const topicName = new FormData(event.currentTarget).get("topicName").trim();
+            if (!topicName) return;
+            closeModal();
+            await selectTopic(topicName);
+        });
+    }
+
+    const passwordForm = modalRoot.querySelector("#topic-password-form");
+    if (passwordForm) {
+        passwordForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const formElement = event.currentTarget;
+            const password = new FormData(formElement).get("password");
+            const topicName = state.modal.topicName;
+            const action = state.modal.onSuccess;
+            state.topicPasswords[topicName] = password;
+            saveTopicPasswords();
+
+            try {
+                closeModal();
+                await action();
+            } catch (error) {
+                delete state.topicPasswords[topicName];
+                saveTopicPasswords();
+                openPasswordModal(topicName, action, error.status === 403 ? "Wrong password" : error.message);
+            }
+        });
+    }
+
+    const deleteTopicButton = modalRoot.querySelector("[data-action='confirm-delete-topic']");
+    if (deleteTopicButton) {
+        deleteTopicButton.addEventListener("click", async () => {
+            try {
+                await removeCurrentTopic();
+            } catch (error) {
+                setToast(error.message, "error");
+            }
+        });
+    }
+
+    const createTokenForm = modalRoot.querySelector("#create-token-form");
+    if (createTokenForm) {
+        createTokenForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const formElement = event.currentTarget;
+            try {
+                await createToken(new FormData(formElement));
+            } catch (error) {
+                state.modal.error = error.message;
+                renderModal();
+            }
+        });
+    }
+
+    const revokeTokenButton = modalRoot.querySelector("[data-action='confirm-revoke-token']");
+    if (revokeTokenButton) {
+        revokeTokenButton.addEventListener("click", async () => {
+            try {
+                await revokeToken(state.modal.tokenID);
+            } catch (error) {
+                setToast(error.message, "error");
+            }
+        });
+    }
+
+    const copyCreatedToken = modalRoot.querySelector("[data-action='copy-created-token']");
+    if (copyCreatedToken) {
+        copyCreatedToken.addEventListener("click", async () => {
+            try {
+                const input = document.getElementById("created-token-value");
+                await navigator.clipboard.writeText(input.value);
+                setToast("Token copied", "success");
+            } catch {
+                setToast("Clipboard unavailable", "error");
+            }
+        });
+    }
+}
+
+async function connectSSE(topicName) {
+    if (state.liveConnections[topicName]) return;
+
+    const topic = state.topics.find((t) => t.name === topicName);
+    if (!topic) return;
+
+    const controller = new AbortController();
+    state.liveConnections[topicName] = controller;
+    render();
+
+    const headers = {};
+    if (state.token) {
+        headers.Authorization = `Bearer ${state.token}`;
+    }
+    if (state.topicPasswords[topicName]) {
+        headers["X-Topic-Password"] = state.topicPasswords[topicName];
+    }
+
+    try {
+        const response = await fetch(`/topics/${encodePath(topicName)}/stream`, {
+            headers,
+            signal: controller.signal,
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to start live stream: ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
         const decoder = new TextDecoder();
-        let buffer = '';
+        let buffer = "";
 
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
 
             buffer += decoder.decode(value, { stream: true });
-            const chunks = buffer.split('\n\n');
-            buffer = chunks.pop();
+            const chunks = buffer.split("\n\n");
+            buffer = chunks.pop() || "";
 
             for (const chunk of chunks) {
                 const line = chunk.trim();
-                if (!line.startsWith('data: ')) continue;
+                if (!line.startsWith("data: ")) continue;
+
                 try {
-                    const msg = JSON.parse(line.slice(6));
-                    if (state.currentTopic === topic) {
-                        appendMessage(msg, true);
-                    }
-
-                    if (notificationSound) {
-                        notificationSound.currentTime = 0;
-                        notificationSound.play().catch(() => {});
-                    }
-
-                    if (Notification.permission === 'granted') {
-                        new Notification(msg.payload?.title || topic, {
-                            body: msg.payload?.body,
-                        });
-                    }
+                    const message = JSON.parse(line.slice(6));
+                    const existing = state.messagesByTopic[topicName] || [];
+                    state.messagesByTopic[topicName] = [message, ...existing];
+                    render();
                 } catch {}
             }
         }
-    } catch (err) {
-        if (err.name !== 'AbortError') {
-            delete state.liveTopics[topic];
-            sseToggle.classList.remove('active');
-            renderSubscribedTopics();
+    } catch (error) {
+        if (error.name !== "AbortError") {
+            delete state.liveConnections[topicName];
+            render();
+            setToast(error.message, "error");
         }
     }
 }
 
-function disconnectSSE() {
-    if (state.sseAbort) {
-        state.sseAbort.abort();
-        state.sseAbort = null;
+function disconnectSSE(topicName) {
+    if (topicName) {
+        const controller = state.liveConnections[topicName];
+        if (controller) {
+            controller.abort();
+            delete state.liveConnections[topicName];
+        }
+    } else {
+        for (const [name, controller] of Object.entries(state.liveConnections)) {
+            controller.abort();
+        }
+        state.liveConnections = {};
     }
 }
 
-// Request notification permission
-if ('Notification' in window && Notification.permission === 'default') {
-    Notification.requestPermission();
+function isTopicLive(topicName) {
+    return Boolean(state.liveConnections[topicName]);
 }
 
-// Init
-if (state.token) {
-    showDashboard();
-} else {
-    showLogin();
+async function initialize() {
+    try {
+        if (state.token) {
+            await bootstrapAuthenticatedSession();
+        } else {
+            render();
+        }
+    } catch (error) {
+        clearSession();
+        render();
+        setToast(`Session expired: ${error.message}`, "error");
+    }
 }
+
+initialize();
