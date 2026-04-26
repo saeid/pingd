@@ -26,7 +26,8 @@ func makeCORSConfiguration(from config: CORSConfig) -> CORSMiddleware.Configurat
 
 public func configure(_ app: Application) async throws {
     let isMigrationCommand = CommandLine.arguments.contains("migrate")
-    let appConfig = try AppConfig.load(environment: app.environment)
+    let environmentVariables = app.environment == .testing ? [:] : ProcessInfo.processInfo.environment
+    let appConfig = try AppConfig.load(environment: app.environment, environmentVariables: environmentVariables)
     app.appConfig = appConfig
     app.rateLimiter = RateLimiter()
 
@@ -68,7 +69,7 @@ public func configure(_ app: Application) async throws {
         try await app.autoMigrate()
     }
 
-    let apnsMode = try PushProvider.loadAPNSConfiguration()
+    let apnsMode = app.environment == .testing ? nil : try PushProvider.loadAPNSConfiguration()
 
     switch apnsMode {
     case .direct(let config):
