@@ -51,6 +51,67 @@ extension PingdTests {
         }
     }
 
+    @Test("Devices: POST /devices rejects another user's active push token")
+    func registerDeviceWithActivePushTokenOwnedByOtherUser() async throws {
+        try await withApp { app in
+            try await seedDevices(app)
+            let session = try await login(app, username: "vander", password: "letmein")
+            try await app.testing().test(
+                .POST, "devices",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(RegisterDeviceRequest(
+                        name: "Shared iPhone",
+                        platform: .ios,
+                        pushType: .apns,
+                        pushToken: "token-vi-iphone"
+                    ))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .conflict)
+                }
+            )
+        }
+    }
+
+    @Test("Devices: POST /devices allows another user to claim inactive push token after logout")
+    func registerDeviceWithInactivePushTokenOwnedByOtherUser() async throws {
+        try await withApp { app in
+            try await seedDevices(app)
+            let viSession = try await login(app, username: "vi", password: "password1")
+            try await app.testing().test(
+                .DELETE, "auth/logout?pushToken=token-vi-iphone",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: viSession.token)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .noContent)
+                }
+            )
+
+            let vanderSession = try await login(app, username: "vander", password: "letmein")
+            try await app.testing().test(
+                .POST, "devices",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: vanderSession.token)
+                    try req.content.encode(RegisterDeviceRequest(
+                        name: "Shared iPhone",
+                        platform: .ios,
+                        pushType: .apns,
+                        pushToken: "token-vi-iphone"
+                    ))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let device = try res.content.decode(DeviceResponse.self)
+                    #expect(device.name == "Shared iPhone")
+                    #expect(device.isActive == true)
+                    #expect(device.userID == vanderSession.userID)
+                }
+            )
+        }
+    }
+
     @Test("Devices: GET /devices as admin returns all devices")
     func listDevicesAsAdmin() async throws {
         try await withApp { app in

@@ -107,4 +107,35 @@ extension PingdTests {
             )
         }
     }
+
+    @Test("Auth: Logout with push token only deactivates current user's device")
+    func logoutWithOtherUsersPushTokenDoesNotDeactivateDevice() async throws {
+        try await withApp { app in
+            try await seedDevices(app)
+            let vanderSession = try await login(app, username: "vander", password: "letmein")
+            try await app.testing().test(
+                .DELETE, "auth/logout?pushToken=token-vi-iphone",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: vanderSession.token)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .noContent)
+                }
+            )
+
+            let viSession = try await login(app, username: "vi", password: "password1")
+            try await app.testing().test(
+                .GET, "devices",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: viSession.token)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let devices = try res.content.decode([DeviceResponse].self)
+                    #expect(devices.count == 1)
+                    #expect(devices[0].isActive == true)
+                }
+            )
+        }
+    }
 }

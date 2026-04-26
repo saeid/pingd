@@ -20,6 +20,14 @@ struct DeviceClient {
         _ pushToken: String?,
         _ isActive: Bool?
     ) async throws -> Device?
+    let transferInactiveDevice: @Sendable (
+        _ existingDeviceID: UUID,
+        _ userID: UUID,
+        _ name: String,
+        _ platform: Platform,
+        _ pushType: PushType,
+        _ pushToken: String
+    ) async throws -> Device
     let delete: @Sendable (UUID) async throws -> Void
 }
 
@@ -63,6 +71,26 @@ extension DeviceClient {
                 try await device.save(on: app.db)
                 return device
             },
+            transferInactiveDevice: { existingDeviceID, userID, name, platform, pushType, pushToken in
+                try await app.db.transaction { database in
+                    guard let existing = try await Device.find(existingDeviceID, on: database) else {
+                        throw DeviceError.notFound
+                    }
+                    guard !existing.isActive else {
+                        throw DeviceError.pushTokenInUse
+                    }
+                    try await existing.delete(on: database)
+                    let device = Device(
+                        userID: userID,
+                        name: name,
+                        platform: platform,
+                        pushType: pushType,
+                        pushToken: pushToken
+                    )
+                    try await device.save(on: database)
+                    return device
+                }
+            },
             delete: { id in
                 guard let device = try await Device.find(id, on: app.db) else { return }
                 try await device.delete(on: app.db)
@@ -79,8 +107,20 @@ extension DeviceClient {
             Device(userID: userID, name: name, platform: platform, pushType: pushType, pushToken: pushToken)
         },
         update: @escaping @Sendable (UUID, String?, String?, Bool?) async throws -> Device? = { _, _, _, _ in nil },
+        transferInactiveDevice: @escaping @Sendable (UUID, UUID, String, Platform, PushType, String) async throws -> Device = { _, userID, name, platform, pushType, pushToken in
+            Device(userID: userID, name: name, platform: platform, pushType: pushType, pushToken: pushToken)
+        },
         delete: @escaping @Sendable (UUID) async throws -> Void = { _ in }
     ) -> Self {
-        DeviceClient(list: list, listForUser: listForUser, get: get, findByPushToken: findByPushToken, create: create, update: update, delete: delete)
+        DeviceClient(
+            list: list,
+            listForUser: listForUser,
+            get: get,
+            findByPushToken: findByPushToken,
+            create: create,
+            update: update,
+            transferInactiveDevice: transferInactiveDevice,
+            delete: delete
+        )
     }
 }

@@ -1,13 +1,16 @@
+import Fluent
 import Vapor
 
 enum DeviceError: AbortError {
     case notFound
     case accessDenied
+    case pushTokenInUse
 
     var status: HTTPResponseStatus {
         switch self {
         case .notFound: .notFound
         case .accessDenied: .forbidden
+        case .pushTokenInUse: .conflict
         }
     }
 
@@ -15,6 +18,7 @@ enum DeviceError: AbortError {
         switch self {
         case .notFound: "Device not found"
         case .accessDenied: "Access denied"
+        case .pushTokenInUse: "Push token is already registered to an active device"
         }
     }
 }
@@ -58,12 +62,33 @@ extension DeviceFeature {
                 let userID = try currentUser.requireID()
                 if let existing = try await deviceClient.findByPushToken(pushToken) {
                     let deviceID = try existing.requireID()
+                    if existing.$user.id != userID {
+                        guard !existing.isActive else {
+                            throw DeviceError.pushTokenInUse
+                        }
+                        do {
+                            return try await deviceClient.transferInactiveDevice(
+                                deviceID,
+                                userID,
+                                name,
+                                platform,
+                                pushType,
+                                pushToken
+                            )
+                        } catch let error as any DatabaseError where error.isConstraintFailure {
+                            throw DeviceError.pushTokenInUse
+                        }
+                    }
                     guard let updated = try await deviceClient.update(deviceID, name, nil, true) else {
                         throw DeviceError.notFound
                     }
                     return updated
                 }
-                return try await deviceClient.create(userID, name, platform, pushType, pushToken)
+                do {
+                    return try await deviceClient.create(userID, name, platform, pushType, pushToken)
+                } catch let error as any DatabaseError where error.isConstraintFailure {
+                    throw DeviceError.pushTokenInUse
+                }
             },
             updateDevice: { currentUser, deviceID, name, pushToken, isActive in
                 guard let device = try await deviceClient.get(deviceID) else {
@@ -74,10 +99,14 @@ extension DeviceFeature {
                 guard currentUser.role == .admin || currentUserID == ownerID else {
                     throw DeviceError.accessDenied
                 }
-                guard let updated = try await deviceClient.update(deviceID, name, pushToken, isActive) else {
-                    throw DeviceError.notFound
+                do {
+                    guard let updated = try await deviceClient.update(deviceID, name, pushToken, isActive) else {
+                        throw DeviceError.notFound
+                    }
+                    return updated
+                } catch let error as any DatabaseError where error.isConstraintFailure {
+                    throw DeviceError.pushTokenInUse
                 }
-                return updated
             },
             deleteDevice: { currentUser, deviceID in
                 guard let device = try await deviceClient.get(deviceID) else {

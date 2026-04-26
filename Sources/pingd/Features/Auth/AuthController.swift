@@ -6,6 +6,7 @@ struct AuthController: RouteCollection, @unchecked Sendable {
     let authClient: AuthClient
     let tokenClient: TokenClient
     let deviceClient: DeviceClient
+    let now: @Sendable () -> Date
     let auditLogger: AuditLogger
 
     func boot(routes: any RoutesBuilder) throws {
@@ -71,8 +72,11 @@ struct AuthController: RouteCollection, @unchecked Sendable {
             throw Abort(.unauthorized)
         }
         do {
+            let currentUser = try await tokenClient.markTokenUse(bearerToken, req.clientIP, now())
+            let currentUserID = try currentUser.requireID()
             if let pushToken: String = req.query["pushToken"],
-               let device = try await deviceClient.findByPushToken(pushToken) {
+               let device = try await deviceClient.findByPushToken(pushToken),
+               device.$user.id == currentUserID {
                 let deviceID = try device.requireID()
                 _ = try await deviceClient.update(deviceID, nil, nil, false)
             }

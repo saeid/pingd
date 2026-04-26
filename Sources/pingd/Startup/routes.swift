@@ -18,6 +18,7 @@ func routes(_ app: Application, _ services: AppDependencies) throws {
         authClient: services.authClient,
         tokenClient: services.tokenClient,
         deviceClient: services.deviceClient,
+        now: services.now,
         auditLogger: services.auditLogger
     ))
 
