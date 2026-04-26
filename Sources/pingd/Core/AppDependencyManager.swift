@@ -109,6 +109,7 @@ extension AppDependencies {
                 subscriptionClient: subscriptionClient,
                 deviceClient: deviceClient,
                 topicClient: topicClient,
+                userClient: userClient,
                 authClient: authClient,
                 permissionClient: permissionClient
             ),

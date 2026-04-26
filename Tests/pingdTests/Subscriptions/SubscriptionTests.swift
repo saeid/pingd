@@ -31,6 +31,9 @@ extension PingdTests {
                     #expect(res.status == .ok)
                     let sub = try res.content.decode(SubscriptionResponse.self)
                     #expect(sub.deviceID == id)
+                    #expect(sub.topicName == "open-topic")
+                    #expect(sub.topicVisibility == "open")
+                    #expect(sub.topicHasPassword == false)
                 }
             )
         }
@@ -112,6 +115,7 @@ extension PingdTests {
                     #expect(res.status == .ok)
                     let subs = try res.content.decode([SubscriptionResponse].self)
                     #expect(subs.count == 1)
+                    #expect(subs[0].topicName == "open-topic")
                 }
             )
         }
@@ -150,6 +154,128 @@ extension PingdTests {
                 },
                 afterResponse: { res in
                     #expect(res.status == .noContent)
+                }
+            )
+        }
+    }
+
+    @Test("Subscriptions: GET /users/:username/subscriptions lists all user subscriptions")
+    func listUserSubscriptions() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            try await seedDevices(app)
+            let session = try await login(app, username: "vi", password: "password1")
+            var deviceID: UUID?
+            try await app.testing().test(
+                .GET, "devices",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                },
+                afterResponse: { res in
+                    let devices = try res.content.decode([DeviceResponse].self)
+                    deviceID = devices[0].id
+                }
+            )
+            let id = try #require(deviceID)
+            try await app.testing().test(
+                .POST, "devices/\(id)/subscriptions",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(SubscribeRequest(topicName: "open-topic"))
+                },
+                afterResponse: { _ in }
+            )
+            try await app.testing().test(
+                .GET, "users/vi/subscriptions",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let subs = try res.content.decode([UserSubscriptionResponse].self)
+                    #expect(subs.count == 1)
+                    #expect(subs[0].topic.name == "open-topic")
+                    #expect(subs[0].device.name == "Vi's iPhone")
+                    #expect(subs[0].device.platform == "ios")
+                }
+            )
+        }
+    }
+
+    @Test("Subscriptions: GET /users/:username/subscriptions as admin lists another user")
+    func listUserSubscriptionsAsAdmin() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            try await seedDevices(app)
+            let viSession = try await login(app, username: "vi", password: "password1")
+            var deviceID: UUID?
+            try await app.testing().test(
+                .GET, "devices",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: viSession.token)
+                },
+                afterResponse: { res in
+                    let devices = try res.content.decode([DeviceResponse].self)
+                    deviceID = devices[0].id
+                }
+            )
+            let id = try #require(deviceID)
+            try await app.testing().test(
+                .POST, "devices/\(id)/subscriptions",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: viSession.token)
+                    try req.content.encode(SubscribeRequest(topicName: "open-topic"))
+                },
+                afterResponse: { _ in }
+            )
+            let adminSession = try await login(app, username: "jinx", password: "hunter2")
+            try await app.testing().test(
+                .GET, "users/vi/subscriptions",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: adminSession.token)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let subs = try res.content.decode([UserSubscriptionResponse].self)
+                    #expect(subs.count == 1)
+                }
+            )
+        }
+    }
+
+    @Test("Subscriptions: GET /users/:username/subscriptions as other user returns 403")
+    func listUserSubscriptionsAccessDenied() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            try await seedDevices(app)
+            let vanderSession = try await login(app, username: "vander", password: "letmein")
+            try await app.testing().test(
+                .GET, "users/vi/subscriptions",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: vanderSession.token)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .forbidden)
+                }
+            )
+        }
+    }
+
+    @Test("Subscriptions: GET /users/:username/subscriptions returns empty when none")
+    func listUserSubscriptionsEmpty() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            try await seedDevices(app)
+            let session = try await login(app, username: "vi", password: "password1")
+            try await app.testing().test(
+                .GET, "users/vi/subscriptions",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let subs = try res.content.decode([UserSubscriptionResponse].self)
+                    #expect(subs.isEmpty)
                 }
             )
         }

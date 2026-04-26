@@ -30,12 +30,17 @@ struct SubscriptionFeature {
         _ deviceID: UUID
     ) async throws -> [DeviceSubscription]
 
+    let listForUser: @Sendable (
+        _ currentUser: User,
+        _ username: String
+    ) async throws -> [UserSubscriptionResponse]
+
     let subscribe: @Sendable (
         _ currentUser: User,
         _ deviceID: UUID,
         _ topicName: String,
         _ topicPassword: String?
-    ) async throws -> DeviceSubscription
+    ) async throws -> (DeviceSubscription, Topic)
 
     let unsubscribe: @Sendable (
         _ currentUser: User,
@@ -49,6 +54,7 @@ extension SubscriptionFeature {
         subscriptionClient: SubscriptionClient,
         deviceClient: DeviceClient,
         topicClient: TopicClient,
+        userClient: UserClient,
         authClient: AuthClient,
         permissionClient: PermissionClient
     ) -> Self {
@@ -63,6 +69,30 @@ extension SubscriptionFeature {
                     throw SubscriptionError.accessDenied
                 }
                 return try await subscriptionClient.list(deviceID)
+            },
+            listForUser: { currentUser, username in
+                try userClient.checkUserPermission(for: currentUser, targetUser: username)
+                let userID = try await userClient.getUserId(for: username)
+                let subscriptions = try await subscriptionClient.listForUser(userID)
+                return try subscriptions.map { subscription in
+                    let device = try subscription.joined(Device.self)
+                    let topic = try subscription.joined(Topic.self)
+                    return UserSubscriptionResponse(
+                        id: try subscription.requireID(),
+                        device: .init(
+                            id: device.id!,
+                            name: device.name,
+                            platform: device.platform.rawValue
+                        ),
+                        topic: .init(
+                            id: topic.id!,
+                            name: topic.name,
+                            visibility: topic.visibility.rawValue,
+                            hasPassword: topic.passwordHash != nil
+                        ),
+                        createdAt: subscription.createdAt
+                    )
+                }
             },
             subscribe: { currentUser, deviceID, topicName, topicPassword in
                 guard let device = try await deviceClient.get(deviceID) else {
@@ -87,7 +117,8 @@ extension SubscriptionFeature {
                 }
                 let topicID = try topic.requireID()
                 do {
-                    return try await subscriptionClient.create(deviceID, topicID)
+                    let subscription = try await subscriptionClient.create(deviceID, topicID)
+                    return (subscription, topic)
                 } catch {
                     throw SubscriptionError.alreadySubscribed
                 }

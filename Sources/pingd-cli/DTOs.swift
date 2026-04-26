@@ -81,6 +81,26 @@ struct CreatePermissionDTO: Codable {
     let topicPattern: String
 }
 
+struct UserSubscriptionDTO: Codable {
+    let id: UUID
+    let device: DeviceInfo
+    let topic: TopicInfo
+    let createdAt: Date?
+
+    struct DeviceInfo: Codable {
+        let id: UUID
+        let name: String
+        let platform: String
+    }
+
+    struct TopicInfo: Codable {
+        let id: UUID
+        let name: String
+        let visibility: String
+        let hasPassword: Bool
+    }
+}
+
 struct DeliveryDTO: Codable {
     let id: UUID
     let messageID: UUID

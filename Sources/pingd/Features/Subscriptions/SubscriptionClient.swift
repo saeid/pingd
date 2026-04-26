@@ -4,6 +4,7 @@ import Foundation
 
 struct SubscriptionClient {
     let list: @Sendable (_ deviceID: UUID) async throws -> [DeviceSubscription]
+    let listForUser: @Sendable (_ userID: UUID) async throws -> [DeviceSubscription]
     let listForTopic: @Sendable (_ topicID: UUID) async throws -> [DeviceSubscription]
     let countForTopic: @Sendable (_ topicID: UUID) async throws -> Int
     let create: @Sendable (_ deviceID: UUID, _ topicID: UUID) async throws -> DeviceSubscription
@@ -16,6 +17,14 @@ extension SubscriptionClient {
             list: { deviceID in
                 try await DeviceSubscription.query(on: app.db)
                     .filter(\.$device.$id == deviceID)
+                    .with(\.$topic)
+                    .all()
+            },
+            listForUser: { userID in
+                try await DeviceSubscription.query(on: app.db)
+                    .join(Device.self, on: \DeviceSubscription.$device.$id == \Device.$id)
+                    .join(Topic.self, on: \DeviceSubscription.$topic.$id == \Topic.$id)
+                    .filter(Device.self, \.$user.$id == userID)
                     .all()
             },
             listForTopic: { topicID in
@@ -44,6 +53,7 @@ extension SubscriptionClient {
 
     static func mock(
         list: @escaping @Sendable (UUID) async throws -> [DeviceSubscription] = { _ in [] },
+        listForUser: @escaping @Sendable (UUID) async throws -> [DeviceSubscription] = { _ in [] },
         listForTopic: @escaping @Sendable (UUID) async throws -> [DeviceSubscription] = { _ in [] },
         countForTopic: @escaping @Sendable (UUID) async throws -> Int = { _ in 0 },
         create: @escaping @Sendable (UUID, UUID) async throws -> DeviceSubscription = { deviceID, topicID in
@@ -53,6 +63,7 @@ extension SubscriptionClient {
     ) -> Self {
         SubscriptionClient(
             list: list,
+            listForUser: listForUser,
             listForTopic: listForTopic,
             countForTopic: countForTopic,
             create: create,

@@ -5,7 +5,7 @@ struct UsersCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "users",
         abstract: "Manage users",
-        subcommands: [List.self, Get.self, Create.self, Update.self, Delete.self]
+        subcommands: [List.self, Get.self, Create.self, Update.self, Delete.self, Subscriptions.self]
     )
 
     struct List: AsyncParsableCommand {
@@ -95,6 +95,26 @@ struct UsersCommand: AsyncParsableCommand {
             try await withAPIClient { client in
                 try await client.delete("/users/\(username)")
                 print("Deleted user '\(username)'")
+            }
+        }
+    }
+
+    struct Subscriptions: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(abstract: "List all subscriptions for a user")
+
+        @Option(name: .shortAndLong, help: "Username")
+        var username: String
+
+        func run() async throws {
+            try await withAPIClient { client in
+                let subs = try await client.get("/users/\(username)/subscriptions", as: [UserSubscriptionDTO].self)
+                if subs.isEmpty {
+                    print("No subscriptions")
+                    return
+                }
+                for sub in subs {
+                    print("\(sub.topic.name)  \(sub.topic.visibility)  \(sub.device.name)")
+                }
             }
         }
     }
