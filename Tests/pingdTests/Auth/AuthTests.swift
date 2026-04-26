@@ -1,3 +1,4 @@
+import Fluent
 @testable import pingd
 import Testing
 import VaporTesting
@@ -80,6 +81,17 @@ extension PingdTests {
                     #expect(user.role == .guest)
                 }
             )
+        }
+    }
+
+    @Test("Auth: Guest login creates non-expiring token")
+    func guestLoginCreatesNonExpiringToken() async throws {
+        try await withApp { app in
+            let session = try await loginGuest(app)
+            let token = try await Token.query(on: app.db)
+                .filter(\.$tokenHash == session.token)
+                .first()
+            #expect(token?.expiresAt == nil)
         }
     }
 

@@ -88,6 +88,37 @@ extension PingdTests {
         }
     }
 
+    @Test("Topics: GET /topics as guest returns only open topics even with permission")
+    func listTopicsGuestIgnoresPermissions() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            let session = try await loginGuest(app)
+            let guest = try #require(
+                try await User.query(on: app.db)
+                    .filter(\.$username, .equal, session.username)
+                    .first()
+            )
+            try await Permission(
+                scope: .user,
+                accessLevel: .readWrite,
+                userId: try guest.requireID(),
+                topicPattern: "private-topic"
+            ).save(on: app.db)
+
+            try await app.testing().test(
+                .GET, "topics",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let topics = try res.content.decode([TopicResponse].self)
+                    #expect(topics.map(\.name) == ["open-topic"])
+                }
+            )
+        }
+    }
+
     @Test("Topics: GET /topics/:name open topic as anonymous returns topic")
     func getOpenTopicAnonymous() async throws {
         try await withApp { app in
@@ -98,6 +129,36 @@ extension PingdTests {
                     #expect(res.status == .ok)
                     let topic = try res.content.decode(TopicResponse.self)
                     #expect(topic.name == "open-topic")
+                }
+            )
+        }
+    }
+
+    @Test("Topics: GET /topics/:name protected topic as guest requires password")
+    func getProtectedTopicGuestRequiresPassword() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            let session = try await loginGuest(app)
+            try await app.testing().test(
+                .GET, "topics/protected-topic",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .forbidden)
+                }
+            )
+
+            try await app.testing().test(
+                .GET, "topics/protected-topic",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    req.headers.replaceOrAdd(name: "X-Topic-Password", value: protectedTopicPassword)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let topic = try res.content.decode(TopicResponse.self)
+                    #expect(topic.name == "protected-topic")
                 }
             )
         }

@@ -352,7 +352,7 @@ extension PingdTests {
                 .POST, "users",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
-                    try req.content.encode(CreateUserRequest(username: "vi", password: "pass123", role: .user))
+                    try req.content.encode(CreateUserRequest(username: "jinx", password: "pass123", role: .user))
                 },
                 afterResponse: { res in
                     #expect(res.status == .badRequest)

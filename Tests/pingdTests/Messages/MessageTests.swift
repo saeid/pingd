@@ -111,6 +111,42 @@ extension PingdTests {
         }
     }
 
+    @Test("Messages: POST /topics/:name/messages on protected topic as guest requires password")
+    func publishToProtectedTopicGuestRequiresPassword() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            let session = try await loginGuest(app)
+            let body = PublishMessageRequest(
+                priority: 3,
+                tags: nil,
+                payload: MessagePayload(title: nil, subtitle: nil, body: "Hello")
+            )
+
+            try await app.testing().test(
+                .POST, "topics/protected-topic/messages",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(body)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .forbidden)
+                }
+            )
+
+            try await app.testing().test(
+                .POST, "topics/protected-topic/messages",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    req.headers.replaceOrAdd(name: "X-Topic-Password", value: protectedTopicPassword)
+                    try req.content.encode(body)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                }
+            )
+        }
+    }
+
     @Test("Messages: POST /topics/:name/messages on private topic as non-owner returns 403")
     func publishToPrivateTopicAsNonOwner() async throws {
         try await withApp { app in
