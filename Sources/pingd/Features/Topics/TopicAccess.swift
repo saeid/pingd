@@ -1,7 +1,7 @@
 import Vapor
 
 /// `open` — anyone can read and publish.
-/// `protected` — authenticated or password.
+/// `protected` — registered user/admin or password; guests need password.
 /// `private` — owner/admin or explicit permission only.
 enum TopicAccess {
     static func canRead(
@@ -13,7 +13,7 @@ enum TopicAccess {
     ) async throws -> Bool {
         if currentUser?.role == .admin { return true }
 
-        if let user = currentUser {
+        if let user = currentUser, user.role != .guest {
             let resolved = try await resolveAccess(
                 user: user,
                 topicName: topic.name,
@@ -28,7 +28,7 @@ enum TopicAccess {
         case .open:
             return true
         case .protected:
-            if currentUser != nil { return true }
+            if currentUser?.role == .user { return true }
             return try hasMatchingPassword(
                 topic: topic,
                 topicPassword: topicPassword,
@@ -52,7 +52,7 @@ enum TopicAccess {
     ) async throws -> Bool {
         if currentUser?.role == .admin { return true }
 
-        if let user = currentUser {
+        if let user = currentUser, user.role != .guest {
             let resolved = try await resolveAccess(
                 user: user,
                 topicName: topic.name,
@@ -67,7 +67,7 @@ enum TopicAccess {
         case .open:
             return true
         case .protected:
-            if currentUser != nil { return true }
+            if currentUser?.role == .user { return true }
             return try hasMatchingPassword(
                 topic: topic,
                 topicPassword: topicPassword,

@@ -252,6 +252,23 @@ extension PingdTests {
         }
     }
 
+    @Test("Topics: POST /topics as guest returns 403")
+    func createTopicGuest() async throws {
+        try await withApp { app in
+            let session = try await loginGuest(app)
+            try await app.testing().test(
+                .POST, "topics",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(CreateTopicRequest(name: "guest-topic", visibility: .open, password: nil))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .forbidden)
+                }
+            )
+        }
+    }
+
     @Test("Topics: POST /topics with short name returns 400")
     func createTopicShortName() async throws {
         try await withApp { app in

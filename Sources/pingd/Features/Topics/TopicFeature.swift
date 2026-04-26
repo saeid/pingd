@@ -74,6 +74,9 @@ extension TopicFeature {
                     return all.filter { $0.visibility == .open }
                 }
                 if user.role == .admin { return all }
+                if user.role == .guest {
+                    return all.filter { $0.visibility == .open }
+                }
 
                 let userID = try user.requireID()
                 let userPermissions = try await permissionClient.listForUser(userID)
@@ -131,6 +134,9 @@ extension TopicFeature {
                 return topic
             },
             createTopic: { currentUser, name, visibility, passwordHash in
+                guard currentUser.role != .guest else {
+                    throw TopicError.accessDenied
+                }
                 if try await topicClient.getByName(name) != nil {
                     throw TopicError.nameTaken
                 }

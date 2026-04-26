@@ -192,6 +192,23 @@ extension PingdTests {
         }
     }
 
+    @Test("Tokens: guest cannot create additional token")
+    func guestCannotCreateToken() async throws {
+        try await withApp { app in
+            let session = try await loginGuest(app)
+            try await app.testing().test(
+                .POST, "users/\(session.username)/tokens",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(CreateTokenRequest(label: "extra-guest-token", expiresAt: nil))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .forbidden)
+                }
+            )
+        }
+    }
+
     @Test("Tokens: user cannot list another user's tokens")
     func userCannotListOtherTokens() async throws {
         try await withApp { app in
