@@ -1,6 +1,0 @@
-name: List Devices
-method: GET
-url: $host/devices
-headers:
-  - name: Authorization
-    value: Bearer $token

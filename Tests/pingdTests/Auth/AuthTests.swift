@@ -51,6 +51,38 @@ extension PingdTests {
         }
     }
 
+    @Test("Auth: Guest login returns token and /me returns guest user")
+    func guestLogin() async throws {
+        try await withApp { app in
+            var session: LoginResponse?
+            try await app.testing().test(
+                .POST, "auth/guest",
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let body = try res.content.decode(LoginResponse.self)
+                    #expect(body.username.hasPrefix("guest-"))
+                    #expect(!body.token.isEmpty)
+                    session = body
+                }
+            )
+
+            let guestSession = try #require(session)
+            try await app.testing().test(
+                .GET, "me",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: guestSession.token)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let user = try res.content.decode(UserResponse.self)
+                    #expect(user.id == guestSession.userID)
+                    #expect(user.username == guestSession.username)
+                    #expect(user.role == .guest)
+                }
+            )
+        }
+    }
+
     @Test("Auth: GET /me with valid token returns current user")
     func meSuccess() async throws {
         try await withApp { app in

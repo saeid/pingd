@@ -5,6 +5,7 @@ struct CreateUser: AsyncMigration {
         let userRole = try await database.enum("user_role")
             .case("user")
             .case("admin")
+            .case("guest")
             .create()
 
         try await database.schema("users")

@@ -1,6 +1,0 @@
-name: Topic Stats
-method: GET
-url: $host/topics/alerts.critical/stats
-headers:
-  - name: Authorization
-    value: Bearer $token

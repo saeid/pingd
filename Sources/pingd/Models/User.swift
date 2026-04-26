@@ -4,6 +4,7 @@ import Foundation
 enum UserRole: String, Codable, CaseIterable {
     case user
     case admin
+    case guest
 }
 
 final class User: Model, @unchecked Sendable {

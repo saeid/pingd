@@ -1,6 +1,0 @@
-name: Delete Topic
-method: DELETE
-url: $host/topics/alerts.critical
-headers:
-  - name: Authorization
-    value: Bearer $token

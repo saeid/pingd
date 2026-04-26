@@ -1,6 +1,0 @@
-name: List Global Permissions
-method: GET
-url: $host/permissions
-headers:
-  - name: Authorization
-    value: Bearer $token

@@ -1,6 +1,0 @@
-name: Logout
-method: DELETE
-url: $host/auth/logout
-headers:
-  - name: Authorization
-    value: Bearer $token

@@ -1,6 +1,0 @@
-name: List User Permissions
-method: GET
-url: $host/permissions/username
-headers:
-  - name: Authorization
-    value: Bearer $token

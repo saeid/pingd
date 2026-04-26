@@ -1,6 +1,0 @@
-name: Delete Device
-method: DELETE
-url: $host/devices/device-id-here
-headers:
-  - name: Authorization
-    value: Bearer $token

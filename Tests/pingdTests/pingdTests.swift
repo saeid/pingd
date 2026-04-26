@@ -92,4 +92,18 @@ struct PingdTests {
         )
         return try #require(result)
     }
+
+    func loginGuest(_ app: Application) async throws -> LoginResponse {
+        var result: LoginResponse?
+        try await app.testing().test(
+            .POST, "auth/guest",
+            afterResponse: { res in
+                guard res.status == .ok else {
+                    throw Abort(.internalServerError, reason: "Guest login failed: \(res.status)")
+                }
+                result = try res.content.decode(LoginResponse.self)
+            }
+        )
+        return try #require(result)
+    }
 }

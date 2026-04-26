@@ -1,6 +1,0 @@
-name: Me
-method: GET
-url: $host/me
-headers:
-  - name: Authorization
-    value: Bearer $token

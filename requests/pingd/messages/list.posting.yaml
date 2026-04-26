@@ -1,8 +1,0 @@
-name: List Messages
-method: GET
-url: $host/topics/alerts.critical/messages
-headers:
-  - name: Authorization
-    value: Bearer $token
-  - name: X-Topic-Password
-    value: topic-secret

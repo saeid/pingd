@@ -1,8 +1,0 @@
-name: Get Topic
-method: GET
-url: $host/topics/alerts.critical
-headers:
-  - name: Authorization
-    value: Bearer $token
-  - name: X-Topic-Password
-    value: topic-secret

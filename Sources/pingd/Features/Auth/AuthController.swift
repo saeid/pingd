@@ -12,6 +12,7 @@ struct AuthController: RouteCollection, @unchecked Sendable {
     func boot(routes: any RoutesBuilder) throws {
         let auth = routes.grouped("auth")
         auth.post("register", use: handleRegister)
+        auth.post("guest", use: guest)
         auth.post("login", use: login)
         auth.delete("logout", use: logout)
     }
@@ -61,6 +62,29 @@ struct AuthController: RouteCollection, @unchecked Sendable {
             ])
             throw error
         }
+    }
+
+    func guest(_ req: Request) async throws -> LoginResponse {
+        let username = generateGuestUsername()
+        let passwordHash = try authClient.hashPassword(UUID().uuidString)
+        let user = try await userClient.create(username, passwordHash, .guest)
+        let userID = try user.requireID()
+        let token = try await tokenClient.createToken(
+            userID,
+            "guest",
+            nil
+        )
+        auditLogger.log("guest.create", req: req, metadata: [
+            "username": username,
+            "ip": req.clientIP,
+        ])
+        return LoginResponse(token: token.tokenHash, userID: userID, username: user.username)
+    }
+
+    private func generateGuestUsername() -> String {
+        let alphabet = Array("23456789abcdefghjkmnpqrstuvwxyz")
+        let suffix = String((0..<6).compactMap { _ in alphabet.randomElement() })
+        return "guest-\(suffix)"
     }
 
     func me(_ req: Request) async throws -> UserResponse {

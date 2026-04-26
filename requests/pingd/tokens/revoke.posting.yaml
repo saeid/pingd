@@ -1,6 +1,0 @@
-name: Revoke Token
-method: DELETE
-url: $host/tokens/TOKEN_ID_HERE
-headers:
-  - name: Authorization
-    value: Bearer $token

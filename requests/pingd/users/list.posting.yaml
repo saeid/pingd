@@ -1,6 +1,0 @@
-name: List Users
-method: GET
-url: $host/users
-headers:
-  - name: Authorization
-    value: Bearer $token

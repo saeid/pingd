@@ -1,8 +1,0 @@
-name: SSE Stream
-method: GET
-url: $host/topics/alerts.critical/stream
-headers:
-  - name: Authorization
-    value: Bearer $token
-  - name: X-Topic-Password
-    value: topic-secret
