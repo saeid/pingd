@@ -5,6 +5,7 @@ enum UserError: AbortError {
     case needAtLeastOneAdmin
     case notFound
     case userAlreadyExists
+    case guestRoleNotAllowed
     case wrongPassword
 
     var status: HTTPResponseStatus {
@@ -12,7 +13,7 @@ enum UserError: AbortError {
         case .accessDenied: .forbidden
         case .notFound: .notFound
         case .wrongPassword: .unauthorized
-        case .needAtLeastOneAdmin, .userAlreadyExists: .badRequest
+        case .needAtLeastOneAdmin, .userAlreadyExists, .guestRoleNotAllowed: .badRequest
         }
     }
 
@@ -22,6 +23,7 @@ enum UserError: AbortError {
         case .notFound: "User not found"
         case .needAtLeastOneAdmin: "At least one admin must remain"
         case .userAlreadyExists: "Username already taken"
+        case .guestRoleNotAllowed: "Guest users must be created through guest auth"
         case .wrongPassword: "Current password is incorrect"
         }
     }
@@ -70,6 +72,9 @@ extension UserFeature {
             return fetchedUser
         }, createUser: { user, username, passwordHash, role in
             try userClient.checkAdminPermission(for: user)
+            if role == .guest {
+                throw UserError.guestRoleNotAllowed
+            }
             if try await userClient.getByUsername(username) != nil {
                 throw UserError.userAlreadyExists
             }
@@ -89,6 +94,10 @@ extension UserFeature {
 
             if !isAdmin && role != nil {
                 throw UserError.accessDenied
+            }
+
+            if role == .guest {
+                throw UserError.guestRoleNotAllowed
             }
 
             if passwordHash != nil && !isAdmin {

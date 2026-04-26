@@ -57,6 +57,23 @@ extension PingdTests {
         }
     }
 
+    @Test("Users: POST /users cannot create guest role")
+    func createGuestRoleDenied() async throws {
+        try await withApp { app in
+            let session = try await login(app, username: "jinx", password: "hunter2")
+            try await app.testing().test(
+                .POST, "users",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(CreateUserRequest(username: "manual-guest", password: "pass123", role: .guest))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .badRequest)
+                }
+            )
+        }
+    }
+
     @Test("Users: GET /users/:username as self returns user")
     func getUserAsSelf() async throws {
         try await withApp { app in
@@ -208,6 +225,23 @@ extension PingdTests {
                     #expect(res.status == .ok)
                     let user = try res.content.decode(UserResponse.self)
                     #expect(user.role == .admin)
+                }
+            )
+        }
+    }
+
+    @Test("Users: PATCH /users/:username cannot assign guest role")
+    func updateUserRoleToGuestDenied() async throws {
+        try await withApp { app in
+            let session = try await login(app, username: "jinx", password: "hunter2")
+            try await app.testing().test(
+                .PATCH, "users/vi",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(UpdateUserRequest(password: nil, currentPassword: nil, role: .guest))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .badRequest)
                 }
             )
         }
