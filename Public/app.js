@@ -182,11 +182,6 @@ function priorityClass(priority) {
     return "priority-default";
 }
 
-function priorityLabel(priority) {
-    const labels = { 1: "low", 2: "default", 3: "urgent" };
-    return labels[Number(priority)] || `p${priority}`;
-}
-
 function formatDate(value) {
     if (!value) return "—";
     return new Date(value).toLocaleDateString(undefined, {
@@ -287,7 +282,9 @@ async function loadMessages(topicName) {
 
 async function bootstrapAuthenticatedSession() {
     await loadMe();
-    await loadTopics();
+    if (state.user?.role === "admin") {
+        await loadTopics();
+    }
     if (state.currentTab === "account") {
         await loadTokens();
     }
@@ -295,7 +292,6 @@ async function bootstrapAuthenticatedSession() {
 }
 
 async function bootstrapGuestSession() {
-    await loadTopics();
     render();
 }
 
@@ -392,7 +388,9 @@ async function createTopic(form) {
     closeModal();
     setToast(`Created topic ${name}`, "success");
     await selectTopic(name);
-    await loadTopics();
+    if (state.user?.role === "admin") {
+        await loadTopics();
+    }
     render();
 }
 
@@ -407,6 +405,8 @@ async function publishCurrentTopic(form) {
         .map((tag) => tag.trim())
         .filter(Boolean);
     const priority = Number(form.get("priority") || 3);
+    const ttlRaw = form.get("ttl");
+    const ttl = ttlRaw ? Number(ttlRaw) : null;
 
     if (!body) {
         throw new Error("Message body is required");
@@ -426,6 +426,7 @@ async function publishCurrentTopic(form) {
                         subtitle: null,
                         body,
                     },
+                    ttl,
                 },
             }
         );
@@ -454,7 +455,11 @@ async function removeCurrentTopic() {
     if (state.currentTopicName === topic.name) {
         state.currentTopicName = null;
     }
-    await loadTopics();
+    if (state.user?.role === "admin") {
+        await loadTopics();
+    } else {
+        state.topics = state.topics.filter((item) => item.name !== topic.name);
+    }
     closeModal();
     render();
     setToast(`Deleted topic ${topic.name}`);
@@ -632,7 +637,10 @@ function renderAuth() {
 
 function renderTopicItems() {
     if (!state.topics.length) {
-        return `<div class="empty-panel" style="height:auto;padding:18px;"><p>No topics visible yet.</p></div>`;
+        const message = state.user?.role === "admin"
+            ? "No topics visible yet."
+            : "Open a topic by name to view it.";
+        return `<div class="empty-panel" style="height:auto;padding:18px;"><p>${message}</p></div>`;
     }
 
     return state.topics.map((topic) => `
@@ -647,10 +655,13 @@ function renderTopicItems() {
 function renderMessagesPanel() {
     const topic = currentTopic();
     if (!topic) {
+        const message = state.user?.role === "admin"
+            ? "Select a topic from the left rail or open one by name to inspect messages and publish new messages."
+            : "Open a topic by name to inspect messages and publish new messages.";
         return `
             <section class="panel message-layout">
                 <div class="empty-panel">
-                    <p>Select a topic from the left rail or open one by name to inspect messages and publish new events.</p>
+                    <p>${message}</p>
                 </div>
             </section>
         `;
@@ -689,6 +700,14 @@ function renderMessagesPanel() {
                         <option value="2" selected>Default</option>
                         <option value="3">Urgent</option>
                     </select>
+                    <select class="select" name="ttl">
+                        <option value="" selected>No expiry</option>
+                        <option value="3600">Expires in 1h</option>
+                        <option value="21600">Expires in 6h</option>
+                        <option value="86400">Expires in 24h</option>
+                        <option value="604800">Expires in 7d</option>
+                        <option value="2592000">Expires in 30d</option>
+                    </select>
                     <button class="btn btn-primary" type="submit">Publish</button>
                 </div>
             </form>
@@ -702,8 +721,7 @@ function renderMessagesPanel() {
                             <div class="message-body">${escapeHtml(message.payload?.body || "")}</div>
                             <div class="message-meta">
                                 <span class="mono">${formatDateTime(message.time)}</span>
-                                <span class="mono">${escapeHtml(priorityLabel(message.priority))}</span>
-                                <span class="mono">${truncateId(message.id)}</span>
+                                ${message.expiresAt ? `<span class="mono" title="Expires ${escapeHtml(new Date(message.expiresAt).toISOString())}">expires ${formatDateTime(message.expiresAt)}</span>` : ""}
                             </div>
                             ${message.tags?.length ? `
                                 <div class="message-tags" style="margin-top: 10px;">
@@ -714,7 +732,7 @@ function renderMessagesPanel() {
                     </article>
                 `).join("") : `
                     <div class="empty-panel">
-                        <p>No messages yet. Publish the first event to see it here.</p>
+                        <p>No messages yet. Publish the first message to see it here.</p>
                     </div>
                 `}
             </div>
@@ -881,7 +899,7 @@ function renderAppShell() {
                     ` : ""}
                 </div>
 
-                <div class="sidebar-section-title">Topics</div>
+                <div class="sidebar-section-title">${state.user?.role === "admin" ? "Topics" : "Recently opened"}</div>
                 <div class="topic-list">${renderTopicItems()}</div>
 
                 <div class="topic-quick-actions">
@@ -1175,7 +1193,9 @@ function bindAppEvents() {
 
     app.querySelectorAll("[data-action='refresh']").forEach((button) => {
         button.addEventListener("click", async () => {
-            await loadTopics();
+            if (state.user?.role === "admin") {
+                await loadTopics();
+            }
             if (state.currentTopicName) {
                 await selectTopic(state.currentTopicName);
             } else {

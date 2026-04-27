@@ -598,7 +598,7 @@ a {
 
 .composer-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 100px 90px;
+    grid-template-columns: minmax(0, 1fr) 100px 140px 90px;
     gap: 6px;
     align-items: start;
 }
