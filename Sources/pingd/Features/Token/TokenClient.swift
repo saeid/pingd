@@ -5,8 +5,8 @@ import Fluent
 struct TokenClient {
     let createToken: @Sendable (UUID, String?, Date?) async throws -> Token
     let get: @Sendable (UUID) async throws -> Token?
-    let findByLabel: @Sendable (UUID, String) async throws -> Token?
-    let listUserTokens: @Sendable (UUID) async throws -> [Token]
+    let findByLabel: @Sendable (_ userID: UUID, _ label: String, _ now: Date) async throws -> Token?
+    let listUserTokens: @Sendable (_ userID: UUID, _ now: Date) async throws -> [Token]
     let revokeToken: @Sendable (UUID) async throws -> Void
     let revokeByHash: @Sendable (String) async throws -> Void
     let markTokenUse: @Sendable (String, String, Date) async throws -> User
@@ -28,22 +28,22 @@ extension TokenClient {
             get: { id in
                 try await Token.find(id, on: app.db)
             },
-            findByLabel: { userId, label in
+            findByLabel: { userId, label, now in
                 try await Token.query(on: app.db)
                     .filter(\.$user.$id == userId)
                     .filter(\.$label == label)
                     .group(.or) { group in
                         group.filter(\.$expiresAt == nil)
-                        group.filter(\.$expiresAt > Date())
+                        group.filter(\.$expiresAt > now)
                     }
                     .first()
             },
-            listUserTokens: { userId in
+            listUserTokens: { userId, now in
                 try await Token.query(on: app.db)
                     .filter(\.$user.$id == userId)
                     .group(.or) { group in
                         group.filter(\.$expiresAt == nil)
-                        group.filter(\.$expiresAt > Date())
+                        group.filter(\.$expiresAt > now)
                     }
                     .all()
             },
@@ -91,8 +91,8 @@ extension TokenClient {
                 )
             },
             get: { _ in nil },
-            findByLabel: { _, _ in nil },
-            listUserTokens: { _ in [] },
+            findByLabel: { _, _, _ in nil },
+            listUserTokens: { _, _ in [] },
             revokeToken: { _ in },
             revokeByHash: { _ in },
             markTokenUse: { _, _, _ in

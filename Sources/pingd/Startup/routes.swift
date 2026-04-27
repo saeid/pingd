@@ -56,6 +56,7 @@ func routes(_ app: Application, _ services: AppDependencies) throws {
     ))
     try protected.register(collection: TokenController(
         tokenFeature: services.tokenFeature,
+        now: services.now,
         auditLogger: services.auditLogger
     ))
     try protected.register(collection: DeviceController(

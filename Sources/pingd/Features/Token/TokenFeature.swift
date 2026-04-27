@@ -22,7 +22,7 @@ enum TokenError: AbortError {
 
 struct TokenFeature {
     let createUserToken: @Sendable (User, String, String?, Date?) async throws -> Token
-    let listUserTokens: @Sendable (User, String) async throws -> [Token]
+    let listUserTokens: @Sendable (User, String, Date) async throws -> [Token]
     let revokeToken: @Sendable (User, UUID, String?) async throws -> Void
 }
 
@@ -37,10 +37,10 @@ extension TokenFeature {
                 let userID = try await userClient.getUserId(for: username)
                 let token = try await tokenClient.createToken(userID, label, expiryDate)
                 return token
-            }, listUserTokens: { user, username in
+            }, listUserTokens: { user, username, now in
                 try userClient.checkUserPermission(for: user, targetUser: username)
                 let userID = try await userClient.getUserId(for: username)
-                return try await tokenClient.listUserTokens(userID)
+                return try await tokenClient.listUserTokens(userID, now)
             }, revokeToken: { user, tokenId, activeToken in
                 guard let token = try await tokenClient.get(tokenId) else {
                     return

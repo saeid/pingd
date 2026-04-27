@@ -45,7 +45,7 @@ struct AuthController: RouteCollection, @unchecked Sendable {
             let user = try await authFeature.doBasicAuth(body.username, body.password)
             let userID = try user.requireID()
             let token: Token
-            if let existing = try await tokenClient.findByLabel(userID, body.label) {
+            if let existing = try await tokenClient.findByLabel(userID, body.label, now()) {
                 token = existing
             } else {
                 token = try await tokenClient.createToken(userID, body.label, nil)

@@ -2,6 +2,7 @@ import Vapor
 
 struct TokenController: RouteCollection, @unchecked Sendable {
     let tokenFeature: TokenFeature
+    let now: @Sendable () -> Date
     let auditLogger: AuditLogger
 
     func boot(routes: any RoutesBuilder) throws {
@@ -18,7 +19,7 @@ struct TokenController: RouteCollection, @unchecked Sendable {
             throw Abort(.badRequest)
         }
         let currentUser = try req.user
-        let tokens = try await tokenFeature.listUserTokens(currentUser, username)
+        let tokens = try await tokenFeature.listUserTokens(currentUser, username, now())
         let showFullToken = currentUser.role == .admin
         return tokens.map { TokenResponse($0, showFullToken: showFullToken) }
     }
