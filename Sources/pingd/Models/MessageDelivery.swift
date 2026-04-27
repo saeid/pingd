@@ -6,6 +6,7 @@ enum DeliveryStatus: String, CaseIterable, Codable {
     case ongoing
     case delivered
     case failed
+    case expired
 }
 
 final class MessageDelivery: Model, @unchecked Sendable {

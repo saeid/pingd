@@ -67,6 +67,7 @@ struct RelayPushRequest: Content {
     let deviceToken: String
     let payload: MessagePayload
     let metadata: PingdAPNSPayload
+    let expiresAt: Date?
 }
 
 struct PushProvider {
@@ -74,7 +75,8 @@ struct PushProvider {
         _ deviceToken: String,
         _ pushType: PushType,
         _ payload: MessagePayload,
-        _ metadata: PingdAPNSPayload
+        _ metadata: PingdAPNSPayload,
+        _ expiresAt: Date?
     ) async throws -> PushResult
 }
 
@@ -98,7 +100,7 @@ extension PushProvider {
 
     static func apns(application: Application, config: APNSDirectConfiguration, logger: Logger) -> Self {
         PushProvider(
-            send: { deviceToken, pushType, payload, metadata in
+            send: { deviceToken, pushType, payload, metadata, expiresAt in
                 guard pushType == .apns else {
                     return PushResult(success: false, error: "APNS provider cannot handle \(pushType) push type")
                 }
@@ -107,6 +109,10 @@ extension PushProvider {
                 case .development: .development
                 case .production: .production
                 }
+
+                let expiration: APNSNotificationExpiration = expiresAt.map {
+                    .timeIntervalSince1970InSeconds(Int($0.timeIntervalSince1970))
+                } ?? .immediately
 
                 do {
                     let client = await application.apns.client(containerID)
@@ -117,7 +123,7 @@ extension PushProvider {
                     )
                     let notification = APNSAlertNotification(
                         alert: alert,
-                        expiration: .immediately,
+                        expiration: expiration,
                         priority: .immediately,
                         topic: config.bundleID,
                         payload: metadata,
@@ -135,7 +141,7 @@ extension PushProvider {
 
     static func relay(config: APNSRelayConfiguration, logger: Logger) -> Self {
         PushProvider(
-            send: { deviceToken, pushType, payload, metadata in
+            send: { deviceToken, pushType, payload, metadata, expiresAt in
                 guard pushType == .apns else {
                     return PushResult(success: false, error: "Relay provider cannot handle \(pushType) push type")
                 }
@@ -148,9 +154,12 @@ extension PushProvider {
                 let body = RelayPushRequest(
                     deviceToken: deviceToken,
                     payload: payload,
-                    metadata: metadata
+                    metadata: metadata,
+                    expiresAt: expiresAt
                 )
-                let data = try JSONEncoder().encode(body)
+                let encoder = JSONEncoder()
+                encoder.dateEncodingStrategy = .iso8601
+                let data = try encoder.encode(body)
                 request.body = .bytes(data)
 
                 let response = try await HTTPClient.shared.execute(request, timeout: .seconds(30))
@@ -169,7 +178,7 @@ extension PushProvider {
 
     static func mock(logger: Logger) -> Self {
         PushProvider(
-            send: { _, pushType, payload, metadata in
+            send: { _, pushType, payload, metadata, _ in
                 logger.info("[PushProvider.mock] \(pushType) | topic=\(metadata.topic) priority=\(metadata.priority) title=\(payload.title ?? "-") body=\(payload.body)")
                 return PushResult(success: true, error: nil)
             }

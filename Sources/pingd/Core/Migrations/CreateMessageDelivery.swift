@@ -7,6 +7,7 @@ struct CreateMessageDelivery: AsyncMigration {
             .case("ongoing")
             .case("delivered")
             .case("failed")
+            .case("expired")
             .create()
 
         try await database.schema("messages_delivery")

@@ -8,6 +8,7 @@ actor DispatchWorker {
     let logger: Logger
     let pollInterval: Duration
     let maxRetries: UInt8
+    let now: @Sendable () -> Date
 
     private var isRunning = false
     private var pollTask: Task<Void, Never>?
@@ -19,7 +20,8 @@ actor DispatchWorker {
         messageClient: MessageClient,
         logger: Logger,
         pollInterval: Duration = .seconds(5),
-        maxRetries: UInt8 = 3
+        maxRetries: UInt8 = 3,
+        now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.dispatchClient = dispatchClient
         self.deviceClient = deviceClient
@@ -28,6 +30,7 @@ actor DispatchWorker {
         self.logger = logger
         self.pollInterval = pollInterval
         self.maxRetries = maxRetries
+        self.now = now
     }
 
     func start() {
@@ -98,6 +101,11 @@ actor DispatchWorker {
                 return
             }
 
+            if let expiresAt = message.expiresAt, expiresAt <= now() {
+                try await dispatchClient.updateStatus(deliveryID, .expired, delivery.retryCount)
+                return
+            }
+
             let metadata = PingdAPNSPayload(
                 messageID: messageID,
                 topic: topicName,
@@ -105,7 +113,7 @@ actor DispatchWorker {
                 tags: message.tags,
                 time: message.time
             )
-            let result = try await pushProvider.send(device.pushToken, device.pushType, message.payload, metadata)
+            let result = try await pushProvider.send(device.pushToken, device.pushType, message.payload, metadata, message.expiresAt)
 
             if result.success {
                 try await dispatchClient.updateStatus(deliveryID, .delivered, delivery.retryCount)

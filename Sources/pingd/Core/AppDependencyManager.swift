@@ -62,7 +62,8 @@ extension AppDependencies {
             deviceClient: deviceClient,
             pushProvider: pushProvider,
             messageClient: messageClient,
-            logger: app.logger
+            logger: app.logger,
+            now: now
         )
 
         return AppDependencies(

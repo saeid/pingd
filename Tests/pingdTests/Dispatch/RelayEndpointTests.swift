@@ -17,7 +17,8 @@ extension PingdTests {
                     priority: 3,
                     tags: nil,
                     time: Date()
-                )
+                ),
+                expiresAt: nil
             )
 
             try await app.testing().test(
@@ -45,7 +46,8 @@ extension PingdTests {
                     priority: 3,
                     tags: nil,
                     time: Date()
-                )
+                ),
+                expiresAt: nil
             )
 
             try await app.testing().test(

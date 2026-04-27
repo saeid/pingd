@@ -23,7 +23,8 @@ struct DispatchController: RouteCollection, @unchecked Sendable {
             relayRequest.deviceToken,
             .apns,
             relayRequest.payload,
-            relayRequest.metadata
+            relayRequest.metadata,
+            relayRequest.expiresAt
         )
 
         guard result.success else {
