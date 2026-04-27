@@ -405,10 +405,6 @@ async function createTopic(form) {
     if (!name) {
         throw new Error("Topic name is required");
     }
-    if (visibility === "protected" && !password) {
-        throw new Error("Protected topics require a password");
-    }
-
     const body = {
         name,
         visibility,
@@ -1197,7 +1193,7 @@ function renderModal() {
                 <section class="modal">
                     <header class="modal-header">
                         <h3>Create topic</h3>
-                        <p>Set the topic name and visibility. Protected topics require a password.</p>
+                        <p>Set the topic name, visibility, and optional password.</p>
                     </header>
                     <form id="create-topic-modal-form">
                         <div class="modal-body">
