@@ -27,6 +27,72 @@ extension PingdTests {
         }
     }
 
+    @Test("Messages: POST /topics/:name/messages with ttl returns expiresAt")
+    func publishWithTTLReturnsExpiresAt() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            try await app.testing().test(
+                .POST, "topics/open-topic/messages",
+                beforeRequest: { req in
+                    try req.content.encode(PublishMessageRequest(
+                        priority: 3,
+                        tags: nil,
+                        payload: MessagePayload(title: nil, subtitle: nil, body: "Expires"),
+                        ttl: 3_600
+                    ))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let message = try res.content.decode(MessageResponse.self)
+                    let expiresAt = try #require(message.expiresAt)
+                    #expect(expiresAt.timeIntervalSince(message.time) == 3_600)
+                }
+            )
+        }
+    }
+
+    @Test("Messages: POST /topics/:name/messages rejects non-positive ttl")
+    func publishRejectsNonPositiveTTL() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            try await app.testing().test(
+                .POST, "topics/open-topic/messages",
+                beforeRequest: { req in
+                    try req.content.encode(PublishMessageRequest(
+                        priority: 3,
+                        tags: nil,
+                        payload: MessagePayload(title: nil, subtitle: nil, body: "Invalid"),
+                        ttl: 0
+                    ))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .badRequest)
+                }
+            )
+        }
+    }
+
+    @Test("Messages: POST /topics/:name/messages rejects ttl over 30 days")
+    func publishRejectsTTLOverThirtyDays() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            try await app.testing().test(
+                .POST, "topics/open-topic/messages",
+                beforeRequest: { req in
+                    try req.content.encode(PublishMessageRequest(
+                        priority: 3,
+                        tags: nil,
+                        payload: MessagePayload(title: nil, subtitle: nil, body: "Invalid"),
+                        ttl: 60 * 60 * 24 * 30 + 1
+                    ))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .badRequest)
+                }
+            )
+        }
+    }
+
     @Test("Messages: POST /topics/:name/messages on protected topic as anonymous returns 403")
     func publishToProtectedTopicAnonymous() async throws {
         try await withApp { app in
@@ -237,6 +303,50 @@ extension PingdTests {
                     let messages = try res.content.decode([MessageResponse].self)
                     #expect(messages.count == 1)
                     #expect(messages[0].tags == ["swift"])
+                }
+            )
+        }
+    }
+
+    @Test("Messages: GET /topics/:name/messages excludes expired messages")
+    func listMessagesExcludesExpiredMessages() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+
+            guard let topic = try await Topic.query(on: app.db)
+                .filter(\.$name == "open-topic")
+                .first()
+            else {
+                Issue.record("Expected seeded topic")
+                return
+            }
+            let topicID = try topic.requireID()
+            let now = Date()
+
+            try await Message(
+                topicID: topicID,
+                time: now.addingTimeInterval(-120),
+                payload: MessagePayload(title: nil, subtitle: nil, body: "expired"),
+                expiresAt: now.addingTimeInterval(-60)
+            ).save(on: app.db)
+            try await Message(
+                topicID: topicID,
+                time: now.addingTimeInterval(-30),
+                payload: MessagePayload(title: nil, subtitle: nil, body: "active"),
+                expiresAt: now.addingTimeInterval(60)
+            ).save(on: app.db)
+            try await Message(
+                topicID: topicID,
+                time: now,
+                payload: MessagePayload(title: nil, subtitle: nil, body: "no expiry")
+            ).save(on: app.db)
+
+            try await app.testing().test(
+                .GET, "topics/open-topic/messages",
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let messages = try res.content.decode([MessageResponse].self)
+                    #expect(messages.map(\.payload.body) == ["no expiry", "active"])
                 }
             )
         }

@@ -54,6 +54,7 @@ extension DispatchClient {
             fetchPending: { limit in
                 try await MessageDelivery.query(on: app.db)
                     .filter(\.$status == .pending)
+                    .sort(\.$createdAt, .ascending)
                     .limit(limit)
                     .all()
             },
