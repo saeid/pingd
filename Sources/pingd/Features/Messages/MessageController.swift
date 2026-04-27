@@ -13,7 +13,7 @@ struct MessageController: RouteCollection, @unchecked Sendable {
 
     func list(_ req: Request) async throws -> [MessageResponse] {
         guard let name = req.parameters.get("name") else { throw Abort(.badRequest) }
-        let messages = try await messageFeature.listMessages(req.optionalUser, name, req.topicPassword)
+        let messages = try await messageFeature.listMessages(req.optionalUser, name, req.topicPassword, now())
         return try messages.map(MessageResponse.init)
     }
 
@@ -22,6 +22,7 @@ struct MessageController: RouteCollection, @unchecked Sendable {
         try PublishMessageRequest.validate(content: req)
         let body = try req.content.decode(PublishMessageRequest.self)
         try body.validateTags()
+        try body.validateTTL()
         do {
             let message = try await messageFeature.publishMessage(
                 req.optionalUser,
@@ -30,7 +31,8 @@ struct MessageController: RouteCollection, @unchecked Sendable {
                 body.priority ?? 2,
                 body.tags,
                 body.payload,
-                now()
+                now(),
+                body.ttl
             )
             return try MessageResponse(message)
         } catch {
@@ -53,6 +55,7 @@ struct MessageResponse: Content {
     let priority: UInt8
     let tags: [String]?
     let payload: MessagePayload
+    let expiresAt: Date?
     let createdAt: Date?
 
     init(_ message: Message) throws {
@@ -62,6 +65,7 @@ struct MessageResponse: Content {
         priority = message.priority
         tags = message.tags
         payload = message.payload
+        expiresAt = message.expiresAt
         createdAt = message.createdAt
     }
 }
@@ -70,6 +74,14 @@ struct PublishMessageRequest: Content, Validatable {
     let priority: UInt8?
     let tags: [String]?
     let payload: MessagePayload
+    let ttl: Int?
+
+    init(priority: UInt8?, tags: [String]?, payload: MessagePayload, ttl: Int? = nil) {
+        self.priority = priority
+        self.tags = tags
+        self.payload = payload
+        self.ttl = ttl
+    }
 
     static func validations(_ validations: inout Validations) {
         validations.add("payload", as: MessagePayload.self)
@@ -89,6 +101,16 @@ struct PublishMessageRequest: Content, Validatable {
             guard tag.unicodeScalars.allSatisfy({ allowedCharacters.contains($0) }) else {
                 throw Abort(.badRequest, reason: "Tag '\(tag)' contains invalid characters. Only alphanumeric, dash, underscore allowed")
             }
+        }
+    }
+
+    func validateTTL() throws {
+        guard let ttl else { return }
+        guard ttl > 0 else {
+            throw Abort(.badRequest, reason: "ttl must be positive")
+        }
+        guard ttl <= 60 * 60 * 24 * 30 else {
+            throw Abort(.badRequest, reason: "ttl must be <= 30 days")
         }
     }
 }

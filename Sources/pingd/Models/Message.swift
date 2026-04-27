@@ -28,6 +28,9 @@ final class Message: Model, @unchecked Sendable {
     @Field(key: "payload")
     var payload: MessagePayload
 
+    @OptionalField(key: "expires_at")
+    var expiresAt: Date?
+
     @Timestamp(key: "created_at", on: .create)
     var createdAt: Date?
 
@@ -39,7 +42,8 @@ final class Message: Model, @unchecked Sendable {
         time: Date,
         priority: UInt8 = 3,
         tags: [String]? = nil,
-        payload: MessagePayload
+        payload: MessagePayload,
+        expiresAt: Date? = nil
     ) {
         self.id = id
         $topic.id = topicID
@@ -47,5 +51,6 @@ final class Message: Model, @unchecked Sendable {
         self.priority = priority
         self.tags = tags
         self.payload = payload
+        self.expiresAt = expiresAt
     }
 }

@@ -9,6 +9,7 @@ struct CreateMessage: AsyncMigration {
             .field("priority", .int8, .required, .sql(.default(3)))
             .field("tags", .json)
             .field("payload", .json, .required)
+            .field("expires_at", .datetime)
             .field("created_at", .datetime)
             .create()
     }

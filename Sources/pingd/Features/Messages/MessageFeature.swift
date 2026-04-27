@@ -23,7 +23,8 @@ struct MessageFeature {
     let listMessages: @Sendable (
         _ currentUser: User?,
         _ topicName: String,
-        _ topicPassword: String?
+        _ topicPassword: String?,
+        _ now: Date
     ) async throws -> [Message]
 
     let publishMessage: @Sendable (
@@ -33,7 +34,8 @@ struct MessageFeature {
         _ priority: UInt8,
         _ tags: [String]?,
         _ payload: MessagePayload,
-        _ time: Date
+        _ time: Date,
+        _ ttl: Int?
     ) async throws -> Message
 }
 
@@ -47,7 +49,7 @@ extension MessageFeature {
         topicBroadcaster: TopicBroadcaster? = nil
     ) -> Self {
         MessageFeature(
-            listMessages: { currentUser, topicName, topicPassword in
+            listMessages: { currentUser, topicName, topicPassword, now in
                 guard let topic = try await topicClient.getByName(topicName) else {
                     throw MessageError.topicNotFound
                 }
@@ -61,9 +63,9 @@ extension MessageFeature {
                     throw MessageError.accessDenied
                 }
                 let topicID = try topic.requireID()
-                return try await messageClient.list(topicID)
+                return try await messageClient.list(topicID, now)
             },
-            publishMessage: { currentUser, topicName, topicPassword, priority, tags, payload, time in
+            publishMessage: { currentUser, topicName, topicPassword, priority, tags, payload, time, ttl in
                 guard let topic = try await topicClient.getByName(topicName) else {
                     throw MessageError.topicNotFound
                 }
@@ -77,7 +79,8 @@ extension MessageFeature {
                     throw MessageError.accessDenied
                 }
                 let topicID = try topic.requireID()
-                let message = try await messageClient.publish(topicID, priority, tags, payload, time)
+                let expiresAt = ttl.map { time.addingTimeInterval(TimeInterval($0)) }
+                let message = try await messageClient.publish(topicID, priority, tags, payload, time, expiresAt)
 
                 // fan-out: create deliveries for subscribed devices
                 if let dispatchFeature {
