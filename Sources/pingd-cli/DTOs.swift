@@ -101,6 +101,34 @@ struct UserSubscriptionDTO: Codable {
     }
 }
 
+struct WebhookTemplateDTO: Codable {
+    var title: String?
+    var subtitle: String?
+    var body: String?
+    var tags: String?
+    var priority: UInt8?
+    var ttl: Int?
+}
+
+struct WebhookDTO: Codable {
+    let id: UUID
+    let topicID: UUID
+    let template: WebhookTemplateDTO
+    let createdAt: Date?
+}
+
+struct CreateWebhookResponseDTO: Codable {
+    let id: UUID
+    let topicID: UUID
+    let token: String
+    let template: WebhookTemplateDTO
+    let createdAt: Date?
+}
+
+struct WebhookTemplateRequestDTO: Codable {
+    let template: WebhookTemplateDTO
+}
+
 struct DeliveryDTO: Codable {
     let id: UUID
     let messageID: UUID
