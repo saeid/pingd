@@ -13,6 +13,7 @@ struct AppDependencies {
     let subscriptionClient: SubscriptionClient
     let permissionClient: PermissionClient
     let dispatchClient: DispatchClient
+    let webhookClient: WebhookClient
     let pushProvider: PushProvider
     let topicBroadcaster: TopicBroadcaster
     let authFeature: AuthFeature
@@ -24,6 +25,7 @@ struct AppDependencies {
     let subscriptionFeature: SubscriptionFeature
     let permissionFeature: PermissionFeature
     let dispatchFeature: DispatchFeature
+    let webhookFeature: WebhookFeature
     let dispatchWorker: DispatchWorker?
     let auditLogger: AuditLogger
 }
@@ -40,6 +42,7 @@ extension AppDependencies {
         let subscriptionClient = SubscriptionClient.live(app: app)
         let permissionClient = PermissionClient.live(app: app)
         let dispatchClient = DispatchClient.live(app: app)
+        let webhookClient = WebhookClient.live(app: app)
         let topicBroadcaster = TopicBroadcaster()
 
         let pushProvider: PushProvider = switch apnsMode {
@@ -79,6 +82,7 @@ extension AppDependencies {
             subscriptionClient: subscriptionClient,
             permissionClient: permissionClient,
             dispatchClient: dispatchClient,
+            webhookClient: webhookClient,
             pushProvider: pushProvider,
             topicBroadcaster: topicBroadcaster,
             authFeature: AuthFeature.live(
@@ -119,6 +123,13 @@ extension AppDependencies {
                 userClient: userClient
             ),
             dispatchFeature: dispatchFeature,
+            webhookFeature: WebhookFeature.live(
+                webhookClient: webhookClient,
+                topicClient: topicClient,
+                messageClient: messageClient,
+                dispatchFeature: dispatchFeature,
+                topicBroadcaster: topicBroadcaster
+            ),
             dispatchWorker: dispatchWorker,
             auditLogger: AuditLogger(logger: app.logger)
         )
@@ -137,6 +148,7 @@ extension AppDependencies {
         subscriptionClient: SubscriptionClient? = nil,
         permissionClient: PermissionClient? = nil,
         dispatchClient: DispatchClient? = nil,
+        webhookClient: WebhookClient? = nil,
         pushProvider: PushProvider? = nil,
         topicBroadcaster: TopicBroadcaster? = nil,
         authFeature: AuthFeature? = nil,
@@ -148,6 +160,7 @@ extension AppDependencies {
         subscriptionFeature: SubscriptionFeature? = nil,
         permissionFeature: PermissionFeature? = nil,
         dispatchFeature: DispatchFeature? = nil,
+        webhookFeature: WebhookFeature? = nil,
         dispatchWorker: DispatchWorker? = nil,
         auditLogger: AuditLogger? = nil
     ) -> AppDependencies {
@@ -164,6 +177,7 @@ extension AppDependencies {
             subscriptionClient: subscriptionClient ?? self.subscriptionClient,
             permissionClient: permissionClient ?? self.permissionClient,
             dispatchClient: dispatchClient ?? self.dispatchClient,
+            webhookClient: webhookClient ?? self.webhookClient,
             pushProvider: pushProvider ?? self.pushProvider,
             topicBroadcaster: topicBroadcaster ?? self.topicBroadcaster,
             authFeature: authFeature ?? self.authFeature,
@@ -175,6 +189,7 @@ extension AppDependencies {
             subscriptionFeature: subscriptionFeature ?? self.subscriptionFeature,
             permissionFeature: permissionFeature ?? self.permissionFeature,
             dispatchFeature: dispatchFeature ?? self.dispatchFeature,
+            webhookFeature: webhookFeature ?? self.webhookFeature,
             dispatchWorker: dispatchWorker ?? self.dispatchWorker,
             auditLogger: auditLogger ?? self.auditLogger
         )

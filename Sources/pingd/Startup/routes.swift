@@ -22,6 +22,16 @@ func routes(_ app: Application, _ services: AppDependencies) throws {
         auditLogger: services.auditLogger
     ))
 
+    let webhookReceiveRoutes = app.routes.grouped(WebhookRateLimitMiddleware(
+        rateLimiter: app.rateLimiter,
+        now: services.now
+    ))
+    try webhookReceiveRoutes.register(collection: WebhookReceiveController(
+        webhookFeature: services.webhookFeature,
+        now: services.now,
+        auditLogger: services.auditLogger
+    ))
+
     // Resolve token if present, otherwise anonymous
     let optionalAuth = api.grouped(
         OptionalTokenAuthMiddleware(tokenClient: services.tokenClient, now: services.now)
@@ -74,5 +84,9 @@ func routes(_ app: Application, _ services: AppDependencies) throws {
     try protected.register(collection: DispatchController(
         dispatchFeature: services.dispatchFeature,
         pushProvider: services.pushProvider
+    ))
+    try protected.register(collection: WebhookAdminController(
+        webhookFeature: services.webhookFeature,
+        auditLogger: services.auditLogger
     ))
 }
