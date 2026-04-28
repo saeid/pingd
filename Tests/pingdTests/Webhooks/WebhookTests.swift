@@ -128,7 +128,7 @@ extension PingdTests {
             }
             """
             try await app.testing().test(
-                .POST, "v1/hooks/\(webhookToken)",
+                .POST, "hooks/\(webhookToken)",
                 beforeRequest: { req in
                     req.headers.contentType = .json
                     req.body = .init(string: payload)
@@ -171,7 +171,7 @@ extension PingdTests {
             )
             let webhookToken = try #require(token)
             try await app.testing().test(
-                .POST, "v1/hooks/\(webhookToken)",
+                .POST, "hooks/\(webhookToken)",
                 beforeRequest: { req in
                     req.headers.contentType = .plainText
                     req.body = .init(string: "raw text body")
@@ -210,7 +210,7 @@ extension PingdTests {
             )
             let webhookToken = try #require(token)
             try await app.testing().test(
-                .POST, "v1/hooks/\(webhookToken)",
+                .POST, "hooks/\(webhookToken)",
                 beforeRequest: { req in
                     req.headers.contentType = .json
                 },
@@ -226,7 +226,7 @@ extension PingdTests {
         try await withApp { app in
             try await seedTopics(app)
             try await app.testing().test(
-                .POST, "v1/hooks/whk_nonexistent",
+                .POST, "hooks/whk_nonexistent",
                 beforeRequest: { req in
                     req.headers.contentType = .json
                     req.body = .init(string: "{}")
@@ -269,7 +269,7 @@ extension PingdTests {
                 }
             )
             try await app.testing().test(
-                .POST, "v1/hooks/\(webhookToken)",
+                .POST, "hooks/\(webhookToken)",
                 beforeRequest: { req in
                     req.headers.contentType = .json
                     req.body = .init(string: "{}")
@@ -309,7 +309,7 @@ extension PingdTests {
                 }
             )
             try await app.testing().test(
-                .POST, "v1/hooks/\(webhookToken)",
+                .POST, "hooks/\(webhookToken)",
                 beforeRequest: { req in
                     req.headers.contentType = .json
                     req.body = .init(string: "{}")

@@ -67,7 +67,7 @@ struct WebhooksCommand: AsyncParsableCommand {
                 )
                 print("Created webhook \(response.id)")
                 print("Token (shown once): \(response.token)")
-                print("URL: <server>/v1/hooks/\(response.token)")
+                print("URL: <server>/hooks/\(response.token)")
             }
         }
     }

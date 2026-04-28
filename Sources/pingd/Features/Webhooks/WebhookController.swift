@@ -109,7 +109,7 @@ struct WebhookReceiveController: RouteCollection, @unchecked Sendable {
     let auditLogger: AuditLogger
 
     func boot(routes: any RoutesBuilder) throws {
-        let hooks = routes.grouped("v1", "hooks")
+        let hooks = routes.grouped("hooks")
         hooks.on(.POST, ":token", body: .collect(maxSize: "256kb"), use: receive)
     }
 

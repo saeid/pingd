@@ -532,7 +532,7 @@ async function revokeToken(tokenID) {
 }
 
 function webhookURL(token) {
-    return `${window.location.origin}/v1/hooks/${token}`;
+    return `${window.location.origin}/hooks/${token}`;
 }
 
 function webhookTitle(webhook) {
