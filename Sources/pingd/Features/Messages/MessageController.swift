@@ -89,19 +89,7 @@ struct PublishMessageRequest: Content, Validatable {
 
     func validateTags() throws {
         guard let tags else { return }
-        let allowedCharacters = CharacterSet.alphanumerics.union(.init(charactersIn: "-_"))
-
-        guard tags.count <= 10 else {
-            throw Abort(.badRequest, reason: "Maximum 10 tags allowed")
-        }
-        for tag in tags {
-            guard tag.count >= 1, tag.count <= 30 else {
-                throw Abort(.badRequest, reason: "Tag must be 1-30 characters")
-            }
-            guard tag.unicodeScalars.allSatisfy({ allowedCharacters.contains($0) }) else {
-                throw Abort(.badRequest, reason: "Tag '\(tag)' contains invalid characters. Only alphanumeric, dash, underscore allowed")
-            }
-        }
+        try MessageTagValidator.validate(tags)
     }
 
     func validateTTL() throws {
