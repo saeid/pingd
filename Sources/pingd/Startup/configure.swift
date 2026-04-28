@@ -59,6 +59,7 @@ public func configure(_ app: Application) async throws {
         CreateDevice(),
         CreateDeviceSubscription(),
         CreateMessageDelivery(),
+        CreateTopicWebhook(),
     ])
 
     if app.environment != .testing {
