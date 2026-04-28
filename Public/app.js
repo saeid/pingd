@@ -20,6 +20,9 @@ const state = {
     liveConnections: {},
     tokens: [],
     tokensLoaded: false,
+    webhooksByTopic: {},
+    webhooksLoadedByTopic: {},
+    webhooksDeniedByTopic: {},
 };
 
 function escapeHtml(value) {
@@ -111,6 +114,9 @@ function clearSession() {
     state.guest = false;
     state.tokens = [];
     state.tokensLoaded = false;
+    state.webhooksByTopic = {};
+    state.webhooksLoadedByTopic = {};
+    state.webhooksDeniedByTopic = {};
     localStorage.removeItem("pingd_token");
     disconnectSSE();
 }
@@ -253,6 +259,32 @@ async function loadTokens() {
     state.tokensLoaded = true;
 }
 
+async function loadWebhooks(topicName) {
+    if (!state.token || !topicName) {
+        delete state.webhooksByTopic[topicName];
+        delete state.webhooksLoadedByTopic[topicName];
+        delete state.webhooksDeniedByTopic[topicName];
+        return;
+    }
+
+    try {
+        state.webhooksByTopic[topicName] = await api(
+            "GET",
+            `/topics/${encodePath(topicName)}/webhooks`,
+            { topicName }
+        );
+        state.webhooksDeniedByTopic[topicName] = false;
+        state.webhooksLoadedByTopic[topicName] = true;
+    } catch (error) {
+        if (error.status !== 403) {
+            setToast(error.message, "error");
+        }
+        state.webhooksByTopic[topicName] = [];
+        state.webhooksDeniedByTopic[topicName] = error.status === 403;
+        state.webhooksLoadedByTopic[topicName] = true;
+    }
+}
+
 async function loadTopicStats(topicName) {
     if (state.user?.role !== "admin") {
         delete state.topicStatsByTopic[topicName];
@@ -340,7 +372,11 @@ async function lookupTopicByName(topicName) {
         upsertTopic(topic);
         state.currentTab = "topics";
         state.currentTopicName = topic.name;
-        await Promise.all([loadMessages(topic.name), loadTopicStats(topic.name)]);
+        const loads = [loadMessages(topic.name), loadTopicStats(topic.name)];
+        if (canManageWebhooks(topic)) {
+            loads.push(loadWebhooks(topic.name));
+        }
+        await Promise.all(loads);
         render();
     } catch (error) {
         if (error.status === 403 && state.topicPasswords[name]) {
@@ -449,6 +485,9 @@ async function removeCurrentTopic() {
     await api("DELETE", `/topics/${encodePath(topic.name)}`);
     delete state.messagesByTopic[topic.name];
     delete state.topicStatsByTopic[topic.name];
+    delete state.webhooksByTopic[topic.name];
+    delete state.webhooksLoadedByTopic[topic.name];
+    delete state.webhooksDeniedByTopic[topic.name];
     delete state.topicPasswords[topic.name];
     saveTopicPasswords();
     disconnectSSE(topic.name);
@@ -490,6 +529,92 @@ async function revokeToken(tokenID) {
     closeModal();
     render();
     setToast("Token revoked");
+}
+
+function webhookURL(token) {
+    return `${window.location.origin}/v1/hooks/${token}`;
+}
+
+function webhookTitle(webhook) {
+    const template = webhook.template || {};
+    return template.title || template.body || "Untitled webhook";
+}
+
+function webhookTemplateFromForm(form) {
+    const priorityRaw = form.get("priority");
+    const ttlRaw = form.get("ttl");
+    const field = (name) => (form.get(name) ?? "").trim();
+    const template = {
+        title: field("title") || null,
+        subtitle: field("subtitle") || null,
+        body: field("body") || null,
+        tags: field("tags") || null,
+        priority: priorityRaw ? Number(priorityRaw) : null,
+        ttl: ttlRaw ? Number(ttlRaw) : null,
+    };
+
+    if (template.priority && (template.priority < 1 || template.priority > 3)) {
+        throw new Error("Priority must be between 1 and 3");
+    }
+    if (template.ttl && template.ttl < 1) {
+        throw new Error("TTL must be positive");
+    }
+    return template;
+}
+
+async function createWebhook(form) {
+    const topic = currentTopic();
+    if (!topic) return;
+    if (!canManageWebhooks(topic)) {
+        throw new Error("Only admins and topic owners can manage webhooks");
+    }
+
+    const template = webhookTemplateFromForm(form);
+    const created = await api("POST", `/topics/${encodePath(topic.name)}/webhooks`, {
+        topicName: topic.name,
+        body: { template },
+    });
+
+    await loadWebhooks(topic.name);
+    state.modal = {
+        type: "webhook-created",
+        token: created.token,
+        url: webhookURL(created.token),
+        topicName: topic.name,
+    };
+    render();
+    renderModal();
+}
+
+async function updateWebhook(webhookID, form) {
+    const topic = currentTopic();
+    if (!topic) return;
+    if (!canManageWebhooks(topic)) {
+        throw new Error("Only admins and topic owners can manage webhooks");
+    }
+
+    const template = webhookTemplateFromForm(form);
+    await api("PATCH", `/webhooks/${encodePath(webhookID)}`, {
+        body: { template },
+    });
+    await loadWebhooks(topic.name);
+    closeModal();
+    render();
+    setToast("Webhook updated", "success");
+}
+
+async function deleteWebhook(webhookID) {
+    const topic = currentTopic();
+    if (!topic) return;
+    if (!canManageWebhooks(topic)) {
+        throw new Error("Only admins and topic owners can manage webhooks");
+    }
+
+    await api("DELETE", `/webhooks/${encodePath(webhookID)}`);
+    await loadWebhooks(topic.name);
+    closeModal();
+    render();
+    setToast("Webhook deleted");
 }
 
 async function handleLogin(form) {
@@ -740,41 +865,114 @@ function renderMessagesPanel() {
     `;
 }
 
-function renderTopicRail() {
-    const topic = currentTopic();
-    const stats = topic ? state.topicStatsByTopic[topic.name] : null;
+function renderWebhookTemplateMeta(template = {}) {
+    const parts = [];
+    if (template.priority) parts.push(`priority ${template.priority}`);
+    if (template.ttl) parts.push(`ttl ${template.ttl}s`);
+    if (template.tags) parts.push(`tags ${template.tags}`);
+    return parts.length ? parts.join(" · ") : "default priority";
+}
 
-    if (state.user?.role !== "admin" || !topic) {
+function canManageWebhooks(topic) {
+    if (!state.token || !state.user || !topic) return false;
+    return state.user.role === "admin" || state.user.id === topic.ownerUserID;
+}
+
+function renderWebhooksPanel(topic) {
+    if (!state.token) {
         return "";
     }
 
+    if (!topic) {
+        return "";
+    }
+
+    if (!canManageWebhooks(topic)) {
+        return "";
+    }
+
+    const webhooks = state.webhooksByTopic[topic.name] || [];
+    const loaded = !!state.webhooksLoadedByTopic[topic.name];
+    const denied = !!state.webhooksDeniedByTopic[topic.name];
+
     return `
-        <section class="panel">
+        <section class="panel panel-scroll">
             <header class="panel-header">
                 <div class="panel-title">
-                    <h3>Delivery Stats</h3>
+                    <h3>Webhooks</h3>
+                    <p>Receive JSON and publish it into this topic.</p>
                 </div>
+                ${denied ? "" : `<button class="btn btn-primary btn-small" type="button" data-action="new-webhook">New webhook</button>`}
             </header>
-            <div class="panel-body">
-                ${stats ? `
-                    <div class="stat-grid">
-                        <div class="stat-card"><strong>${stats.subscriberCount}</strong><span>Subscribers</span></div>
-                        <div class="stat-card"><strong>${stats.messageCount}</strong><span>Messages</span></div>
-                        <div class="stat-card"><strong>${stats.deliveryStats.delivered}</strong><span>Delivered</span></div>
-                        <div class="stat-card"><strong>${stats.deliveryStats.failed}</strong><span>Failed</span></div>
+
+            <div class="token-list">
+                ${denied ? `
+                    <div class="empty-panel">
+                        <p>You need publish access to manage webhooks for this topic.</p>
                     </div>
-                    <dl class="detail-list" style="margin-top: 14px;">
-                        <div class="detail-row"><dt>Pending</dt><dd>${stats.deliveryStats.pending}</dd></div>
-                        <div class="detail-row"><dt>Ongoing</dt><dd>${stats.deliveryStats.ongoing}</dd></div>
-                        <div class="detail-row"><dt>Last message</dt><dd>${formatDateTime(stats.lastMessageAt)}</dd></div>
-                    </dl>
-                ` : `
-                    <div class="empty-panel" style="height:auto;padding:0;">
-                        <p>Select a topic and stats will load here.</p>
+                ` : loaded && webhooks.length ? webhooks.map((webhook) => `
+                    <article class="token-row webhook-row">
+                        <div>
+                            <div class="token-title">${escapeHtml(webhookTitle(webhook))}</div>
+                            <div class="token-copy mono">${escapeHtml(truncateId(webhook.id))}</div>
+                            <div class="token-meta mono">
+                                <span>${escapeHtml(renderWebhookTemplateMeta(webhook.template))}</span>
+                                <span>created ${formatDateTime(webhook.createdAt)}</span>
+                            </div>
+                        </div>
+                        <div class="row-actions">
+                            <button class="btn btn-outline btn-small" type="button" data-action="edit-webhook" data-webhook-id="${escapeHtml(webhook.id)}">Edit</button>
+                            <button class="btn btn-danger btn-small" type="button" data-action="delete-webhook" data-webhook-id="${escapeHtml(webhook.id)}">Delete</button>
+                        </div>
+                    </article>
+                `).join("") : `
+                    <div class="empty-panel">
+                        <p>${loaded ? "No webhooks created yet." : "Webhook records will load when you open this topic."}</p>
                     </div>
                 `}
             </div>
         </section>
+    `;
+}
+
+function renderTopicRail() {
+    const topic = currentTopic();
+    const stats = topic ? state.topicStatsByTopic[topic.name] : null;
+
+    if (!topic || (state.user?.role !== "admin" && !canManageWebhooks(topic))) {
+        return "";
+    }
+
+    return `
+        <div class="stack">
+            ${state.user?.role === "admin" ? `<section class="panel">
+                <header class="panel-header">
+                    <div class="panel-title">
+                        <h3>Delivery Stats</h3>
+                    </div>
+                </header>
+                <div class="panel-body">
+                    ${stats ? `
+                        <div class="stat-grid">
+                            <div class="stat-card"><strong>${stats.subscriberCount}</strong><span>Subscribers</span></div>
+                            <div class="stat-card"><strong>${stats.messageCount}</strong><span>Messages</span></div>
+                            <div class="stat-card"><strong>${stats.deliveryStats.delivered}</strong><span>Delivered</span></div>
+                            <div class="stat-card"><strong>${stats.deliveryStats.failed}</strong><span>Failed</span></div>
+                        </div>
+                        <dl class="detail-list" style="margin-top: 14px;">
+                            <div class="detail-row"><dt>Pending</dt><dd>${stats.deliveryStats.pending}</dd></div>
+                            <div class="detail-row"><dt>Ongoing</dt><dd>${stats.deliveryStats.ongoing}</dd></div>
+                            <div class="detail-row"><dt>Last message</dt><dd>${formatDateTime(stats.lastMessageAt)}</dd></div>
+                        </dl>
+                    ` : `
+                        <div class="empty-panel" style="height:auto;padding:0;">
+                            <p>Select a topic and stats will load here.</p>
+                        </div>
+                    `}
+                </div>
+            </section>` : ""}
+            ${renderWebhooksPanel(topic)}
+        </div>
     `;
 }
 
@@ -810,6 +1008,7 @@ function renderAccountWorkspace() {
                     </dl>
                 </div>
             </section>
+            ${renderWebhooksPanel(currentTopic())}
 
             <section class="panel panel-scroll">
                 <header class="panel-header">
@@ -928,6 +1127,49 @@ function renderAppShell() {
     `;
 
     bindAppEvents();
+}
+
+function renderWebhookFormFields(template = {}) {
+    return `
+        <div class="field">
+            <label for="webhook-title-input">Title template</label>
+            <input class="input" id="webhook-title-input" name="title" placeholder="{{alert.title}}" value="${escapeHtml(template.title || "")}">
+        </div>
+        <div class="field">
+            <label for="webhook-subtitle-input">Subtitle template</label>
+            <input class="input" id="webhook-subtitle-input" name="subtitle" placeholder="{{source}}" value="${escapeHtml(template.subtitle || "")}">
+        </div>
+        <div class="field">
+            <label for="webhook-body-input">Body template</label>
+            <textarea class="textarea" id="webhook-body-input" name="body" placeholder="{{message}}">${escapeHtml(template.body || "")}</textarea>
+        </div>
+        <div class="field">
+            <label for="webhook-tags-input">Tags template</label>
+            <input class="input" id="webhook-tags-input" name="tags" placeholder="deploy, {{service}}" value="${escapeHtml(template.tags || "")}">
+        </div>
+        <div class="webhook-form-grid">
+            <div class="field">
+                <label for="webhook-priority-input">Priority</label>
+                <select class="select" id="webhook-priority-input" name="priority">
+                    <option value="" ${template.priority ? "" : "selected"}>Default</option>
+                    <option value="1" ${Number(template.priority) === 1 ? "selected" : ""}>Low</option>
+                    <option value="2" ${Number(template.priority) === 2 ? "selected" : ""}>Normal</option>
+                    <option value="3" ${Number(template.priority) === 3 ? "selected" : ""}>Urgent</option>
+                </select>
+            </div>
+            <div class="field">
+                <label for="webhook-ttl-input">TTL</label>
+                <select class="select" id="webhook-ttl-input" name="ttl">
+                    <option value="" ${template.ttl ? "" : "selected"}>No expiry</option>
+                    <option value="3600" ${Number(template.ttl) === 3600 ? "selected" : ""}>1h</option>
+                    <option value="21600" ${Number(template.ttl) === 21600 ? "selected" : ""}>6h</option>
+                    <option value="86400" ${Number(template.ttl) === 86400 ? "selected" : ""}>24h</option>
+                    <option value="604800" ${Number(template.ttl) === 604800 ? "selected" : ""}>7d</option>
+                    <option value="2592000" ${Number(template.ttl) === 2592000 ? "selected" : ""}>30d</option>
+                </select>
+            </div>
+        </div>
+    `;
 }
 
 function renderToast() {
@@ -1156,6 +1398,94 @@ function renderModal() {
         `;
     }
 
+    if (state.modal.type === "new-webhook") {
+        modalRoot.innerHTML = `
+            <div class="modal-overlay">
+                <section class="modal">
+                    <header class="modal-header">
+                        <h3>Create webhook</h3>
+                        <p>Template fields can read JSON paths with {{field.name}} placeholders.</p>
+                    </header>
+                    <form id="create-webhook-form">
+                        <div class="modal-body">
+                            ${state.modal.error ? `<div class="error-text">${escapeHtml(state.modal.error)}</div>` : ""}
+                            ${renderWebhookFormFields()}
+                        </div>
+                        <footer class="modal-footer">
+                            <button class="btn btn-outline" type="button" data-action="close-modal">Cancel</button>
+                            <button class="btn btn-primary" type="submit">Create</button>
+                        </footer>
+                    </form>
+                </section>
+            </div>
+        `;
+    }
+
+    if (state.modal.type === "edit-webhook") {
+        modalRoot.innerHTML = `
+            <div class="modal-overlay">
+                <section class="modal">
+                    <header class="modal-header">
+                        <h3>Edit webhook</h3>
+                        <p>Updates the template used for future webhook deliveries.</p>
+                    </header>
+                    <form id="edit-webhook-form">
+                        <div class="modal-body">
+                            ${state.modal.error ? `<div class="error-text">${escapeHtml(state.modal.error)}</div>` : ""}
+                            ${renderWebhookFormFields(state.modal.template)}
+                        </div>
+                        <footer class="modal-footer">
+                            <button class="btn btn-outline" type="button" data-action="close-modal">Cancel</button>
+                            <button class="btn btn-primary" type="submit">Update</button>
+                        </footer>
+                    </form>
+                </section>
+            </div>
+        `;
+    }
+
+    if (state.modal.type === "webhook-created") {
+        modalRoot.innerHTML = `
+            <div class="modal-overlay">
+                <section class="modal">
+                    <header class="modal-header">
+                        <h3>Webhook created</h3>
+                        <p>Copy your webhook URL now. The token won't be shown again.</p>
+                    </header>
+                    <div class="modal-body">
+                        <div class="field">
+                            <label>Webhook URL for /${escapeHtml(state.modal.topicName)}</label>
+                            <div class="token-created-value">
+                                <input class="input mono" id="created-webhook-url" value="${escapeHtml(state.modal.url)}" readonly>
+                                <button class="btn btn-primary btn-small" type="button" data-action="copy-created-webhook">Copy</button>
+                            </div>
+                        </div>
+                    </div>
+                    <footer class="modal-footer">
+                        <button class="btn btn-outline" type="button" data-action="close-modal">Done</button>
+                    </footer>
+                </section>
+            </div>
+        `;
+    }
+
+    if (state.modal.type === "delete-webhook") {
+        modalRoot.innerHTML = `
+            <div class="modal-overlay">
+                <section class="modal">
+                    <header class="modal-header">
+                        <h3>Delete webhook</h3>
+                        <p>Delete webhook <span class="mono">${escapeHtml(truncateId(state.modal.webhookID))}</span>? Existing webhook URLs for it will stop working.</p>
+                    </header>
+                    <footer class="modal-footer">
+                        <button class="btn btn-outline" type="button" data-action="close-modal">Cancel</button>
+                        <button class="btn btn-danger" type="button" data-action="confirm-delete-webhook">Delete</button>
+                    </footer>
+                </section>
+            </div>
+        `;
+    }
+
     bindModalEvents();
 }
 
@@ -1176,6 +1506,13 @@ function bindAppEvents() {
             state.currentTab = nextTab;
             if (nextTab === "account" && state.token && !state.tokensLoaded) {
                 await loadTokens();
+            }
+            if (
+                nextTab === "account" &&
+                canManageWebhooks(currentTopic()) &&
+                !state.webhooksLoadedByTopic[state.currentTopicName]
+            ) {
+                await loadWebhooks(state.currentTopicName);
             }
             render();
         });
@@ -1253,6 +1590,33 @@ function bindAppEvents() {
     app.querySelectorAll("[data-action='revoke-token']").forEach((button) => {
         button.addEventListener("click", () => {
             openModal({ type: "revoke-token", tokenID: button.dataset.tokenId });
+        });
+    });
+
+    app.querySelectorAll("[data-action='new-webhook']").forEach((button) => {
+        button.addEventListener("click", () => {
+            openModal({ type: "new-webhook", error: "" });
+        });
+    });
+
+    app.querySelectorAll("[data-action='edit-webhook']").forEach((button) => {
+        button.addEventListener("click", () => {
+            const topic = currentTopic();
+            const webhook = (state.webhooksByTopic[topic?.name] || [])
+                .find((item) => item.id === button.dataset.webhookId);
+            if (!webhook) return;
+            openModal({
+                type: "edit-webhook",
+                webhookID: webhook.id,
+                template: webhook.template || {},
+                error: "",
+            });
+        });
+    });
+
+    app.querySelectorAll("[data-action='delete-webhook']").forEach((button) => {
+        button.addEventListener("click", () => {
+            openModal({ type: "delete-webhook", webhookID: button.dataset.webhookId });
         });
     });
 
@@ -1396,6 +1760,58 @@ function bindModalEvents() {
                 const input = document.getElementById("created-token-value");
                 await navigator.clipboard.writeText(input.value);
                 setToast("Token copied", "success");
+            } catch {
+                setToast("Clipboard unavailable", "error");
+            }
+        });
+    }
+
+    const createWebhookForm = modalRoot.querySelector("#create-webhook-form");
+    if (createWebhookForm) {
+        createWebhookForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const formElement = event.currentTarget;
+            try {
+                await createWebhook(new FormData(formElement));
+            } catch (error) {
+                state.modal.error = error.message;
+                renderModal();
+            }
+        });
+    }
+
+    const editWebhookForm = modalRoot.querySelector("#edit-webhook-form");
+    if (editWebhookForm) {
+        editWebhookForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const formElement = event.currentTarget;
+            try {
+                await updateWebhook(state.modal.webhookID, new FormData(formElement));
+            } catch (error) {
+                state.modal.error = error.message;
+                renderModal();
+            }
+        });
+    }
+
+    const deleteWebhookButton = modalRoot.querySelector("[data-action='confirm-delete-webhook']");
+    if (deleteWebhookButton) {
+        deleteWebhookButton.addEventListener("click", async () => {
+            try {
+                await deleteWebhook(state.modal.webhookID);
+            } catch (error) {
+                setToast(error.message, "error");
+            }
+        });
+    }
+
+    const copyCreatedWebhook = modalRoot.querySelector("[data-action='copy-created-webhook']");
+    if (copyCreatedWebhook) {
+        copyCreatedWebhook.addEventListener("click", async () => {
+            try {
+                const input = document.getElementById("created-webhook-url");
+                await navigator.clipboard.writeText(input.value);
+                setToast("Webhook URL copied", "success");
             } catch {
                 setToast("Clipboard unavailable", "error");
             }
