@@ -14,6 +14,7 @@ enum AppConfigError: LocalizedError {
 
 struct AppConfig {
     let rateLimit: RateLimitConfig
+    let webhookRateLimit: WebhookRateLimitConfig
     let cors: CORSConfig
     let allowRegistration: Bool
 
@@ -23,6 +24,10 @@ struct AppConfig {
     ) throws -> Self {
         return try AppConfig(
             rateLimit: .load(
+                environment: environment,
+                environmentVariables: environmentVariables
+            ),
+            webhookRateLimit: .load(
                 environment: environment,
                 environmentVariables: environmentVariables
             ),
@@ -45,6 +50,42 @@ struct RateLimitConfig {
                 for: "PINGD_RATE_LIMIT_COUNT",
                 environmentVariables: environmentVariables,
                 default: 30
+            )
+        )
+    }
+
+    private static func parseLimitValue(
+        for key: String,
+        environmentVariables: [String: String],
+        default defaultValue: Int
+    ) throws -> Int {
+        guard let raw = environmentVariables[key], !raw.isEmpty else {
+            return defaultValue
+        }
+        guard let value = Int(raw), value > 0 else {
+            throw AppConfigError.invalidInteger(key, raw)
+        }
+        return value
+    }
+}
+
+struct WebhookRateLimitConfig {
+    let isEnabled: Bool
+    let perTokenCount: Int
+    let perIPCount: Int
+
+    static func load(environment: Environment, environmentVariables: [String: String]) throws -> Self {
+        try WebhookRateLimitConfig(
+            isEnabled: environment == .production,
+            perTokenCount: parseLimitValue(
+                for: "PINGD_WEBHOOK_RATE_LIMIT_PER_TOKEN",
+                environmentVariables: environmentVariables,
+                default: 120
+            ),
+            perIPCount: parseLimitValue(
+                for: "PINGD_WEBHOOK_RATE_LIMIT_PER_IP",
+                environmentVariables: environmentVariables,
+                default: 300
             )
         )
     }

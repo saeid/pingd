@@ -6,6 +6,7 @@ extension PingdTests {
     private func enableRegistration(_ app: Application) {
         app.appConfig = AppConfig(
             rateLimit: app.appConfig.rateLimit,
+            webhookRateLimit: app.appConfig.webhookRateLimit,
             cors: app.appConfig.cors,
             allowRegistration: true
         )

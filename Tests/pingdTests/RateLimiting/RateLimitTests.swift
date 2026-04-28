@@ -12,6 +12,7 @@ extension PingdTests {
                     isEnabled: true,
                     count: 1
                 ),
+                webhookRateLimit: app.appConfig.webhookRateLimit,
                 cors: app.appConfig.cors,
                 allowRegistration: false
             )
@@ -43,6 +44,7 @@ extension PingdTests {
                     isEnabled: true,
                     count: 1
                 ),
+                webhookRateLimit: app.appConfig.webhookRateLimit,
                 cors: app.appConfig.cors,
                 allowRegistration: false
             )
@@ -78,6 +80,7 @@ extension PingdTests {
                     isEnabled: true,
                     count: 2
                 ),
+                webhookRateLimit: app.appConfig.webhookRateLimit,
                 cors: app.appConfig.cors,
                 allowRegistration: false
             )
