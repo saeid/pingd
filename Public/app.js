@@ -1004,7 +1004,6 @@ function renderAccountWorkspace() {
                     </dl>
                 </div>
             </section>
-            ${renderWebhooksPanel(currentTopic())}
 
             <section class="panel panel-scroll">
                 <header class="panel-header">
@@ -1502,13 +1501,6 @@ function bindAppEvents() {
             state.currentTab = nextTab;
             if (nextTab === "account" && state.token && !state.tokensLoaded) {
                 await loadTokens();
-            }
-            if (
-                nextTab === "account" &&
-                canManageWebhooks(currentTopic()) &&
-                !state.webhooksLoadedByTopic[state.currentTopicName]
-            ) {
-                await loadWebhooks(state.currentTopicName);
             }
             render();
         });
