@@ -20,6 +20,7 @@ const state = {
     liveConnections: {},
     tokens: [],
     tokensLoaded: false,
+    dashboardDevice: null,
     webhooksByTopic: {},
     webhooksLoadedByTopic: {},
     webhooksDeniedByTopic: {},
@@ -114,6 +115,7 @@ function clearSession() {
     state.guest = false;
     state.tokens = [];
     state.tokensLoaded = false;
+    state.dashboardDevice = null;
     state.webhooksByTopic = {};
     state.webhooksLoadedByTopic = {};
     state.webhooksDeniedByTopic = {};
@@ -259,6 +261,84 @@ async function loadTokens() {
     state.tokensLoaded = true;
 }
 
+function topicFromSubscription(subscription) {
+    const topic = subscription.topic || {};
+    return {
+        id: topic.id,
+        name: topic.name,
+        visibility: topic.visibility,
+        hasPassword: !!topic.hasPassword,
+        ownerUserID: topic.ownerUserID,
+    };
+}
+
+async function loadSubscribedTopics() {
+    if (!state.user?.username || state.user.role !== "user") {
+        return;
+    }
+
+    const subscriptions = await api("GET", `/users/${encodePath(state.user.username)}/subscriptions`);
+    const topicsByName = new Map();
+    for (const subscription of subscriptions || []) {
+        const topic = topicFromSubscription(subscription);
+        if (topic.name) {
+            topicsByName.set(topic.name, topic);
+        }
+    }
+
+    state.topics = [...topicsByName.values()]
+        .sort((left, right) => left.name.localeCompare(right.name));
+    if (
+        state.currentTopicName &&
+        !state.topics.some((topic) => topic.name === state.currentTopicName)
+    ) {
+        state.currentTopicName = null;
+        disconnectSSE();
+    }
+}
+
+async function ensureDashboardDevice() {
+    if (!state.token || !state.user || state.user.role !== "user") {
+        state.dashboardDevice = null;
+        return null;
+    }
+
+    if (state.dashboardDevice?.userID === state.user.id) {
+        return state.dashboardDevice;
+    }
+
+    state.dashboardDevice = await api("POST", "/devices", {
+        body: {
+            name: "Web Dashboard",
+            platform: "web",
+            pushType: "webpush",
+            pushToken: `dashboard:${state.user.id}`,
+            deliveryEnabled: false,
+        },
+    });
+    return state.dashboardDevice;
+}
+
+async function subscribeDashboardToTopic(topicName) {
+    if (!state.token || !state.user || state.user.role !== "user" || !topicName) {
+        return;
+    }
+
+    const device = await ensureDashboardDevice();
+    if (!device?.id) return;
+
+    try {
+        await api("POST", `/devices/${encodePath(device.id)}/subscriptions`, {
+            topicName,
+            body: { topicName },
+        });
+    } catch (error) {
+        if (error.status !== 409) {
+            throw error;
+        }
+    }
+}
+
 async function loadWebhooks(topicName) {
     if (!state.token || !topicName) {
         delete state.webhooksByTopic[topicName];
@@ -314,8 +394,11 @@ async function loadMessages(topicName) {
 
 async function bootstrapAuthenticatedSession() {
     await loadMe();
+    await ensureDashboardDevice();
     if (state.user?.role === "admin") {
         await loadTopics();
+    } else {
+        await loadSubscribedTopics();
     }
     if (state.currentTab === "account") {
         await loadTokens();
@@ -370,6 +453,7 @@ async function lookupTopicByName(topicName) {
     try {
         const topic = await api("GET", `/topics/${encodePath(name)}`, { topicName: name });
         upsertTopic(topic);
+        await subscribeDashboardToTopic(topic.name);
         state.currentTab = "topics";
         state.currentTopicName = topic.name;
         const loads = [loadMessages(topic.name), loadTopicStats(topic.name)];
@@ -422,6 +506,8 @@ async function createTopic(form) {
     await selectTopic(name);
     if (state.user?.role === "admin") {
         await loadTopics();
+    } else if (state.token) {
+        await loadSubscribedTopics();
     }
     render();
 }
