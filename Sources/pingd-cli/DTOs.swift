@@ -98,6 +98,7 @@ struct UserSubscriptionDTO: Codable {
         let name: String
         let visibility: String
         let hasPassword: Bool
+        let ownerUserID: UUID
     }
 }
 

@@ -22,6 +22,7 @@ struct CreateDevice: AsyncMigration {
             .field("push_type", pushTypeEnum, .required)
             .field("push_token", .string, .required)
             .field("is_active", .bool, .required, .sql(.default(true)))
+            .field("delivery_enabled", .bool, .required, .sql(.default(true)))
             .field("created_at", .datetime)
             .field("last_activity_at", .datetime)
             .unique(on: "push_token")

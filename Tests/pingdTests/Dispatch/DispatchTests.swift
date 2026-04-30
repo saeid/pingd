@@ -109,6 +109,75 @@ extension PingdTests {
         }
     }
 
+    @Test("Dispatch: Subscriptions without delivery do not create deliveries")
+    func publishSkipsDeliveryDisabledSubscribers() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            let viSession = try await login(app, username: "vi", password: "password1")
+
+            var deviceID: UUID?
+            try await app.testing().test(
+                .POST, "devices",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: viSession.token)
+                    try req.content.encode(RegisterDeviceRequest(
+                        name: "Web Dashboard",
+                        platform: .web,
+                        pushType: .webPush,
+                        pushToken: "dashboard-\(viSession.userID)",
+                        deliveryEnabled: false
+                    ))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    deviceID = try res.content.decode(DeviceResponse.self).id
+                }
+            )
+            let id = try #require(deviceID)
+
+            try await app.testing().test(
+                .POST, "devices/\(id)/subscriptions",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: viSession.token)
+                    try req.content.encode(SubscribeRequest(topicName: "open-topic"))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                }
+            )
+
+            var messageID: UUID?
+            try await app.testing().test(
+                .POST, "topics/open-topic/messages",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: viSession.token)
+                    try req.content.encode(PublishMessageRequest(
+                        priority: 3,
+                        tags: nil,
+                        payload: MessagePayload(title: "Test", subtitle: nil, body: "Hello")
+                    ))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    messageID = try res.content.decode(MessageResponse.self).id
+                }
+            )
+            let msgID = try #require(messageID)
+
+            try await app.testing().test(
+                .GET, "messages/\(msgID)/deliveries",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: viSession.token)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let deliveries = try res.content.decode([DeliveryResponse].self)
+                    #expect(deliveries.isEmpty)
+                }
+            )
+        }
+    }
+
     @Test("Dispatch: Multiple subscribed devices get deliveries")
     func publishMultipleDevices() async throws {
         try await withApp { app in

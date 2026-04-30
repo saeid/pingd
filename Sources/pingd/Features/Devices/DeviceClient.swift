@@ -12,13 +12,15 @@ struct DeviceClient {
         _ name: String,
         _ platform: Platform,
         _ pushType: PushType,
-        _ pushToken: String
+        _ pushToken: String,
+        _ deliveryEnabled: Bool
     ) async throws -> Device
     let update: @Sendable (
         UUID,
         _ name: String?,
         _ pushToken: String?,
-        _ isActive: Bool?
+        _ isActive: Bool?,
+        _ deliveryEnabled: Bool?
     ) async throws -> Device?
     let transferInactiveDevice: @Sendable (
         _ existingDeviceID: UUID,
@@ -26,7 +28,8 @@ struct DeviceClient {
         _ name: String,
         _ platform: Platform,
         _ pushType: PushType,
-        _ pushToken: String
+        _ pushToken: String,
+        _ deliveryEnabled: Bool
     ) async throws -> Device
     let delete: @Sendable (UUID) async throws -> Void
 }
@@ -50,28 +53,30 @@ extension DeviceClient {
                     .filter(\.$pushToken == pushToken)
                     .first()
             },
-            create: { userID, name, platform, pushType, pushToken in
+            create: { userID, name, platform, pushType, pushToken, deliveryEnabled in
                 let device = Device(
                     userID: userID,
                     name: name,
                     platform: platform,
                     pushType: pushType,
-                    pushToken: pushToken
+                    pushToken: pushToken,
+                    deliveryEnabled: deliveryEnabled
                 )
                 try await device.save(on: app.db)
                 return device
             },
-            update: { id, name, pushToken, isActive in
+            update: { id, name, pushToken, isActive, deliveryEnabled in
                 guard let device = try await Device.find(id, on: app.db) else {
                     return nil
                 }
                 if let name { device.name = name }
                 if let pushToken { device.pushToken = pushToken }
                 if let isActive { device.isActive = isActive }
+                if let deliveryEnabled { device.deliveryEnabled = deliveryEnabled }
                 try await device.save(on: app.db)
                 return device
             },
-            transferInactiveDevice: { existingDeviceID, userID, name, platform, pushType, pushToken in
+            transferInactiveDevice: { existingDeviceID, userID, name, platform, pushType, pushToken, deliveryEnabled in
                 try await app.db.transaction { database in
                     guard let existing = try await Device.find(existingDeviceID, on: database) else {
                         throw DeviceError.notFound
@@ -85,7 +90,8 @@ extension DeviceClient {
                         name: name,
                         platform: platform,
                         pushType: pushType,
-                        pushToken: pushToken
+                        pushToken: pushToken,
+                        deliveryEnabled: deliveryEnabled
                     )
                     try await device.save(on: database)
                     return device
@@ -103,12 +109,12 @@ extension DeviceClient {
         listForUser: @escaping @Sendable (UUID) async throws -> [Device] = { _ in [] },
         get: @escaping @Sendable (UUID) async throws -> Device? = { _ in nil },
         findByPushToken: @escaping @Sendable (String) async throws -> Device? = { _ in nil },
-        create: @escaping @Sendable (UUID, String, Platform, PushType, String) async throws -> Device = { userID, name, platform, pushType, pushToken in
-            Device(userID: userID, name: name, platform: platform, pushType: pushType, pushToken: pushToken)
+        create: @escaping @Sendable (UUID, String, Platform, PushType, String, Bool) async throws -> Device = { userID, name, platform, pushType, pushToken, deliveryEnabled in
+            Device(userID: userID, name: name, platform: platform, pushType: pushType, pushToken: pushToken, deliveryEnabled: deliveryEnabled)
         },
-        update: @escaping @Sendable (UUID, String?, String?, Bool?) async throws -> Device? = { _, _, _, _ in nil },
-        transferInactiveDevice: @escaping @Sendable (UUID, UUID, String, Platform, PushType, String) async throws -> Device = { _, userID, name, platform, pushType, pushToken in
-            Device(userID: userID, name: name, platform: platform, pushType: pushType, pushToken: pushToken)
+        update: @escaping @Sendable (UUID, String?, String?, Bool?, Bool?) async throws -> Device? = { _, _, _, _, _ in nil },
+        transferInactiveDevice: @escaping @Sendable (UUID, UUID, String, Platform, PushType, String, Bool) async throws -> Device = { _, userID, name, platform, pushType, pushToken, deliveryEnabled in
+            Device(userID: userID, name: name, platform: platform, pushType: pushType, pushToken: pushToken, deliveryEnabled: deliveryEnabled)
         },
         delete: @escaping @Sendable (UUID) async throws -> Void = { _ in }
     ) -> Self {

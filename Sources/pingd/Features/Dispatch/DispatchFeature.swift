@@ -16,8 +16,10 @@ extension DispatchFeature {
                 let subscriptions = try await subscriptionClient.listForTopic(topicID)
                 for sub in subscriptions {
                     let deviceID = sub.$device.id
-                    if let device = try await deviceClient.get(deviceID), device.isActive {
-                        try await dispatchClient.createDelivery(messageID, deviceID)
+                    if let device = try await deviceClient.get(deviceID),
+                       device.isActive,
+                       device.deliveryEnabled {
+                        _ = try await dispatchClient.createDelivery(messageID, deviceID)
                     }
                 }
             },

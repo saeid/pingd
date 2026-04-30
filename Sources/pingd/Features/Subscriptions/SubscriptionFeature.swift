@@ -88,7 +88,8 @@ extension SubscriptionFeature {
                             id: topic.id!,
                             name: topic.name,
                             visibility: topic.visibility.rawValue,
-                            hasPassword: topic.passwordHash != nil
+                            hasPassword: topic.passwordHash != nil,
+                            ownerUserID: topic.$owner.id
                         ),
                         createdAt: subscription.createdAt
                     )

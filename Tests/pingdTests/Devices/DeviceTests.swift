@@ -24,6 +24,35 @@ extension PingdTests {
                     #expect(device.name == "Vi's iPhone")
                     #expect(device.platform == .ios)
                     #expect(device.isActive == true)
+                    #expect(device.deliveryEnabled == true)
+                }
+            )
+        }
+    }
+
+    @Test("Devices: POST /devices can register a subscriber without delivery")
+    func registerDeviceWithDeliveryDisabled() async throws {
+        try await withApp { app in
+            let session = try await login(app, username: "vi", password: "password1")
+            try await app.testing().test(
+                .POST, "devices",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(RegisterDeviceRequest(
+                        name: "Web Dashboard",
+                        platform: .web,
+                        pushType: .webPush,
+                        pushToken: "dashboard-\(session.userID)",
+                        deliveryEnabled: false
+                    ))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let device = try res.content.decode(DeviceResponse.self)
+                    #expect(device.name == "Web Dashboard")
+                    #expect(device.platform == .web)
+                    #expect(device.isActive == true)
+                    #expect(device.deliveryEnabled == false)
                 }
             )
         }
@@ -172,12 +201,13 @@ extension PingdTests {
                 .PATCH, "devices/\(id)",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
-                    try req.content.encode(UpdateDeviceRequest(name: "Vi's New iPhone", pushToken: nil, isActive: nil))
+                    try req.content.encode(UpdateDeviceRequest(name: "Vi's New iPhone", pushToken: nil, isActive: nil, deliveryEnabled: false))
                 },
                 afterResponse: { res in
                     #expect(res.status == .ok)
                     let device = try res.content.decode(DeviceResponse.self)
                     #expect(device.name == "Vi's New iPhone")
+                    #expect(device.deliveryEnabled == false)
                 }
             )
         }

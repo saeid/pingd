@@ -37,6 +37,9 @@ final class Device: Model, @unchecked Sendable {
     @Field(key: "is_active")
     var isActive: Bool
 
+    @Field(key: "delivery_enabled")
+    var deliveryEnabled: Bool
+
     @Timestamp(key: "created_at", on: .create)
     var createdAt: Date?
 
@@ -53,6 +56,7 @@ final class Device: Model, @unchecked Sendable {
         pushType: PushType,
         pushToken: String,
         isActive: Bool = true,
+        deliveryEnabled: Bool = true,
         lastActivityAt: Date? = nil
     ) {
         self.id = id
@@ -62,6 +66,7 @@ final class Device: Model, @unchecked Sendable {
         self.pushType = pushType
         self.pushToken = pushToken
         self.isActive = isActive
+        self.deliveryEnabled = deliveryEnabled
         self.lastActivityAt = lastActivityAt
     }
 }

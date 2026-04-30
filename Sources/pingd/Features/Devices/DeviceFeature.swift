@@ -31,7 +31,8 @@ struct DeviceFeature {
         _ name: String,
         _ platform: Platform,
         _ pushType: PushType,
-        _ pushToken: String
+        _ pushToken: String,
+        _ deliveryEnabled: Bool
     ) async throws -> Device
 
     let updateDevice: @Sendable (
@@ -39,7 +40,8 @@ struct DeviceFeature {
         _ deviceID: UUID,
         _ name: String?,
         _ pushToken: String?,
-        _ isActive: Bool?
+        _ isActive: Bool?,
+        _ deliveryEnabled: Bool?
     ) async throws -> Device
 
     let deleteDevice: @Sendable (
@@ -58,7 +60,7 @@ extension DeviceFeature {
                 let userID = try currentUser.requireID()
                 return try await deviceClient.listForUser(userID)
             },
-            registerDevice: { currentUser, name, platform, pushType, pushToken in
+            registerDevice: { currentUser, name, platform, pushType, pushToken, deliveryEnabled in
                 let userID = try currentUser.requireID()
                 if let existing = try await deviceClient.findByPushToken(pushToken) {
                     let deviceID = try existing.requireID()
@@ -73,24 +75,25 @@ extension DeviceFeature {
                                 name,
                                 platform,
                                 pushType,
-                                pushToken
+                                pushToken,
+                                deliveryEnabled
                             )
                         } catch let error as any DatabaseError where error.isConstraintFailure {
                             throw DeviceError.pushTokenInUse
                         }
                     }
-                    guard let updated = try await deviceClient.update(deviceID, name, nil, true) else {
+                    guard let updated = try await deviceClient.update(deviceID, name, nil, true, deliveryEnabled) else {
                         throw DeviceError.notFound
                     }
                     return updated
                 }
                 do {
-                    return try await deviceClient.create(userID, name, platform, pushType, pushToken)
+                    return try await deviceClient.create(userID, name, platform, pushType, pushToken, deliveryEnabled)
                 } catch let error as any DatabaseError where error.isConstraintFailure {
                     throw DeviceError.pushTokenInUse
                 }
             },
-            updateDevice: { currentUser, deviceID, name, pushToken, isActive in
+            updateDevice: { currentUser, deviceID, name, pushToken, isActive, deliveryEnabled in
                 guard let device = try await deviceClient.get(deviceID) else {
                     throw DeviceError.notFound
                 }
@@ -100,7 +103,7 @@ extension DeviceFeature {
                     throw DeviceError.accessDenied
                 }
                 do {
-                    guard let updated = try await deviceClient.update(deviceID, name, pushToken, isActive) else {
+                    guard let updated = try await deviceClient.update(deviceID, name, pushToken, isActive, deliveryEnabled) else {
                         throw DeviceError.notFound
                     }
                     return updated

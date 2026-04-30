@@ -102,7 +102,7 @@ struct AuthController: RouteCollection, @unchecked Sendable {
                let device = try await deviceClient.findByPushToken(pushToken),
                device.$user.id == currentUserID {
                 let deviceID = try device.requireID()
-                _ = try await deviceClient.update(deviceID, nil, nil, false)
+                _ = try await deviceClient.update(deviceID, nil, nil, false, nil)
             }
             try await tokenClient.revokeByHash(bearerToken)
             auditLogger.log("logout", req: req, metadata: [
