@@ -3,11 +3,13 @@ import Vapor
 enum MessageError: AbortError {
     case topicNotFound
     case accessDenied
+    case invalidPayload(String)
 
     var status: HTTPResponseStatus {
         switch self {
         case .topicNotFound: .notFound
         case .accessDenied: .forbidden
+        case .invalidPayload: .badRequest
         }
     }
 
@@ -15,6 +17,7 @@ enum MessageError: AbortError {
         switch self {
         case .topicNotFound: "Topic not found"
         case .accessDenied: "Access denied"
+        case let .invalidPayload(message): message
         }
     }
 }
@@ -66,6 +69,9 @@ extension MessageFeature {
                 return try await messageClient.list(topicID, now)
             },
             publishMessage: { currentUser, topicName, topicPassword, priority, tags, payload, time, ttl in
+                guard (1...3).contains(priority) else {
+                    throw MessageError.invalidPayload("priority must be between 1 and 3")
+                }
                 guard let topic = try await topicClient.getByName(topicName) else {
                     throw MessageError.topicNotFound
                 }
