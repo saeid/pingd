@@ -71,6 +71,7 @@ public func configure(_ app: Application) async throws {
     }
 
     let apnsMode = app.environment == .testing ? nil : try PushProvider.loadAPNSConfiguration()
+    let webPushConfiguration = app.environment == .testing ? nil : try PushProvider.loadWebPushConfiguration()
 
     switch apnsMode {
     case .direct(let config):
@@ -88,7 +89,17 @@ public func configure(_ app: Application) async throws {
         app.logger.info("APNS not configured, using mock provider")
     }
 
-    let services = AppDependencies.live(with: app, apnsMode: apnsMode)
+    if webPushConfiguration == nil {
+        app.logger.info("Web Push not configured")
+    } else {
+        app.logger.info("Web Push configured")
+    }
+
+    let services = AppDependencies.live(
+        with: app,
+        apnsMode: apnsMode,
+        webPushConfiguration: webPushConfiguration
+    )
 
     if app.environment != .testing, !isMigrationCommand {
         app.lifecycle.use(TopicBroadcasterLifecycleHandler(broadcaster: services.topicBroadcaster))

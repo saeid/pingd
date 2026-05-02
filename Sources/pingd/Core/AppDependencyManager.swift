@@ -31,7 +31,11 @@ struct AppDependencies {
 }
 
 extension AppDependencies {
-    static func live(with app: Application, apnsMode: APNSPushMode?) -> AppDependencies {
+    static func live(
+        with app: Application,
+        apnsMode: APNSPushMode?,
+        webPushConfiguration: WebPushConfiguration?
+    ) -> AppDependencies {
         let now: @Sendable () -> Date = { Date() }
         let authClient = AuthClient.live()
         let tokenClient = TokenClient.live(app: app)
@@ -45,13 +49,23 @@ extension AppDependencies {
         let webhookClient = WebhookClient.live(app: app)
         let topicBroadcaster = TopicBroadcaster()
 
-        let pushProvider: PushProvider = switch apnsMode {
+        let apnsProvider: PushProvider? = switch apnsMode {
         case .direct(let config):
             .apns(application: app, config: config, logger: app.logger)
         case .relay(let config):
             .relay(config: config, logger: app.logger)
         case nil:
+            nil
+        }
+
+        let webPushProvider = webPushConfiguration.map {
+            PushProvider.webPush(config: $0, logger: app.logger)
+        }
+
+        let pushProvider: PushProvider = if apnsProvider == nil && webPushProvider == nil {
             .mock(logger: app.logger)
+        } else {
+            .routed(apns: apnsProvider, webPush: webPushProvider, logger: app.logger)
         }
 
         let dispatchFeature = DispatchFeature.live(

@@ -1,7 +1,7 @@
 import Fluent
 import Foundation
 
-struct MessagePayload: Codable {
+struct MessagePayload: Codable, Sendable {
     let title: String?
     let subtitle: String?
     let body: String
