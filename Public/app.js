@@ -2,6 +2,8 @@ const app = document.getElementById("app");
 const modalRoot = document.getElementById("modal-root");
 const toastRoot = document.getElementById("toast-root");
 
+const cachedWebPush = safeJsonParse(localStorage.getItem("pingd_webpush_device") || "");
+
 const state = {
     token: localStorage.getItem("pingd_token"),
     guest: false,
@@ -17,10 +19,11 @@ const state = {
     modal: null,
     toast: null,
     toastTimer: null,
-    liveConnections: {},
     tokens: [],
     tokensLoaded: false,
-    dashboardDevice: null,
+    webPushDevice: cachedWebPush?.device || null,
+    webPushToken: cachedWebPush?.pushToken || null,
+    webPushBusy: false,
     webhooksByTopic: {},
     webhooksLoadedByTopic: {},
     webhooksDeniedByTopic: {},
@@ -47,8 +50,32 @@ function currentTopic() {
     return state.topics.find((topic) => topic.name === state.currentTopicName) || null;
 }
 
+function requestedTopicFromLocation() {
+    const topicName = new URLSearchParams(window.location.search).get("topic");
+    if (!topicName) return "";
+
+    const normalized = topicName.trim();
+    return normalized.length <= 200 ? normalized : "";
+}
+
+function clearRequestedTopicFromLocation() {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("topic")) return;
+
+    url.searchParams.delete("topic");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
 function saveTopicPasswords() {
     localStorage.setItem("pingd_topic_passwords", JSON.stringify(state.topicPasswords));
+}
+
+function persistWebPushDevice(device, pushToken) {
+    if (!device || !pushToken) {
+        localStorage.removeItem("pingd_webpush_device");
+        return;
+    }
+    localStorage.setItem("pingd_webpush_device", JSON.stringify({ device, pushToken }));
 }
 
 function safeJsonParse(text) {
@@ -59,8 +86,8 @@ function safeJsonParse(text) {
     }
 }
 
-async function api(method, path, { body, topicName } = {}) {
-    const headers = {};
+async function api(method, path, { body, topicName, headers: extraHeaders } = {}) {
+    const headers = { ...(extraHeaders || {}) };
     if (body !== undefined) {
         headers["Content-Type"] = "application/json";
     }
@@ -115,12 +142,14 @@ function clearSession() {
     state.guest = false;
     state.tokens = [];
     state.tokensLoaded = false;
-    state.dashboardDevice = null;
+    state.webPushDevice = null;
+    state.webPushToken = null;
+    state.webPushBusy = false;
     state.webhooksByTopic = {};
     state.webhooksLoadedByTopic = {};
     state.webhooksDeniedByTopic = {};
     localStorage.removeItem("pingd_token");
-    disconnectSSE();
+    localStorage.removeItem("pingd_webpush_device");
 }
 
 function persistToken(token) {
@@ -148,7 +177,7 @@ function icon(name) {
         topics: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
         account: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
         refresh: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.5 9a9 9 0 0 1 14.12-3.36L23 10M1 14l5.38 4.36A9 9 0 0 0 20.5 15"/></svg>`,
-        stream: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 12h4"/><path d="M18 12h4"/><path d="M7 12a5 5 0 0 1 10 0"/><path d="M12 17a1 1 0 1 1 0-2 1 1 0 0 1 0 2"/></svg>`,
+        unsubscribe: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>`,
         trash: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>`,
         globe: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`,
         protected: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 19 5.9v5.2c0 4.4-2.9 8.4-7 10.1-4.1-1.7-7-5.7-7-10.1V5.9L12 2.8Z"/><path d="M12 6.4v11.8"/></svg>`,
@@ -246,7 +275,6 @@ async function loadTopics() {
         !state.topics.some((topic) => topic.name === state.currentTopicName)
     ) {
         state.currentTopicName = null;
-        disconnectSSE();
     }
 }
 
@@ -293,39 +321,117 @@ async function loadSubscribedTopics() {
         !state.topics.some((topic) => topic.name === state.currentTopicName)
     ) {
         state.currentTopicName = null;
-        disconnectSSE();
     }
 }
 
-async function ensureDashboardDevice() {
-    if (!state.token || !state.user || state.user.role !== "user") {
-        state.dashboardDevice = null;
-        return null;
+function supportsWebPush() {
+    return "serviceWorker" in navigator &&
+        "PushManager" in window &&
+        "Notification" in window;
+}
+
+function deviceInfo() {
+    const data = navigator.userAgentData;
+    const ua = navigator.userAgent;
+
+    let browser, osLabel, platform;
+
+    if (data?.brands?.length) {
+        browser = data.brands.find((b) => !/Not.?A.?Brand/i.test(b.brand))?.brand || "Browser";
+        osLabel = data.platform || "Device";
+        platform = osLabel === "iOS" ? "ios" : osLabel === "Android" ? "android" : "web";
+    } else {
+        browser = /Edg\//.test(ua) ? "Edge"
+            : /Firefox\/|FxiOS\//.test(ua) ? "Firefox"
+            : /Chrome\/|CriOS\//.test(ua) ? "Chrome"
+            : /Safari\//.test(ua) ? "Safari"
+            : "Browser";
+        const isIPad = /iPad/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+        [osLabel, platform] = /iPhone/.test(ua) ? ["iPhone", "ios"]
+            : isIPad ? ["iPad", "ios"]
+            : /Android/.test(ua) ? ["Android", "android"]
+            : /Mac OS X/.test(ua) ? ["macOS", "web"]
+            : /Windows/.test(ua) ? ["Windows", "web"]
+            : /Linux/.test(ua) ? ["Linux", "web"]
+            : ["Device", "web"];
     }
 
-    if (state.dashboardDevice?.userID === state.user.id) {
-        return state.dashboardDevice;
+    return { name: `${browser} on ${osLabel}`, platform };
+}
+
+function showInstallHintIfNeeded() {
+    const isAppleMobile = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const isStandalone = window.matchMedia("(display-mode: standalone)").matches ||
+        window.navigator.standalone === true;
+    if (isAppleMobile && !isStandalone) {
+        setToast("Safari push works after adding Pingd to Home Screen and opening it there.", "default");
+        return true;
+    }
+    return false;
+}
+
+function urlBase64ToUint8Array(value) {
+    const padding = "=".repeat((4 - value.length % 4) % 4);
+    const base64 = (value + padding).replaceAll("-", "+").replaceAll("_", "/");
+    const rawData = atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let index = 0; index < rawData.length; index += 1) {
+        outputArray[index] = rawData.charCodeAt(index);
+    }
+    return outputArray;
+}
+
+function uint8ArrayToUrlBase64(value) {
+    if (!value) return "";
+
+    const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
+    let binary = "";
+    for (const byte of bytes) {
+        binary += String.fromCharCode(byte);
     }
 
-    state.dashboardDevice = await api("POST", "/devices", {
-        body: {
-            name: "Web Dashboard",
-            platform: "web",
-            pushType: "webpush",
-            pushToken: `dashboard:${state.user.id}`,
-            deliveryEnabled: false,
-        },
+    return btoa(binary)
+        .replaceAll("+", "-")
+        .replaceAll("/", "_")
+        .replaceAll("=", "");
+}
+
+function subscriptionVAPIDKey(subscription) {
+    return uint8ArrayToUrlBase64(subscription?.options?.applicationServerKey);
+}
+
+function serializeSubscription(subscription, fallbackVapidKey) {
+    return JSON.stringify({
+        ...subscription.toJSON(),
+        applicationServerKey: subscriptionVAPIDKey(subscription) || fallbackVapidKey,
     });
-    return state.dashboardDevice;
 }
 
-async function subscribeDashboardToTopic(topicName) {
-    if (!state.token || !state.user || state.user.role !== "user" || !topicName) {
-        return;
+async function registerOrUpdatePushDevice(pushToken) {
+    const { name, platform } = deviceInfo();
+    const existing = state.webPushDevice;
+    const canPatch = existing?.id && existing.userID === state.user?.id;
+
+    if (canPatch) {
+        try {
+            return await api("PATCH", `/devices/${encodePath(existing.id)}`, {
+                body: { name, pushToken, isActive: true, deliveryEnabled: true },
+            });
+        } catch (error) {
+            if (![403, 404, 409].includes(error.status)) {
+                throw error;
+            }
+        }
     }
 
-    const device = await ensureDashboardDevice();
-    if (!device?.id) return;
+    return await api("POST", "/devices", {
+        body: { name, platform, pushType: "webpush", pushToken, deliveryEnabled: true },
+    });
+}
+
+async function apiSubscribe(device, topicName) {
+    if (!device?.id || !topicName) return;
 
     try {
         await api("POST", `/devices/${encodePath(device.id)}/subscriptions`, {
@@ -333,10 +439,174 @@ async function subscribeDashboardToTopic(topicName) {
             body: { topicName },
         });
     } catch (error) {
+        if (error.status === 404) {
+            state.webPushDevice = null;
+            state.webPushToken = null;
+            persistWebPushDevice(null);
+            return;
+        }
         if (error.status !== 409) {
             throw error;
         }
     }
+}
+
+function prefetchPushPermission() {
+    if (!supportsWebPush() || !window.isSecureContext || Notification.permission !== "default") {
+        return Promise.resolve(Notification.permission);
+    }
+    return Notification.requestPermission().catch(() => Notification.permission);
+}
+
+async function enablePush({ requestPermission = true } = {}) {
+    if (!state.token || !state.user || state.user.role === "guest") {
+        return;
+    }
+
+    if (!supportsWebPush()) {
+        throw new Error("Web Push is not supported by this browser");
+    }
+
+    if (!window.isSecureContext) {
+        throw new Error("HTTPS required (or localhost)");
+    }
+
+    let permission = Notification.permission;
+    if (permission === "default" && requestPermission) {
+        permission = await Notification.requestPermission();
+    }
+
+    if (permission !== "granted") {
+        throw new Error("Notification permission was not granted");
+    }
+
+    const options = await api("GET", "/webpush/vapid-key");
+    const vapidKey = options?.vapid;
+
+    if (!vapidKey) {
+        throw new Error("Web Push is not configured");
+    }
+
+    const registration = await navigator.serviceWorker.register("/serviceWorker.mjs");
+    await registration.update();
+
+    let subscription = await registration.pushManager.getSubscription();
+    if (subscription && subscriptionVAPIDKey(subscription) !== vapidKey) {
+        await subscription.unsubscribe();
+        subscription = null;
+    }
+
+    if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(vapidKey),
+        });
+    }
+
+    const pushToken = serializeSubscription(subscription, vapidKey);
+    state.webPushToken = pushToken;
+
+    state.webPushDevice = await registerOrUpdatePushDevice(pushToken);
+    persistWebPushDevice(state.webPushDevice, pushToken);
+
+    await Promise.allSettled(
+        state.topics.map((topic) => apiSubscribe(state.webPushDevice, topic.name))
+    );
+}
+
+async function restorePush() {
+    if (!state.token || !state.user || state.user.role === "guest" || !supportsWebPush()) {
+        state.webPushDevice = null;
+        state.webPushToken = null;
+        persistWebPushDevice(null);
+        return;
+    }
+    if (!window.isSecureContext || Notification.permission !== "granted") {
+        return;
+    }
+
+    const cached = safeJsonParse(localStorage.getItem("pingd_webpush_device") || "");
+    const cachedToken = safeJsonParse(cached?.pushToken || "");
+    if (cached?.device && cached.device.userID === state.user.id && cachedToken?.endpoint) {
+        try {
+            const registration = await navigator.serviceWorker.register("/serviceWorker.mjs");
+            const subscription = await registration.pushManager.getSubscription();
+            if (subscription?.endpoint === cachedToken.endpoint) {
+                state.webPushDevice = cached.device;
+                state.webPushToken = cached.pushToken;
+                return;
+            }
+        } catch (error) {
+            console.warn("Push hydration failed", error);
+        }
+    }
+
+    try {
+        await enablePush({ requestPermission: false });
+    } catch (error) {
+        console.warn("Push restore failed", error);
+    }
+}
+
+async function enablePushFromAccount() {
+    if (state.webPushBusy) return;
+
+    state.webPushBusy = true;
+    render();
+    try {
+        await enablePush();
+        setToast("Notifications enabled", "success");
+    } catch (error) {
+        setToast(error.message, "error");
+    } finally {
+        state.webPushBusy = false;
+        render();
+    }
+}
+
+async function subscribeToTopic(topicName, { promptPermission = true } = {}) {
+    if (!state.token || !state.user || state.user.role === "guest" || !topicName) {
+        return;
+    }
+
+    if (!promptPermission && !state.webPushDevice?.id) {
+        return;
+    }
+
+    if (!state.webPushDevice?.id) {
+        await enablePush();
+    }
+    await apiSubscribe(state.webPushDevice, topicName);
+}
+
+async function unsubscribeFromTopic(topicName) {
+    if (!state.token || !state.user || state.user.role !== "user" || !topicName) {
+        return;
+    }
+    const topic = state.topics.find((item) => item.name === topicName);
+    if (topic?.ownerUserID === state.user.id) {
+        throw new Error("Owners cannot unsubscribe from their own topic");
+    }
+
+    if (state.webPushDevice?.id) {
+        try {
+            await api("DELETE", `/devices/${encodePath(state.webPushDevice.id)}/subscriptions/${encodePath(topicName)}`);
+        } catch (error) {
+            if (error.status !== 404) throw error;
+        }
+    }
+
+    state.topics = state.topics.filter((topic) => topic.name !== topicName);
+    delete state.messagesByTopic[topicName];
+    delete state.topicStatsByTopic[topicName];
+    delete state.webhooksByTopic[topicName];
+    delete state.webhooksLoadedByTopic[topicName];
+    delete state.webhooksDeniedByTopic[topicName];
+    if (state.currentTopicName === topicName) {
+        state.currentTopicName = null;
+    }
+    render();
+    setToast(`Unsubscribed from ${topicName}`, "success");
 }
 
 async function loadWebhooks(topicName) {
@@ -392,9 +662,8 @@ async function loadMessages(topicName) {
     );
 }
 
-async function bootstrapAuthenticatedSession() {
+async function bootstrapAuthenticatedSession({ syncWebPush = true } = {}) {
     await loadMe();
-    await ensureDashboardDevice();
     if (state.user?.role === "admin") {
         await loadTopics();
     } else {
@@ -404,10 +673,15 @@ async function bootstrapAuthenticatedSession() {
         await loadTokens();
     }
     render();
+    await selectRequestedTopicFromLocation();
+    if (syncWebPush) {
+        void restorePush();
+    }
 }
 
 async function bootstrapGuestSession() {
     render();
+    await selectRequestedTopicFromLocation();
 }
 
 function openModal(modal) {
@@ -446,14 +720,16 @@ async function handleProtectedAction(topicName, action) {
     }
 }
 
-async function lookupTopicByName(topicName) {
+async function lookupTopicByName(topicName, { subscribe = true, promptPermission = true } = {}) {
     const name = topicName.trim();
     if (!name) return;
 
     try {
         const topic = await api("GET", `/topics/${encodePath(name)}`, { topicName: name });
         upsertTopic(topic);
-        await subscribeDashboardToTopic(topic.name);
+        if (subscribe) {
+            await subscribeToTopic(topic.name, { promptPermission });
+        }
         state.currentTab = "topics";
         state.currentTopicName = topic.name;
         const loads = [loadMessages(topic.name), loadTopicStats(topic.name)];
@@ -466,11 +742,11 @@ async function lookupTopicByName(topicName) {
         if (error.status === 403 && state.topicPasswords[name]) {
             delete state.topicPasswords[name];
             saveTopicPasswords();
-            openPasswordModal(name, () => lookupTopicByName(name), "Wrong password");
+            openPasswordModal(name, () => lookupTopicByName(name, { subscribe, promptPermission }), "Wrong password");
             return;
         }
         if (error.status === 403 && state.guest) {
-            openPasswordModal(name, () => lookupTopicByName(name));
+            openPasswordModal(name, () => lookupTopicByName(name, { subscribe, promptPermission }));
             return;
         }
         setToast(error.status === 403 ? "Permission denied" : error.message, "error");
@@ -479,6 +755,14 @@ async function lookupTopicByName(topicName) {
 
 async function selectTopic(topicName) {
     await lookupTopicByName(topicName);
+}
+
+async function selectRequestedTopicFromLocation() {
+    const topicName = requestedTopicFromLocation();
+    if (!topicName || !hasSession()) return;
+
+    clearRequestedTopicFromLocation();
+    await lookupTopicByName(topicName, { promptPermission: false });
 }
 
 async function createTopic(form) {
@@ -501,9 +785,10 @@ async function createTopic(form) {
         state.topicPasswords[name] = password;
         saveTopicPasswords();
     }
+    await subscribeToTopic(topic.name);
     closeModal();
     setToast(`Created topic ${name}`, "success");
-    await selectTopic(name);
+    await lookupTopicByName(name, { subscribe: false });
     if (state.user?.role === "admin") {
         await loadTopics();
     } else if (state.token) {
@@ -550,11 +835,9 @@ async function publishCurrentTopic(form) {
         );
 
         const existing = state.messagesByTopic[topic.name] || [];
-        if (!isTopicLive(topic.name)) {
-            state.messagesByTopic[topic.name] = [...existing, message];
-            await loadTopicStats(topic.name);
-            render();
-        }
+        state.messagesByTopic[topic.name] = [...existing, message];
+        await loadTopicStats(topic.name);
+        render();
 
         setToast(`Published to ${topic.name}`, "success");
     });
@@ -572,7 +855,6 @@ async function removeCurrentTopic() {
     delete state.webhooksDeniedByTopic[topic.name];
     delete state.topicPasswords[topic.name];
     saveTopicPasswords();
-    disconnectSSE(topic.name);
     if (state.currentTopicName === topic.name) {
         state.currentTopicName = null;
     }
@@ -702,6 +984,7 @@ async function deleteWebhook(webhookID) {
 async function handleLogin(form) {
     const username = form.get("username").trim();
     const password = form.get("password");
+    const notificationPermission = prefetchPushPermission();
 
     try {
         const data = await api("POST", "/auth/login", {
@@ -714,8 +997,11 @@ async function handleLogin(form) {
         persistToken(data.token);
         state.guest = false;
         state.authError = "";
-        await bootstrapAuthenticatedSession();
-        setToast(`Welcome back ${data.username}`, "success");
+        await bootstrapAuthenticatedSession({ syncWebPush: false });
+        void notificationPermission.then(restorePush);
+        if (!showInstallHintIfNeeded()) {
+            setToast(`Welcome back ${data.username}`, "success");
+        }
     } catch (error) {
         state.authError = error.message;
         render();
@@ -733,6 +1019,8 @@ async function handleRegister(form) {
         return;
     }
 
+    const notificationPermission = prefetchPushPermission();
+
     try {
         const data = await api("POST", "/auth/register", {
             body: {
@@ -744,8 +1032,11 @@ async function handleRegister(form) {
         persistToken(data.token);
         state.guest = false;
         state.authError = "";
-        await bootstrapAuthenticatedSession();
-        setToast(`Account created for ${data.username}`, "success");
+        await bootstrapAuthenticatedSession({ syncWebPush: false });
+        void notificationPermission.then(restorePush);
+        if (!showInstallHintIfNeeded()) {
+            setToast(`Account created for ${data.username}`, "success");
+        }
     } catch (error) {
         state.authError = error.message;
         render();
@@ -755,7 +1046,9 @@ async function handleRegister(form) {
 async function logout() {
     if (state.token) {
         try {
-            await api("DELETE", "/auth/logout");
+            await api("DELETE", "/auth/logout", {
+                headers: state.webPushToken ? { "X-Push-Token": state.webPushToken } : undefined,
+            });
         } catch {}
     }
     clearSession();
@@ -846,16 +1139,22 @@ function renderTopicItems() {
     if (!state.topics.length) {
         const message = state.user?.role === "admin"
             ? "No topics visible yet."
-            : "Open a topic by name to view it.";
+            : "Subscribe to a topic by name to view it.";
         return `<div class="empty-panel" style="height:auto;padding:18px;"><p>${message}</p></div>`;
     }
 
     return state.topics.map((topic) => `
-        <button class="topic-item ${state.currentTopicName === topic.name ? "active" : ""}" data-topic="${escapeHtml(topic.name)}" type="button">
-            ${visibilityIcon(topic.visibility)}
-            <span class="topic-name">${escapeHtml(topic.name)}</span>
-            ${isTopicLive(topic.name) ? '<span class="badge badge-live">live</span>' : ""}
-        </button>
+        <div class="topic-row ${state.currentTopicName === topic.name ? "active" : ""}">
+            <button class="topic-item" data-topic="${escapeHtml(topic.name)}" type="button">
+                ${visibilityIcon(topic.visibility)}
+                <span class="topic-name">${escapeHtml(topic.name)}</span>
+            </button>
+            ${state.user?.role === "user" && topic.ownerUserID !== state.user.id ? `
+                <button class="topic-unsubscribe" type="button" data-action="unsubscribe-topic" data-topic-name="${escapeHtml(topic.name)}" title="Unsubscribe from ${escapeHtml(topic.name)}" aria-label="Unsubscribe from ${escapeHtml(topic.name)}">
+                    ${icon("unsubscribe")}
+                </button>
+            ` : ""}
+        </div>
     `).join("");
 }
 
@@ -863,8 +1162,8 @@ function renderMessagesPanel() {
     const topic = currentTopic();
     if (!topic) {
         const message = state.user?.role === "admin"
-            ? "Select a topic from the left rail or open one by name to inspect messages and publish new messages."
-            : "Open a topic by name to inspect messages and publish new messages.";
+            ? "Select a topic from the left rail or subscribe to one by name to inspect messages and publish new messages."
+            : "Subscribe to a topic by name to inspect messages and publish new messages.";
         return `
             <section class="panel message-layout">
                 <div class="empty-panel">
@@ -885,10 +1184,12 @@ function renderMessagesPanel() {
                 <div class="topbar-actions">
                     ${topic.hasPassword ? '<span class="badge badge-muted" title="Password protected">' + icon("protected") + '</span>' : ""}
                     ${visibilityBadge(topic.visibility)}
-                    <button class="btn btn-outline btn-small" data-action="toggle-live" type="button">
-                        ${icon("stream")}
-                        ${isTopicLive(topic.name) ? "Stop live" : "Go live"}
-                    </button>
+                    ${state.user?.role === "user" && topic.ownerUserID !== state.user.id ? `
+                        <button class="btn btn-outline btn-small" data-action="unsubscribe-topic" data-topic-name="${escapeHtml(topic.name)}" type="button">
+                            ${icon("unsubscribe")}
+                            Unsubscribe
+                        </button>
+                    ` : ""}
                     ${state.user?.role === "admin" || state.user?.id === topic.ownerUserID ? `
                         <button class="btn btn-danger btn-small" data-action="delete-topic" type="button">
                             ${icon("trash")}
@@ -1068,6 +1369,85 @@ function renderTopicsWorkspace() {
     `;
 }
 
+function notificationStatus() {
+    if (!supportsWebPush()) {
+        return {
+            label: "Unsupported",
+            className: "badge-off",
+            detail: "This browser cannot receive Web Push.",
+            canEnable: false,
+        };
+    }
+
+    if (!window.isSecureContext) {
+        return {
+            label: "HTTPS required",
+            className: "badge-off",
+            detail: "Requires HTTPS or localhost.",
+            canEnable: false,
+        };
+    }
+
+    if (Notification.permission === "denied") {
+        return {
+            label: "Permission denied",
+            className: "badge-private",
+            detail: "Blocked in browser settings.",
+            canEnable: false,
+        };
+    }
+
+    if (state.webPushDevice?.deliveryEnabled === true) {
+        return {
+            label: "Enabled",
+            className: "badge-open",
+            detail: state.webPushDevice.name || "This browser is registered.",
+            canEnable: false,
+        };
+    }
+
+    if (Notification.permission === "granted") {
+        return {
+            label: "Disabled",
+            className: "badge-protected",
+            detail: "Permission granted, device not registered.",
+            canEnable: true,
+        };
+    }
+
+    return {
+        label: "Disabled",
+        className: "badge-muted",
+        detail: "Permission has not been requested.",
+        canEnable: true,
+    };
+}
+
+function renderNotificationPanel() {
+    const status = notificationStatus();
+    const actionDisabled = state.webPushBusy || !status.canEnable;
+
+    return `
+        <section class="panel">
+            <header class="panel-header">
+                <div class="panel-title">
+                    <h3>Notifications</h3>
+                </div>
+                ${status.canEnable ? `
+                    <button class="btn btn-outline btn-small" type="button" data-action="enable-notifications" ${actionDisabled ? "disabled" : ""}>
+                        ${state.webPushBusy ? "Enabling..." : "Enable"}
+                    </button>
+                ` : ""}
+            </header>
+            <div class="panel-body">
+                <dl class="detail-list">
+                    <div class="detail-row"><dt>Device</dt><dd>${escapeHtml(status.detail)}</dd></div>
+                </dl>
+            </div>
+        </section>
+    `;
+}
+
 function renderAccountWorkspace() {
     return `
         <div class="account-stack">
@@ -1090,6 +1470,8 @@ function renderAccountWorkspace() {
                     </dl>
                 </div>
             </section>
+
+            ${renderNotificationPanel()}
 
             <section class="panel panel-scroll">
                 <header class="panel-header">
@@ -1139,6 +1521,14 @@ function renderTopbar() {
         : topic
             ? `/${topic.name}`
             : "Select a topic";
+    const mobileTopics = state.topics.length
+        ? state.topics.map((item) => `
+            <button class="mobile-topic-pill ${state.currentTopicName === item.name ? "active" : ""}" type="button" data-topic="${escapeHtml(item.name)}">
+                ${visibilityIcon(item.visibility)}
+                <span>${escapeHtml(item.name)}</span>
+            </button>
+        `).join("")
+        : `<span class="mobile-empty-text">${state.user?.role === "admin" ? "No topics visible yet." : "No subscribed topics yet."}</span>`;
 
     return `
         <header class="topbar">
@@ -1148,6 +1538,16 @@ function renderTopbar() {
             </div>
             <div class="topbar-actions">
                 <button class="btn btn-outline btn-small" type="button" data-action="refresh">${icon("refresh")}Refresh</button>
+            </div>
+            <div class="mobile-topbar-controls">
+                <div class="mobile-nav-row">
+                    <button class="btn btn-outline btn-small ${state.currentTab === "topics" ? "active" : ""}" type="button" data-tab="topics">${icon("topics")}Topics</button>
+                    ${state.token ? `<button class="btn btn-outline btn-small ${state.currentTab === "account" ? "active" : ""}" type="button" data-tab="account">${icon("account")}Account</button>` : ""}
+                    <button class="btn btn-outline btn-small" type="button" data-action="subscribe-topic">Subscribe</button>
+                    ${state.token ? `<button class="btn btn-outline btn-small" type="button" data-action="create-topic">Create</button>` : ""}
+                    <button type="button" class="btn btn-ghost btn-small" data-action="logout">${icon("logout")}</button>
+                </div>
+                ${state.currentTab === "topics" ? `<div class="mobile-topic-strip">${mobileTopics}</div>` : ""}
             </div>
         </header>
     `;
@@ -1179,11 +1579,11 @@ function renderAppShell() {
                     ` : ""}
                 </div>
 
-                <div class="sidebar-section-title">${state.user?.role === "admin" ? "Topics" : "Recently opened"}</div>
+                <div class="sidebar-section-title">${state.user?.role === "admin" ? "Topics" : "Subscribed topics"}</div>
                 <div class="topic-list">${renderTopicItems()}</div>
 
                 <div class="topic-quick-actions">
-                    <button class="btn btn-outline" type="button" data-action="open-topic">Open topic</button>
+                    <button class="btn btn-outline" type="button" data-action="subscribe-topic">Subscribe to topic</button>
                     ${state.token ? `<button class="btn btn-outline" type="button" data-action="create-topic">Create topic</button>` : ""}
                 </div>
 
@@ -1353,24 +1753,24 @@ function renderModal() {
         `;
     }
 
-    if (state.modal.type === "open-topic") {
+    if (state.modal.type === "subscribe-topic") {
         modalRoot.innerHTML = `
             <div class="modal-overlay">
                 <section class="modal">
                     <header class="modal-header">
-                        <h3>Open topic</h3>
-                        <p>Enter the name of a topic to open.</p>
+                        <h3>Subscribe to topic</h3>
+                        <p>Enter the name of a topic to subscribe.</p>
                     </header>
-                    <form id="open-topic-form">
+                    <form id="subscribe-topic-form">
                         <div class="modal-body">
                             <div class="field">
-                                <label for="open-topic-input">Topic name</label>
-                                <input class="input mono" id="open-topic-input" name="topicName" placeholder="my-topic" autocomplete="off" required>
+                                <label for="subscribe-topic-input">Topic name</label>
+                                <input class="input mono" id="subscribe-topic-input" name="topicName" placeholder="my-topic" autocomplete="off" required>
                             </div>
                         </div>
                         <footer class="modal-footer">
                             <button class="btn btn-outline" type="button" data-action="close-modal">Cancel</button>
-                            <button class="btn btn-primary" type="submit">Open</button>
+                            <button class="btn btn-primary" type="submit">Subscribe</button>
                         </footer>
                     </form>
                 </section>
@@ -1616,28 +2016,15 @@ function bindAppEvents() {
         });
     });
 
-    app.querySelectorAll("[data-action='open-topic']").forEach((button) => {
+    app.querySelectorAll("[data-action='subscribe-topic']").forEach((button) => {
         button.addEventListener("click", () => {
-            openModal({ type: "open-topic" });
+            openModal({ type: "subscribe-topic" });
         });
     });
 
     app.querySelectorAll("[data-action='create-topic']").forEach((button) => {
         button.addEventListener("click", () => {
             openModal({ type: "create-topic", error: "" });
-        });
-    });
-
-    app.querySelectorAll("[data-action='toggle-live']").forEach((button) => {
-        button.addEventListener("click", async () => {
-            const topicName = state.currentTopicName;
-            if (!topicName) return;
-            if (isTopicLive(topicName)) {
-                disconnectSSE(topicName);
-                render();
-                return;
-            }
-            await connectSSE(topicName);
         });
     });
 
@@ -1649,10 +2036,28 @@ function bindAppEvents() {
         });
     });
 
+    app.querySelectorAll("[data-action='unsubscribe-topic']").forEach((button) => {
+        button.addEventListener("click", async () => {
+            const topicName = button.dataset.topicName || state.currentTopicName;
+            if (!topicName) return;
+            button.disabled = true;
+            try {
+                await unsubscribeFromTopic(topicName);
+            } catch (error) {
+                setToast(error.message, "error");
+                render();
+            }
+        });
+    });
+
     app.querySelectorAll("[data-action='change-password']").forEach((button) => {
         button.addEventListener("click", () => {
             openModal({ type: "change-password", error: "" });
         });
+    });
+
+    app.querySelectorAll("[data-action='enable-notifications']").forEach((button) => {
+        button.addEventListener("click", enablePushFromAccount);
     });
 
     app.querySelectorAll("[data-action='new-token']").forEach((button) => {
@@ -1758,9 +2163,9 @@ function bindModalEvents() {
         });
     }
 
-    const openTopicForm = modalRoot.querySelector("#open-topic-form");
-    if (openTopicForm) {
-        openTopicForm.addEventListener("submit", async (event) => {
+    const subscribeTopicForm = modalRoot.querySelector("#subscribe-topic-form");
+    if (subscribeTopicForm) {
+        subscribeTopicForm.addEventListener("submit", async (event) => {
             event.preventDefault();
             const topicName = new FormData(event.currentTarget).get("topicName").trim();
             if (!topicName) return;
@@ -1891,86 +2296,6 @@ function bindModalEvents() {
             }
         });
     }
-}
-
-async function connectSSE(topicName) {
-    if (state.liveConnections[topicName]) return;
-
-    const topic = state.topics.find((t) => t.name === topicName);
-    if (!topic) return;
-
-    const controller = new AbortController();
-    state.liveConnections[topicName] = controller;
-    render();
-
-    const headers = {};
-    if (state.token) {
-        headers.Authorization = `Bearer ${state.token}`;
-    }
-    if (state.topicPasswords[topicName]) {
-        headers["X-Topic-Password"] = state.topicPasswords[topicName];
-    }
-
-    try {
-        const response = await fetch(`/topics/${encodePath(topicName)}/stream`, {
-            headers,
-            signal: controller.signal,
-        });
-
-        if (!response.ok) {
-            throw new Error(`Failed to start live stream: ${response.status}`);
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const chunks = buffer.split("\n\n");
-            buffer = chunks.pop() || "";
-
-            for (const chunk of chunks) {
-                const line = chunk.trim();
-                if (!line.startsWith("data: ")) continue;
-
-                try {
-                    const message = JSON.parse(line.slice(6));
-                    const existing = state.messagesByTopic[topicName] || [];
-                    state.messagesByTopic[topicName] = [message, ...existing];
-                    render();
-                } catch {}
-            }
-        }
-    } catch (error) {
-        if (error.name !== "AbortError") {
-            delete state.liveConnections[topicName];
-            render();
-            setToast(error.message, "error");
-        }
-    }
-}
-
-function disconnectSSE(topicName) {
-    if (topicName) {
-        const controller = state.liveConnections[topicName];
-        if (controller) {
-            controller.abort();
-            delete state.liveConnections[topicName];
-        }
-    } else {
-        for (const [name, controller] of Object.entries(state.liveConnections)) {
-            controller.abort();
-        }
-        state.liveConnections = {};
-    }
-}
-
-function isTopicLive(topicName) {
-    return Boolean(state.liveConnections[topicName]);
 }
 
 async function initialize() {
