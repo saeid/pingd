@@ -21,6 +21,7 @@ func routes(_ app: Application, _ services: AppDependencies) throws {
         now: services.now,
         auditLogger: services.auditLogger
     ))
+    try api.register(collection: WebPushController(pushProvider: services.pushProvider))
 
     let webhookReceiveRoutes = app.routes.grouped(WebhookRateLimitMiddleware(
         rateLimiter: app.rateLimiter,
