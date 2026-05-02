@@ -98,7 +98,7 @@ struct AuthController: RouteCollection, @unchecked Sendable {
         do {
             let currentUser = try await tokenClient.markTokenUse(bearerToken, req.clientIP, now())
             let currentUserID = try currentUser.requireID()
-            if let pushToken: String = req.query["pushToken"],
+            if let pushToken = req.headers.first(name: "X-Push-Token"),
                let device = try await deviceClient.findByPushToken(pushToken),
                device.$user.id == currentUserID {
                 let deviceID = try device.requireID()
