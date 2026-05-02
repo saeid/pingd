@@ -1,6 +1,8 @@
 @testable import pingd
 import Foundation
 import Testing
+import Vapor
+import VaporTesting
 
 extension PingdTests {
     @Test("PushProvider: APNS direct mode loads from env")
@@ -62,6 +64,80 @@ extension PingdTests {
     func pushProviderNoAPNSConfiguration() throws {
         let config = try PushProvider.loadAPNSConfiguration(environmentVariables: [:])
         #expect(config == nil)
+    }
+
+    @Test("PushProvider: Web Push configuration loads from env")
+    func pushProviderWebPushConfiguration() throws {
+        let rawConfig = #"{"contactInformation":"mailto:admin@example.com","expirationDuration":79200,"primaryKey":"6PSSAJiMj7uOvtE4ymNo5GWcZbT226c5KlV6c+8fx5g=","validityDuration":72000}"#
+        let config = try PushProvider.loadWebPushConfiguration(
+            environmentVariables: [
+                "PINGD_WEBPUSH_VAPID_CONFIG": rawConfig,
+            ]
+        )
+
+        #expect(config != nil)
+    }
+
+    @Test("PushProvider: no Web Push env returns no configuration")
+    func pushProviderNoWebPushConfiguration() throws {
+        let config = try PushProvider.loadWebPushConfiguration(environmentVariables: [:])
+        #expect(config == nil)
+    }
+
+    @Test("PushProvider: invalid Web Push configuration throws error")
+    func pushProviderInvalidWebPushConfiguration() throws {
+        #expect(throws: PushProviderConfigError.self) {
+            try PushProvider.loadWebPushConfiguration(
+                environmentVariables: [
+                    "PINGD_WEBPUSH_VAPID_CONFIG": "{",
+                ]
+            )
+        }
+    }
+
+    @Test("Web Push: VAPID key endpoint returns provider key")
+    func webPushVAPIDKeyEndpointReturnsProviderKey() async throws {
+        let app = try await Application.make(.testing)
+        do {
+            try app.routes.register(collection: WebPushController(pushProvider: PushProvider(
+                webPushVAPIDKey: { "test-vapid-key" },
+                send: { _, _, _, _, _ in PushResult(success: true, error: nil) }
+            )))
+
+            try await app.testing().test(
+                .GET,
+                "webpush/vapid-key",
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let options = try res.content.decode(WebPushOptionsResponse.self)
+                    #expect(options.vapid == "test-vapid-key")
+                }
+            )
+        } catch {
+            try await app.asyncShutdown()
+            throw error
+        }
+        try await app.asyncShutdown()
+    }
+
+    @Test("Web Push: VAPID key endpoint returns 404 when disabled")
+    func webPushVAPIDKeyEndpointReturnsNotFoundWhenDisabled() async throws {
+        let app = try await Application.make(.testing)
+        do {
+            try app.routes.register(collection: WebPushController(pushProvider: .mock(logger: app.logger)))
+
+            try await app.testing().test(
+                .GET,
+                "webpush/vapid-key",
+                afterResponse: { res in
+                    #expect(res.status == .notFound)
+                }
+            )
+        } catch {
+            try await app.asyncShutdown()
+            throw error
+        }
+        try await app.asyncShutdown()
     }
 
     @Test("PushProvider: relay mode requires relay token")
