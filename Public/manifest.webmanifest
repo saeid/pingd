@@ -1,0 +1,18 @@
+{
+  "name": "Pingd Dashboard",
+  "short_name": "Pingd",
+  "description": "Manage Pingd topics, messages, subscriptions, and notifications.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#110f0d",
+  "theme_color": "#110f0d",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
