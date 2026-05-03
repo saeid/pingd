@@ -363,4 +363,68 @@ struct WebhookTemplateRendererTests {
         let result = WebhookTemplateRenderer.render("{{active}}", json: json)
         #expect(result == "true")
     }
+
+    @Test("Bool false renders as false")
+    func boolFalseRendering() {
+        let json: [String: Any] = ["active": false]
+        #expect(WebhookTemplateRenderer.render("{{active}}", json: json) == "false")
+    }
+
+    @Test("Array value renders as empty string")
+    func arrayValueRendersEmpty() {
+        let json: [String: Any] = ["tags": ["a", "b"]]
+        #expect(WebhookTemplateRenderer.render("[{{tags}}]", json: json) == "[]")
+    }
+
+    @Test("Object value renders as empty string")
+    func objectValueRendersEmpty() {
+        let json: [String: Any] = ["movie": ["title": "Dune"]]
+        #expect(WebhookTemplateRenderer.render("[{{movie}}]", json: json) == "[]")
+    }
+
+    @Test("Null value renders as empty string")
+    func nullValueRendersEmpty() {
+        let json: [String: Any] = ["field": NSNull()]
+        #expect(WebhookTemplateRenderer.render("[{{field}}]", json: json) == "[]")
+    }
+
+    @Test("Path through non-object renders as empty")
+    func pathThroughScalarRendersEmpty() {
+        let json: [String: Any] = ["movie": "Dune"]
+        #expect(WebhookTemplateRenderer.render("{{movie.title}}", json: json) == "")
+    }
+
+    @Test("Multiple placeholders on same line all resolve")
+    func multiplePlaceholdersResolve() {
+        let json: [String: Any] = ["a": "x", "b": "y", "c": "z"]
+        let result = WebhookTemplateRenderer.render("{{a}}-{{b}}-{{c}}", json: json)
+        #expect(result == "x-y-z")
+    }
+
+    @Test("Numeric value renders without decimals when integer")
+    func numericValueRenders() {
+        let json: [String: Any] = ["count": 42]
+        #expect(WebhookTemplateRenderer.render("{{count}}", json: json) == "42")
+    }
+
+    @Test("Template without placeholders returns input unchanged")
+    func templateNoPlaceholders() {
+        let result = WebhookTemplateRenderer.render("plain text", json: [String: Any]())
+        #expect(result == "plain text")
+    }
+
+    @Test("splitTags returns empty array for empty string")
+    func splitTagsEmpty() {
+        #expect(WebhookTemplateRenderer.splitTags("") == [])
+    }
+
+    @Test("splitTags returns empty array for whitespace and commas only")
+    func splitTagsWhitespaceOnly() {
+        #expect(WebhookTemplateRenderer.splitTags(" , , ,") == [])
+    }
+
+    @Test("splitTags does not deduplicate")
+    func splitTagsDoesNotDedupe() {
+        #expect(WebhookTemplateRenderer.splitTags("a,a,b") == ["a", "a", "b"])
+    }
 }

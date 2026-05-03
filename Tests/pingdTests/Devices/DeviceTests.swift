@@ -245,6 +245,173 @@ extension PingdTests {
         }
     }
 
+    @Test("Devices: PATCH /devices/:id updates all fields together")
+    func updateDeviceAllFields() async throws {
+        try await withApp { app in
+            try await seedDevices(app)
+            let session = try await login(app, username: "vi", password: "password1")
+            var deviceID: UUID?
+            try await app.testing().test(
+                .GET, "devices",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                },
+                afterResponse: { res in
+                    deviceID = try res.content.decode([DeviceResponse].self)[0].id
+                }
+            )
+            let id = try #require(deviceID)
+            try await app.testing().test(
+                .PATCH, "devices/\(id)",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(UpdateDeviceRequest(
+                        name: "Renamed",
+                        pushToken: "new-token",
+                        isActive: false,
+                        deliveryEnabled: false
+                    ))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let device = try res.content.decode(DeviceResponse.self)
+                    #expect(device.name == "Renamed")
+                    #expect(device.isActive == false)
+                    #expect(device.deliveryEnabled == false)
+                }
+            )
+        }
+    }
+
+    @Test("Devices: PATCH /devices/:id deactivating preserves deliveryEnabled")
+    func updateDeviceDeactivateKeepsDeliveryEnabled() async throws {
+        try await withApp { app in
+            try await seedDevices(app)
+            let session = try await login(app, username: "vi", password: "password1")
+            var deviceID: UUID?
+            try await app.testing().test(
+                .GET, "devices",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                },
+                afterResponse: { res in
+                    deviceID = try res.content.decode([DeviceResponse].self)[0].id
+                }
+            )
+            let id = try #require(deviceID)
+            try await app.testing().test(
+                .PATCH, "devices/\(id)",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(UpdateDeviceRequest(
+                        name: nil,
+                        pushToken: nil,
+                        isActive: false,
+                        deliveryEnabled: nil
+                    ))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let device = try res.content.decode(DeviceResponse.self)
+                    #expect(device.isActive == false)
+                    #expect(device.deliveryEnabled == true)
+                }
+            )
+        }
+    }
+
+    @Test("Devices: PATCH /devices/:id with no fields is a no-op")
+    func updateDeviceNoOp() async throws {
+        try await withApp { app in
+            try await seedDevices(app)
+            let session = try await login(app, username: "vi", password: "password1")
+            var deviceID: UUID?
+            var originalName: String?
+            try await app.testing().test(
+                .GET, "devices",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                },
+                afterResponse: { res in
+                    let devices = try res.content.decode([DeviceResponse].self)
+                    deviceID = devices[0].id
+                    originalName = devices[0].name
+                }
+            )
+            let id = try #require(deviceID)
+            let name = try #require(originalName)
+            try await app.testing().test(
+                .PATCH, "devices/\(id)",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(UpdateDeviceRequest(
+                        name: nil,
+                        pushToken: nil,
+                        isActive: nil,
+                        deliveryEnabled: nil
+                    ))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let device = try res.content.decode(DeviceResponse.self)
+                    #expect(device.name == name)
+                    #expect(device.isActive == true)
+                    #expect(device.deliveryEnabled == true)
+                }
+            )
+        }
+    }
+
+    @Test("Devices: PATCH /devices/:id can re-enable delivery on inactive device")
+    func updateDeviceReenableDeliveryWhileInactive() async throws {
+        try await withApp { app in
+            try await seedDevices(app)
+            let session = try await login(app, username: "vi", password: "password1")
+            var deviceID: UUID?
+            try await app.testing().test(
+                .GET, "devices",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                },
+                afterResponse: { res in
+                    deviceID = try res.content.decode([DeviceResponse].self)[0].id
+                }
+            )
+            let id = try #require(deviceID)
+            try await app.testing().test(
+                .PATCH, "devices/\(id)",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(UpdateDeviceRequest(
+                        name: nil,
+                        pushToken: nil,
+                        isActive: false,
+                        deliveryEnabled: false
+                    ))
+                },
+                afterResponse: { _ in }
+            )
+            try await app.testing().test(
+                .PATCH, "devices/\(id)",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(UpdateDeviceRequest(
+                        name: nil,
+                        pushToken: nil,
+                        isActive: nil,
+                        deliveryEnabled: true
+                    ))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let device = try res.content.decode(DeviceResponse.self)
+                    #expect(device.isActive == false)
+                    #expect(device.deliveryEnabled == true)
+                }
+            )
+        }
+    }
+
     @Test("Devices: DELETE /devices/:id as owner deletes device")
     func deleteDevice() async throws {
         try await withApp { app in

@@ -456,4 +456,50 @@ extension PingdTests {
             )
         }
     }
+
+    @Test("Topics: GET /topics/:name/stats for nonexistent topic returns 404")
+    func topicStatsNotFound() async throws {
+        try await withApp { app in
+            let session = try await login(app, username: "jinx", password: "hunter2")
+            try await app.testing().test(
+                .GET, "topics/does-not-exist/stats",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .notFound)
+                }
+            )
+        }
+    }
+
+    @Test("Topics: GET /topics/:name/stats as guest returns 403")
+    func topicStatsAsGuest() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            let session = try await loginGuest(app)
+            try await app.testing().test(
+                .GET, "topics/open-topic/stats",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .forbidden)
+                }
+            )
+        }
+    }
+
+    @Test("Topics: GET /topics/:name/stats as anonymous returns 401")
+    func topicStatsAnonymous() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            try await app.testing().test(
+                .GET, "topics/open-topic/stats",
+                afterResponse: { res in
+                    #expect(res.status == .unauthorized)
+                }
+            )
+        }
+    }
 }
