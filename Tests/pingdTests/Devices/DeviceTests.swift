@@ -109,9 +109,10 @@ extension PingdTests {
             try await seedDevices(app)
             let viSession = try await login(app, username: "vi", password: "password1")
             try await app.testing().test(
-                .DELETE, "auth/logout?pushToken=token-vi-iphone",
+                .DELETE, "auth/logout",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: viSession.token)
+                    req.headers.add(name: "X-Push-Token", value: "token-vi-iphone")
                 },
                 afterResponse: { res in
                     #expect(res.status == .noContent)
