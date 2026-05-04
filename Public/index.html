@@ -17,8 +17,330 @@
 </head>
 <body>
     <div id="app"></div>
-    <div id="modal-root"></div>
     <div id="toast-root"></div>
-    <script src="/app.js?v=safari-mobile-push"></script>
+
+    <dialog id="dialog-create-topic" class="app-modal">
+        <section class="modal">
+            <header class="modal-header">
+                <h3>Create topic</h3>
+                <p>Set the topic name, visibility, and optional password.</p>
+            </header>
+            <form data-modal-form="create-topic">
+                <div class="modal-body">
+                    <div class="error-text" data-bind="error" hidden></div>
+                    <div class="field">
+                        <label for="modal-topic-name">Topic name</label>
+                        <input class="input mono" id="modal-topic-name" name="name" placeholder="alerts.critical" required>
+                    </div>
+                    <div class="field">
+                        <label for="modal-topic-visibility">Visibility</label>
+                        <select class="select" id="modal-topic-visibility" name="visibility">
+                            <option value="open">Open</option>
+                            <option value="protected" selected>Protected</option>
+                            <option value="private">Private</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="modal-topic-password">Password</label>
+                        <input class="input" id="modal-topic-password" name="password" type="password" placeholder="optional password">
+                    </div>
+                </div>
+                <footer class="modal-footer">
+                    <button class="btn btn-outline" type="button" data-action="close-modal">Cancel</button>
+                    <button class="btn btn-primary" type="submit">Create</button>
+                </footer>
+            </form>
+        </section>
+    </dialog>
+
+    <dialog id="dialog-password" class="app-modal">
+        <section class="modal">
+            <header class="modal-header">
+                <h3>Topic password</h3>
+                <p>Access to <span class="mono">/<span data-bind="topicName"></span></span> requires a topic password.</p>
+            </header>
+            <form data-modal-form="password">
+                <div class="modal-body">
+                    <div class="error-text" data-bind="error" hidden></div>
+                    <div class="field">
+                        <label for="topic-password-input">Password</label>
+                        <input class="input" id="topic-password-input" name="password" type="password" placeholder="topic password" required>
+                    </div>
+                </div>
+                <footer class="modal-footer">
+                    <button class="btn btn-outline" type="button" data-action="close-modal">Cancel</button>
+                    <button class="btn btn-primary" type="submit">Unlock</button>
+                </footer>
+            </form>
+        </section>
+    </dialog>
+
+    <dialog id="dialog-delete-topic" class="app-modal">
+        <section class="modal">
+            <header class="modal-header">
+                <h3>Delete topic</h3>
+                <p>This permanently removes <span class="mono">/<span data-bind="topicName"></span></span> and its stored messages.</p>
+            </header>
+            <footer class="modal-footer">
+                <button class="btn btn-outline" type="button" data-action="close-modal">Cancel</button>
+                <button class="btn btn-danger" type="button" data-action="confirm-delete-topic">Delete</button>
+            </footer>
+        </section>
+    </dialog>
+
+    <dialog id="dialog-subscribe-topic" class="app-modal">
+        <section class="modal">
+            <header class="modal-header">
+                <h3>Subscribe to topic</h3>
+                <p>Enter the name of a topic to subscribe.</p>
+            </header>
+            <form data-modal-form="subscribe-topic">
+                <div class="modal-body">
+                    <div class="error-text" data-bind="error" hidden></div>
+                    <div class="field">
+                        <label for="subscribe-topic-input">Topic name</label>
+                        <input class="input mono" id="subscribe-topic-input" name="topicName" placeholder="my-topic" autocomplete="off" required>
+                    </div>
+                </div>
+                <footer class="modal-footer">
+                    <button class="btn btn-outline" type="button" data-action="close-modal">Cancel</button>
+                    <button class="btn btn-primary" type="submit">Subscribe</button>
+                </footer>
+            </form>
+        </section>
+    </dialog>
+
+    <dialog id="dialog-change-password" class="app-modal">
+        <section class="modal">
+            <header class="modal-header">
+                <h3>Change password</h3>
+            </header>
+            <form data-modal-form="change-password">
+                <div class="modal-body">
+                    <div class="error-text" data-bind="error" hidden></div>
+                    <div class="field">
+                        <label for="current-password">Current password</label>
+                        <input class="input" id="current-password" name="currentPassword" type="password" placeholder="Current password" required minlength="6">
+                    </div>
+                    <div class="field">
+                        <label for="new-password">New password</label>
+                        <input class="input" id="new-password" name="password" type="password" placeholder="New password" required minlength="8">
+                    </div>
+                    <div class="field">
+                        <label for="confirm-password">Confirm password</label>
+                        <input class="input" id="confirm-password" name="confirmPassword" type="password" placeholder="Confirm new password" required minlength="8">
+                    </div>
+                </div>
+                <footer class="modal-footer">
+                    <button class="btn btn-outline" type="button" data-action="close-modal">Cancel</button>
+                    <button class="btn btn-primary" type="submit">Update</button>
+                </footer>
+            </form>
+        </section>
+    </dialog>
+
+    <dialog id="dialog-new-token" class="app-modal">
+        <section class="modal">
+            <header class="modal-header">
+                <h3>Create token</h3>
+                <p>Creates a new token for your account.</p>
+            </header>
+            <form data-modal-form="new-token">
+                <div class="modal-body">
+                    <div class="error-text" data-bind="error" hidden></div>
+                    <div class="field">
+                        <label for="token-label-input">Label</label>
+                        <input class="input" id="token-label-input" name="label" placeholder="dashboard automation" required>
+                    </div>
+                </div>
+                <footer class="modal-footer">
+                    <button class="btn btn-outline" type="button" data-action="close-modal">Cancel</button>
+                    <button class="btn btn-primary" type="submit">Create</button>
+                </footer>
+            </form>
+        </section>
+    </dialog>
+
+    <dialog id="dialog-token-created" class="app-modal">
+        <section class="modal">
+            <header class="modal-header">
+                <h3>Token created</h3>
+                <p>Copy your token now. It won't be shown again.</p>
+            </header>
+            <div class="modal-body">
+                <div class="field">
+                    <label>Token for "<span data-bind="label"></span>"</label>
+                    <div class="token-created-value">
+                        <input class="input mono" id="created-token-value" data-bind="token" readonly>
+                        <button class="btn btn-primary btn-small" type="button" data-action="copy-created-token">Copy</button>
+                    </div>
+                </div>
+            </div>
+            <footer class="modal-footer">
+                <button class="btn btn-outline" type="button" data-action="close-modal">Done</button>
+            </footer>
+        </section>
+    </dialog>
+
+    <dialog id="dialog-revoke-token" class="app-modal">
+        <section class="modal">
+            <header class="modal-header">
+                <h3>Revoke token</h3>
+                <p>Revoke token <span class="mono" data-bind="tokenID"></span>? This cannot be undone.</p>
+            </header>
+            <footer class="modal-footer">
+                <button class="btn btn-outline" type="button" data-action="close-modal">Cancel</button>
+                <button class="btn btn-danger" type="button" data-action="confirm-revoke-token">Revoke</button>
+            </footer>
+        </section>
+    </dialog>
+
+    <dialog id="dialog-new-webhook" class="app-modal">
+        <section class="modal">
+            <header class="modal-header">
+                <h3>Create webhook</h3>
+                <p>Template fields can read JSON paths with {{field.name}} placeholders.</p>
+            </header>
+            <form data-modal-form="new-webhook">
+                <div class="modal-body">
+                    <div class="error-text" data-bind="error" hidden></div>
+                    <div class="field">
+                        <label>Title template</label>
+                        <input class="input" name="title" placeholder="{{alert.title}}">
+                    </div>
+                    <div class="field">
+                        <label>Subtitle template</label>
+                        <input class="input" name="subtitle" placeholder="{{source}}">
+                    </div>
+                    <div class="field">
+                        <label>Body template</label>
+                        <textarea class="textarea" name="body" placeholder="{{message}}"></textarea>
+                    </div>
+                    <div class="field">
+                        <label>Tags template</label>
+                        <input class="input" name="tags" placeholder="deploy, {{service}}">
+                    </div>
+                    <div class="webhook-form-grid">
+                        <div class="field">
+                            <label>Priority</label>
+                            <select class="select" name="priority">
+                                <option value="" selected>Default</option>
+                                <option value="1">Low</option>
+                                <option value="2">Normal</option>
+                                <option value="3">Urgent</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label>TTL</label>
+                            <select class="select" name="ttl">
+                                <option value="" selected>No expiry</option>
+                                <option value="3600">1h</option>
+                                <option value="21600">6h</option>
+                                <option value="86400">24h</option>
+                                <option value="604800">7d</option>
+                                <option value="2592000">30d</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <footer class="modal-footer">
+                    <button class="btn btn-outline" type="button" data-action="close-modal">Cancel</button>
+                    <button class="btn btn-primary" type="submit">Create</button>
+                </footer>
+            </form>
+        </section>
+    </dialog>
+
+    <dialog id="dialog-edit-webhook" class="app-modal">
+        <section class="modal">
+            <header class="modal-header">
+                <h3>Edit webhook</h3>
+                <p>Updates the template used for future webhook deliveries.</p>
+            </header>
+            <form data-modal-form="edit-webhook">
+                <div class="modal-body">
+                    <div class="error-text" data-bind="error" hidden></div>
+                    <div class="field">
+                        <label>Title template</label>
+                        <input class="input" name="title" placeholder="{{alert.title}}">
+                    </div>
+                    <div class="field">
+                        <label>Subtitle template</label>
+                        <input class="input" name="subtitle" placeholder="{{source}}">
+                    </div>
+                    <div class="field">
+                        <label>Body template</label>
+                        <textarea class="textarea" name="body" placeholder="{{message}}"></textarea>
+                    </div>
+                    <div class="field">
+                        <label>Tags template</label>
+                        <input class="input" name="tags" placeholder="deploy, {{service}}">
+                    </div>
+                    <div class="webhook-form-grid">
+                        <div class="field">
+                            <label>Priority</label>
+                            <select class="select" name="priority">
+                                <option value="">Default</option>
+                                <option value="1">Low</option>
+                                <option value="2">Normal</option>
+                                <option value="3">Urgent</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label>TTL</label>
+                            <select class="select" name="ttl">
+                                <option value="">No expiry</option>
+                                <option value="3600">1h</option>
+                                <option value="21600">6h</option>
+                                <option value="86400">24h</option>
+                                <option value="604800">7d</option>
+                                <option value="2592000">30d</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <footer class="modal-footer">
+                    <button class="btn btn-outline" type="button" data-action="close-modal">Cancel</button>
+                    <button class="btn btn-primary" type="submit">Update</button>
+                </footer>
+            </form>
+        </section>
+    </dialog>
+
+    <dialog id="dialog-webhook-created" class="app-modal">
+        <section class="modal">
+            <header class="modal-header">
+                <h3>Webhook created</h3>
+                <p>Copy your webhook URL now. The token won't be shown again.</p>
+            </header>
+            <div class="modal-body">
+                <div class="field">
+                    <label>Webhook URL for /<span data-bind="topicName"></span></label>
+                    <div class="token-created-value">
+                        <input class="input mono" id="created-webhook-url" data-bind="url" readonly>
+                        <button class="btn btn-primary btn-small" type="button" data-action="copy-created-webhook">Copy</button>
+                    </div>
+                </div>
+            </div>
+            <footer class="modal-footer">
+                <button class="btn btn-outline" type="button" data-action="close-modal">Done</button>
+            </footer>
+        </section>
+    </dialog>
+
+    <dialog id="dialog-delete-webhook" class="app-modal">
+        <section class="modal">
+            <header class="modal-header">
+                <h3>Delete webhook</h3>
+                <p>Delete webhook <span class="mono" data-bind="webhookID"></span>? Existing webhook URLs for it will stop working.</p>
+            </header>
+            <footer class="modal-footer">
+                <button class="btn btn-outline" type="button" data-action="close-modal">Cancel</button>
+                <button class="btn btn-danger" type="button" data-action="confirm-delete-webhook">Delete</button>
+            </footer>
+        </section>
+    </dialog>
+
+    <script type="module" src="/app.js?v=safari-mobile-push"></script>
 </body>
 </html>
