@@ -52,6 +52,25 @@ extension PingdTests {
         }
     }
 
+    @Test("Auth: Guest login returns 403 when guestEnabled is false")
+    func guestLoginDisabled() async throws {
+        try await withApp { app in
+            app.appConfig = AppConfig(
+                rateLimit: app.appConfig.rateLimit,
+                webhookRateLimit: app.appConfig.webhookRateLimit,
+                cors: app.appConfig.cors,
+                allowRegistration: app.appConfig.allowRegistration,
+                guestEnabled: false
+            )
+            try await app.testing().test(
+                .POST, "auth/guest",
+                afterResponse: { res in
+                    #expect(res.status == .forbidden)
+                }
+            )
+        }
+    }
+
     @Test("Auth: Guest login returns token and /me returns guest user")
     func guestLogin() async throws {
         try await withApp { app in

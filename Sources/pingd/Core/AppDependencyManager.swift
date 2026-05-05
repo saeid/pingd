@@ -14,6 +14,7 @@ struct AppDependencies {
     let permissionClient: PermissionClient
     let dispatchClient: DispatchClient
     let webhookClient: WebhookClient
+    let topicShareClient: TopicShareClient
     let pushProvider: PushProvider
     let topicBroadcaster: TopicBroadcaster
     let authFeature: AuthFeature
@@ -26,6 +27,7 @@ struct AppDependencies {
     let permissionFeature: PermissionFeature
     let dispatchFeature: DispatchFeature
     let webhookFeature: WebhookFeature
+    let topicShareFeature: TopicShareFeature
     let dispatchWorker: DispatchWorker?
     let auditLogger: AuditLogger
 }
@@ -47,7 +49,9 @@ extension AppDependencies {
         let permissionClient = PermissionClient.live(app: app)
         let dispatchClient = DispatchClient.live(app: app)
         let webhookClient = WebhookClient.live(app: app)
+        let topicShareClient = TopicShareClient.live(app: app)
         let topicBroadcaster = TopicBroadcaster()
+        let appConfig = app.appConfig
 
         let apnsProvider: PushProvider? = switch apnsMode {
         case .direct(let config):
@@ -97,6 +101,7 @@ extension AppDependencies {
             permissionClient: permissionClient,
             dispatchClient: dispatchClient,
             webhookClient: webhookClient,
+            topicShareClient: topicShareClient,
             pushProvider: pushProvider,
             topicBroadcaster: topicBroadcaster,
             authFeature: AuthFeature.live(
@@ -109,15 +114,18 @@ extension AppDependencies {
             tokenFeature: TokenFeature.live(tokenClient: tokenClient, userClient: userClient),
             topicFeature: TopicFeature.live(
                 topicClient: topicClient,
-                authClient: authClient,
+                topicShareClient: topicShareClient,
                 permissionClient: permissionClient,
                 messageClient: messageClient,
                 subscriptionClient: subscriptionClient,
-                dispatchClient: dispatchClient
+                dispatchClient: dispatchClient,
+                reservedTopicNames: appConfig.reservedTopicNames,
+                maxTopicsPerUser: appConfig.maxTopicsPerUser,
+                now: now
             ),
             messageFeature: MessageFeature.live(
                 topicClient: topicClient,
-                authClient: authClient,
+                topicShareClient: topicShareClient,
                 permissionClient: permissionClient,
                 messageClient: messageClient,
                 dispatchFeature: dispatchFeature,
@@ -129,12 +137,15 @@ extension AppDependencies {
                 deviceClient: deviceClient,
                 topicClient: topicClient,
                 userClient: userClient,
-                authClient: authClient,
-                permissionClient: permissionClient
+                topicShareClient: topicShareClient,
+                permissionClient: permissionClient,
+                now: now
             ),
             permissionFeature: PermissionFeature.live(
                 permissionClient: permissionClient,
-                userClient: userClient
+                userClient: userClient,
+                defaultPermissionTTL: appConfig.defaultPermissionTTL,
+                now: now
             ),
             dispatchFeature: dispatchFeature,
             webhookFeature: WebhookFeature.live(
@@ -143,6 +154,13 @@ extension AppDependencies {
                 messageClient: messageClient,
                 dispatchFeature: dispatchFeature,
                 topicBroadcaster: topicBroadcaster
+            ),
+            topicShareFeature: TopicShareFeature.live(
+                topicShareClient: topicShareClient,
+                topicClient: topicClient,
+                defaultShareTokenTTL: appConfig.defaultShareTokenTTL,
+                maxShareTokensPerTopic: appConfig.maxShareTokensPerTopic,
+                now: now
             ),
             dispatchWorker: dispatchWorker,
             auditLogger: AuditLogger(logger: app.logger)
@@ -163,6 +181,7 @@ extension AppDependencies {
         permissionClient: PermissionClient? = nil,
         dispatchClient: DispatchClient? = nil,
         webhookClient: WebhookClient? = nil,
+        topicShareClient: TopicShareClient? = nil,
         pushProvider: PushProvider? = nil,
         topicBroadcaster: TopicBroadcaster? = nil,
         authFeature: AuthFeature? = nil,
@@ -175,6 +194,7 @@ extension AppDependencies {
         permissionFeature: PermissionFeature? = nil,
         dispatchFeature: DispatchFeature? = nil,
         webhookFeature: WebhookFeature? = nil,
+        topicShareFeature: TopicShareFeature? = nil,
         dispatchWorker: DispatchWorker? = nil,
         auditLogger: AuditLogger? = nil
     ) -> AppDependencies {
@@ -192,6 +212,7 @@ extension AppDependencies {
             permissionClient: permissionClient ?? self.permissionClient,
             dispatchClient: dispatchClient ?? self.dispatchClient,
             webhookClient: webhookClient ?? self.webhookClient,
+            topicShareClient: topicShareClient ?? self.topicShareClient,
             pushProvider: pushProvider ?? self.pushProvider,
             topicBroadcaster: topicBroadcaster ?? self.topicBroadcaster,
             authFeature: authFeature ?? self.authFeature,
@@ -204,6 +225,7 @@ extension AppDependencies {
             permissionFeature: permissionFeature ?? self.permissionFeature,
             dispatchFeature: dispatchFeature ?? self.dispatchFeature,
             webhookFeature: webhookFeature ?? self.webhookFeature,
+            topicShareFeature: topicShareFeature ?? self.topicShareFeature,
             dispatchWorker: dispatchWorker ?? self.dispatchWorker,
             auditLogger: auditLogger ?? self.auditLogger
         )

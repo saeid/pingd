@@ -45,7 +45,7 @@ extension PingdTests {
         }
 
         #expect(relayConfig.baseURL == APNSRelayConfiguration.defaultBaseURL)
-        #expect(relayConfig.endpointURL == URL(string: "https://pingd.io/apns/push"))
+        #expect(relayConfig.endpointURL == URL(string: "https://pingd.dev/apns/push"))
         #expect(relayConfig.authToken == "relay-token")
     }
 

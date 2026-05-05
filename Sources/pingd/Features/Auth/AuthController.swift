@@ -65,6 +65,9 @@ struct AuthController: RouteCollection, @unchecked Sendable {
     }
 
     func guest(_ req: Request) async throws -> LoginResponse {
+        guard req.application.appConfig.guestEnabled else {
+            throw Abort(.forbidden, reason: "Guest login is disabled")
+        }
         let username = generateGuestUsername()
         let passwordHash = try authClient.hashPassword(UUID().uuidString)
         let user = try await userClient.create(username, passwordHash, .guest)

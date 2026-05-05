@@ -31,7 +31,7 @@ public func configure(_ app: Application) async throws {
     app.appConfig = appConfig
     app.rateLimiter = RateLimiter()
 
-    app.http.server.configuration.port = 7685
+    app.http.server.configuration.port = Int(Environment.get("PORT") ?? "") ?? 7685
     app.middleware = .init()
     app.middleware.use(CORSMiddleware(configuration: makeCORSConfiguration(from: appConfig.cors)), at: .beginning)
     app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory, defaultFile: "index.html"))

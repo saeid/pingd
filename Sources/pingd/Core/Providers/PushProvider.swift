@@ -46,7 +46,7 @@ struct APNSDirectConfiguration: Equatable {
 }
 
 struct APNSRelayConfiguration: Equatable {
-    static let defaultBaseURL = URL(string: "https://pingd.io")!
+    static let defaultBaseURL = URL(string: "https://pingd.dev")!
 
     let baseURL: URL
     let authToken: String
