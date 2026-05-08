@@ -39,10 +39,13 @@ func routes(_ app: Application, _ services: AppDependencies) throws {
     )
     try optionalAuth.register(collection: TopicController(
         topicFeature: services.topicFeature,
-        authClient: services.authClient,
         auditLogger: services.auditLogger
     ))
-    try optionalAuth.register(collection: MessageController(
+    let publishRateLimit = PublishRateLimitMiddleware(
+        rateLimiter: app.rateLimiter,
+        now: services.now
+    )
+    try optionalAuth.grouped(publishRateLimit).register(collection: MessageController(
         messageFeature: services.messageFeature,
         now: services.now,
         auditLogger: services.auditLogger
@@ -80,6 +83,10 @@ func routes(_ app: Application, _ services: AppDependencies) throws {
     ))
     try protected.register(collection: PermissionController(
         permissionFeature: services.permissionFeature,
+        auditLogger: services.auditLogger
+    ))
+    try protected.register(collection: TopicShareController(
+        topicShareFeature: services.topicShareFeature,
         auditLogger: services.auditLogger
     ))
     try protected.register(collection: DispatchController(

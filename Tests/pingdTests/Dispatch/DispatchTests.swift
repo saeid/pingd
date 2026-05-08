@@ -24,12 +24,12 @@ extension PingdTests {
             )
             let id = try #require(deviceID)
 
-            // subscribe vi's device to open-topic
+            // subscribe vi's device to public-topic
             try await app.testing().test(
                 .POST, "devices/\(id)/subscriptions",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: viSession.token)
-                    try req.content.encode(SubscribeRequest(topicName: "open-topic"))
+                    try req.content.encode(SubscribeRequest(topicName: "public-topic"))
                 },
                 afterResponse: { _ in }
             )
@@ -37,7 +37,7 @@ extension PingdTests {
             // publish message
             var messageID: UUID?
             try await app.testing().test(
-                .POST, "topics/open-topic/messages",
+                .POST, "topics/public-topic/messages",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: viSession.token)
                     try req.content.encode(PublishMessageRequest(
@@ -79,7 +79,7 @@ extension PingdTests {
 
             var messageID: UUID?
             try await app.testing().test(
-                .POST, "topics/open-topic/messages",
+                .POST, "topics/public-topic/messages",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
                     try req.content.encode(PublishMessageRequest(
@@ -139,7 +139,7 @@ extension PingdTests {
                 .POST, "devices/\(id)/subscriptions",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: viSession.token)
-                    try req.content.encode(SubscribeRequest(topicName: "open-topic"))
+                    try req.content.encode(SubscribeRequest(topicName: "public-topic"))
                 },
                 afterResponse: { res in
                     #expect(res.status == .ok)
@@ -148,7 +148,7 @@ extension PingdTests {
 
             var messageID: UUID?
             try await app.testing().test(
-                .POST, "topics/open-topic/messages",
+                .POST, "topics/public-topic/messages",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: viSession.token)
                     try req.content.encode(PublishMessageRequest(
@@ -213,13 +213,13 @@ extension PingdTests {
             let viID = try #require(viDeviceID)
             let vanderID = try #require(vanderDeviceID)
 
-            // subscribe both to open-topic
+            // subscribe both to public-topic
             for (id, session) in [(viID, viSession), (vanderID, vanderSession)] {
                 try await app.testing().test(
                     .POST, "devices/\(id)/subscriptions",
                     beforeRequest: { req in
                         req.headers.bearerAuthorization = .init(token: session.token)
-                        try req.content.encode(SubscribeRequest(topicName: "open-topic"))
+                        try req.content.encode(SubscribeRequest(topicName: "public-topic"))
                     },
                     afterResponse: { _ in }
                 )
@@ -228,7 +228,7 @@ extension PingdTests {
             // publish
             var messageID: UUID?
             try await app.testing().test(
-                .POST, "topics/open-topic/messages",
+                .POST, "topics/public-topic/messages",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: viSession.token)
                     try req.content.encode(PublishMessageRequest(

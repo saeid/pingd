@@ -49,12 +49,7 @@ struct TokensCommand: AsyncParsableCommand {
             try await withAPIClient { client in
                 var body: [String: String] = [:]
                 if let label { body["label"] = label }
-                if let expiresIn {
-                    guard let seconds = parseDuration(expiresIn) else {
-                        print("Invalid duration: \(expiresIn). Use format like 30d, 12h, 90d")
-                        return
-                    }
-                    let expiresAt = Date().addingTimeInterval(seconds)
+                if let expiresAt = try parseExpiresIn(expiresIn) {
                     body["expiresAt"] = ISO8601DateFormatter().string(from: expiresAt)
                 }
                 let token = try await client.post("/users/\(username)/tokens", body: body, as: TokenDTO.self)
@@ -62,17 +57,6 @@ struct TokensCommand: AsyncParsableCommand {
             }
         }
 
-        func parseDuration(_ input: String) -> TimeInterval? {
-            let pattern = /^(\d+)([dhm])$/
-            guard let match = input.wholeMatch(of: pattern),
-                  let value = Double(match.1), value > 0 else { return nil }
-            switch match.2 {
-            case "d": return value * 86400
-            case "h": return value * 3600
-            case "m": return value * 60
-            default: return nil
-            }
-        }
     }
 
     struct Revoke: AsyncParsableCommand {

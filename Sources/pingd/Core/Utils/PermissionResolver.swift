@@ -20,12 +20,16 @@ enum PermissionResolver {
 
     static func resolve(
         permissions: [Permission],
-        topicName: String
+        topicName: String,
+        now: Date = Date()
     ) -> AccessLevel? {
-        let matching = permissions.filter { matches(pattern: $0.topicPattern, topicName: topicName) }
+        let active = permissions.filter { permission in
+            guard let expiresAt = permission.expiresAt else { return true }
+            return expiresAt > now
+        }
+        let matching = active.filter { matches(pattern: $0.topicPattern, topicName: topicName) }
         guard !matching.isEmpty else { return nil }
 
-        // deny always wins
         if matching.contains(where: { $0.accessLevel == .deny }) {
             return .deny
         }

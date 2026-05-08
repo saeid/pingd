@@ -9,7 +9,8 @@ struct PermissionClient {
         _ userID: UUID?,
         _ scope: PermissionScope,
         _ accessLevel: AccessLevel,
-        _ topicPattern: String
+        _ topicPattern: String,
+        _ expiresAt: Date?
     ) async throws -> Permission
     let delete: @Sendable (UUID) async throws -> Void
     let get: @Sendable (UUID) async throws -> Permission?
@@ -28,12 +29,13 @@ extension PermissionClient {
                     .filter(\.$scope == .global)
                     .all()
             },
-            create: { userID, scope, accessLevel, topicPattern in
+            create: { userID, scope, accessLevel, topicPattern, expiresAt in
                 let permission = Permission(
                     scope: scope,
                     accessLevel: accessLevel,
                     userId: userID,
-                    topicPattern: topicPattern
+                    topicPattern: topicPattern,
+                    expiresAt: expiresAt
                 )
                 try await permission.save(on: app.db)
                 return permission
@@ -51,8 +53,8 @@ extension PermissionClient {
     static func mock(
         listForUser: @escaping @Sendable (UUID) async throws -> [Permission] = { _ in [] },
         listGlobal: @escaping @Sendable () async throws -> [Permission] = { [] },
-        create: @escaping @Sendable (UUID?, PermissionScope, AccessLevel, String) async throws -> Permission = { userID, scope, accessLevel, topicPattern in
-            Permission(scope: scope, accessLevel: accessLevel, userId: userID, topicPattern: topicPattern)
+        create: @escaping @Sendable (UUID?, PermissionScope, AccessLevel, String, Date?) async throws -> Permission = { userID, scope, accessLevel, topicPattern, expiresAt in
+            Permission(scope: scope, accessLevel: accessLevel, userId: userID, topicPattern: topicPattern, expiresAt: expiresAt)
         },
         delete: @escaping @Sendable (UUID) async throws -> Void = { _ in },
         get: @escaping @Sendable (UUID) async throws -> Permission? = { _ in nil }

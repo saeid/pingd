@@ -33,7 +33,7 @@ struct SubscriptionController: RouteCollection, @unchecked Sendable {
                 currentUser,
                 id,
                 body.topicName,
-                req.topicPassword
+                req.topicToken
             )
             auditLogger.log("subscription.create", req: req, metadata: [
                 "actor_username": currentUser.username,
@@ -94,8 +94,8 @@ struct SubscriptionResponse: Content {
     let deviceID: UUID
     let topicID: UUID
     let topicName: String
-    let topicVisibility: String
-    let topicHasPassword: Bool
+    let topicPublicRead: Bool
+    let topicPublicPublish: Bool
     let topicOwnerUserID: UUID
     let createdAt: Date?
 
@@ -104,8 +104,8 @@ struct SubscriptionResponse: Content {
         self.deviceID = subscription.$device.id
         self.topicID = subscription.$topic.id
         self.topicName = topic.name
-        self.topicVisibility = topic.visibility.rawValue
-        self.topicHasPassword = topic.passwordHash != nil
+        self.topicPublicRead = topic.publicRead
+        self.topicPublicPublish = topic.publicPublish
         self.topicOwnerUserID = topic.$owner.id
         self.createdAt = subscription.createdAt
     }
@@ -130,8 +130,8 @@ struct UserSubscriptionResponse: Content {
     struct TopicInfo: Content {
         let id: UUID
         let name: String
-        let visibility: String
-        let hasPassword: Bool
+        let publicRead: Bool
+        let publicPublish: Bool
         let ownerUserID: UUID
     }
 }

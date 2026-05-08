@@ -6,16 +6,17 @@ struct TopicClient {
     let list: @Sendable () async throws -> [Topic]
     let get: @Sendable (UUID) async throws -> Topic?
     let getByName: @Sendable (String) async throws -> Topic?
+    let countForOwner: @Sendable (_ ownerID: UUID) async throws -> Int
     let create: @Sendable (
         _ name: String,
         _ ownerID: UUID,
-        _ visibility: TopicVisibility,
-        _ passwordHash: String?
+        _ publicRead: Bool,
+        _ publicPublish: Bool
     ) async throws -> Topic
     let update: @Sendable (
         UUID,
-        _ visibility: TopicVisibility?,
-        _ passwordHash: String??
+        _ publicRead: Bool?,
+        _ publicPublish: Bool?
     ) async throws -> Topic?
     let delete: @Sendable (UUID) async throws -> Void
 }
@@ -34,22 +35,27 @@ extension TopicClient {
                     .filter(\.$name == name)
                     .first()
             },
-            create: { name, ownerID, visibility, passwordHash in
+            countForOwner: { ownerID in
+                try await Topic.query(on: app.db)
+                    .filter(\.$owner.$id == ownerID)
+                    .count()
+            },
+            create: { name, ownerID, publicRead, publicPublish in
                 let topic = Topic(
                     name: name,
                     ownerUserID: ownerID,
-                    visibility: visibility,
-                    passwordHash: passwordHash
+                    publicRead: publicRead,
+                    publicPublish: publicPublish
                 )
                 try await topic.save(on: app.db)
                 return topic
             },
-            update: { id, visibility, passwordHash in
+            update: { id, publicRead, publicPublish in
                 guard let topic = try await Topic.find(id, on: app.db) else {
                     return nil
                 }
-                if let visibility { topic.visibility = visibility }
-                if let passwordHash { topic.passwordHash = passwordHash }
+                if let publicRead { topic.publicRead = publicRead }
+                if let publicPublish { topic.publicPublish = publicPublish }
                 try await topic.save(on: app.db)
                 return topic
             },
@@ -64,12 +70,21 @@ extension TopicClient {
         list: @escaping @Sendable () async throws -> [Topic] = { [] },
         get: @escaping @Sendable (UUID) async throws -> Topic? = { _ in nil },
         getByName: @escaping @Sendable (String) async throws -> Topic? = { _ in nil },
-        create: @escaping @Sendable (String, UUID, TopicVisibility, String?) async throws -> Topic = { name, ownerID, visibility, _ in
-            Topic(name: name, ownerUserID: ownerID, visibility: visibility)
+        countForOwner: @escaping @Sendable (UUID) async throws -> Int = { _ in 0 },
+        create: @escaping @Sendable (String, UUID, Bool, Bool) async throws -> Topic = { name, ownerID, publicRead, publicPublish in
+            Topic(name: name, ownerUserID: ownerID, publicRead: publicRead, publicPublish: publicPublish)
         },
-        update: @escaping @Sendable (UUID, TopicVisibility?, String??) async throws -> Topic? = { _, _, _ in nil },
+        update: @escaping @Sendable (UUID, Bool?, Bool?) async throws -> Topic? = { _, _, _ in nil },
         delete: @escaping @Sendable (UUID) async throws -> Void = { _ in }
     ) -> Self {
-        TopicClient(list: list, get: get, getByName: getByName, create: create, update: update, delete: delete)
+        TopicClient(
+            list: list,
+            get: get,
+            getByName: getByName,
+            countForOwner: countForOwner,
+            create: create,
+            update: update,
+            delete: delete
+        )
     }
 }

@@ -20,6 +20,7 @@ struct CreatePermission: AsyncMigration {
             .field("scope", scopeEnum, .required)
             .field("access_level", accessLevelEnum, .required)
             .field("topic_pattern", .string, .required)
+            .field("expires_at", .datetime)
             .field("created_at", .datetime)
             .create()
     }

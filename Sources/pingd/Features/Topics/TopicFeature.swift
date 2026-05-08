@@ -1,14 +1,18 @@
+import Foundation
 import Vapor
 
 enum TopicError: AbortError {
     case notFound
     case nameTaken
+    case nameReserved
+    case quotaExceeded(limit: Int)
     case accessDenied
 
     var status: HTTPResponseStatus {
         switch self {
         case .notFound: .notFound
-        case .nameTaken: .badRequest
+        case .nameTaken, .nameReserved: .badRequest
+        case .quotaExceeded: .tooManyRequests
         case .accessDenied: .forbidden
         }
     }
@@ -17,6 +21,8 @@ enum TopicError: AbortError {
         switch self {
         case .notFound: "Topic not found"
         case .nameTaken: "Topic name already taken"
+        case .nameReserved: "Topic name is reserved"
+        case let .quotaExceeded(limit): "Topic quota exceeded (max \(limit) per user)"
         case .accessDenied: "Access denied"
         }
     }
@@ -34,21 +40,21 @@ struct TopicFeature {
     let getTopic: @Sendable (
         _ currentUser: User?,
         _ name: String,
-        _ topicPassword: String?
+        _ topicToken: String?
     ) async throws -> Topic
 
     let createTopic: @Sendable (
         _ currentUser: User,
         _ name: String,
-        _ visibility: TopicVisibility,
-        _ passwordHash: String?
+        _ publicRead: Bool,
+        _ publicPublish: Bool
     ) async throws -> Topic
 
     let updateTopic: @Sendable (
         _ currentUser: User,
         _ name: String,
-        _ visibility: TopicVisibility?,
-        _ passwordHash: String??
+        _ publicRead: Bool?,
+        _ publicPublish: Bool?
     ) async throws -> Topic
 
     let deleteTopic: @Sendable (
@@ -60,38 +66,44 @@ struct TopicFeature {
 extension TopicFeature {
     static func live(
         topicClient: TopicClient,
-        authClient: AuthClient,
+        topicShareClient: TopicShareClient,
         permissionClient: PermissionClient,
         messageClient: MessageClient,
         subscriptionClient: SubscriptionClient,
-        dispatchClient: DispatchClient
+        dispatchClient: DispatchClient,
+        reservedTopicNames: Set<String>,
+        maxTopicsPerUser: Int?,
+        now: @escaping @Sendable () -> Date
     ) -> Self {
         TopicFeature(
             listTopics: { currentUser in
                 let all = try await topicClient.list()
 
                 guard let user = currentUser else {
-                    return all.filter { $0.visibility == .open }
+                    return all.filter { $0.publicRead }
                 }
                 if user.role == .admin { return all }
                 if user.role == .guest {
-                    return all.filter { $0.visibility == .open }
+                    return all.filter { $0.publicRead }
                 }
 
                 let userID = try user.requireID()
                 let userPermissions = try await permissionClient.listForUser(userID)
                 let globalPermissions = try await permissionClient.listGlobal()
                 let allPermissions = userPermissions + globalPermissions
+                let currentDate = now()
 
                 return all.filter { topic in
-                    let resolved = PermissionResolver.resolve(permissions: allPermissions, topicName: topic.name)
+                    if topic.$owner.id == userID { return true }
+                    let resolved = PermissionResolver.resolve(
+                        permissions: allPermissions,
+                        topicName: topic.name,
+                        now: currentDate
+                    )
                     if let resolved {
-                        return resolved != .deny && resolved != .writeOnly
+                        return resolved == .readOnly || resolved == .readWrite
                     }
-                    switch topic.visibility {
-                    case .open, .protected: return true
-                    case .private: return topic.$owner.id == userID
-                    }
+                    return topic.publicRead
                 }
             },
             topicStats: { currentUser, name in
@@ -118,32 +130,42 @@ extension TopicFeature {
                     deliveryStats: TopicDeliveryStats(deliveries)
                 )
             },
-            getTopic: { currentUser, name, topicPassword in
+            getTopic: { currentUser, name, topicToken in
                 guard let topic = try await topicClient.getByName(name) else {
                     throw TopicError.notFound
                 }
                 if try await !TopicAccess.canRead(
                     topic: topic,
                     currentUser: currentUser,
-                    topicPassword: topicPassword,
-                    authClient: authClient,
-                    permissionClient: permissionClient
+                    topicToken: topicToken,
+                    topicShareClient: topicShareClient,
+                    permissionClient: permissionClient,
+                    now: now()
                 ) {
                     throw TopicError.accessDenied
                 }
                 return topic
             },
-            createTopic: { currentUser, name, visibility, passwordHash in
+            createTopic: { currentUser, name, publicRead, publicPublish in
                 guard currentUser.role != .guest else {
                     throw TopicError.accessDenied
+                }
+                if reservedTopicNames.contains(name.lowercased()) {
+                    throw TopicError.nameReserved
                 }
                 if try await topicClient.getByName(name) != nil {
                     throw TopicError.nameTaken
                 }
                 let ownerID = try currentUser.requireID()
-                return try await topicClient.create(name, ownerID, visibility, passwordHash)
+                if let limit = maxTopicsPerUser, currentUser.role != .admin {
+                    let count = try await topicClient.countForOwner(ownerID)
+                    if count >= limit {
+                        throw TopicError.quotaExceeded(limit: limit)
+                    }
+                }
+                return try await topicClient.create(name, ownerID, publicRead, publicPublish)
             },
-            updateTopic: { currentUser, name, visibility, passwordHash in
+            updateTopic: { currentUser, name, publicRead, publicPublish in
                 guard let topic = try await topicClient.getByName(name) else {
                     throw TopicError.notFound
                 }
@@ -152,7 +174,7 @@ extension TopicFeature {
                 guard try currentUser.role == .admin || (currentUser.requireID()) == ownerID else {
                     throw TopicError.accessDenied
                 }
-                guard let updated = try await topicClient.update(topicID, visibility, passwordHash) else {
+                guard let updated = try await topicClient.update(topicID, publicRead, publicPublish) else {
                     throw TopicError.notFound
                 }
                 return updated

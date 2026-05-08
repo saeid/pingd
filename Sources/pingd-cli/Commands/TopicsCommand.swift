@@ -5,7 +5,7 @@ struct TopicsCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "topics",
         abstract: "Manage topics",
-        subcommands: [List.self, Stats.self, Create.self, Delete.self]
+        subcommands: [List.self, Stats.self, Create.self, Update.self, Delete.self]
     )
 
     struct List: AsyncParsableCommand {
@@ -19,7 +19,8 @@ struct TopicsCommand: AsyncParsableCommand {
                     return
                 }
                 for topic in topics {
-                    print("\(topic.name)  \(topic.visibility)")
+                    let access = "read=\(topic.publicRead ? "public" : "private") publish=\(topic.publicPublish ? "public" : "private")"
+                    print("\(topic.name)  \(access)")
                 }
             }
         }
@@ -31,22 +32,59 @@ struct TopicsCommand: AsyncParsableCommand {
         @Option(name: .shortAndLong, help: "Topic name")
         var name: String
 
-        @Option(name: .shortAndLong, help: "Visibility: open, protected, private")
-        var visibility: String = "protected"
+        @Flag(name: .long, help: "Allow anyone to read this topic")
+        var publicRead: Bool = false
 
-        @Option(name: .shortAndLong, help: "Topic password")
-        var password: String?
+        @Flag(name: .long, help: "Allow anyone to publish to this topic")
+        var publicPublish: Bool = false
 
         func run() async throws {
             try await withAPIClient { client in
-                let body: [String: String?] = [
-                    "name": name,
-                    "visibility": visibility,
-                    "password": password,
-                ]
+                let body = CreateTopicBody(
+                    name: name,
+                    publicRead: publicRead,
+                    publicPublish: publicPublish
+                )
                 let topic = try await client.post("/topics", body: body, as: TopicDTO.self)
-                print("Created topic '\(topic.name)' (\(topic.visibility))")
+                let access = "read=\(topic.publicRead ? "public" : "private") publish=\(topic.publicPublish ? "public" : "private")"
+                print("Created topic '\(topic.name)' (\(access))")
             }
+        }
+
+        struct CreateTopicBody: Encodable {
+            let name: String
+            let publicRead: Bool
+            let publicPublish: Bool
+        }
+    }
+
+    struct Update: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(abstract: "Update topic access flags")
+
+        @Option(name: .shortAndLong, help: "Topic name")
+        var name: String
+
+        @Flag(inversion: .prefixedNo, help: "Allow anyone to read this topic")
+        var publicRead: Bool?
+
+        @Flag(inversion: .prefixedNo, help: "Allow anyone to publish to this topic")
+        var publicPublish: Bool?
+
+        func run() async throws {
+            if publicRead == nil && publicPublish == nil {
+                throw ValidationError("Pass at least one of --[no-]public-read or --[no-]public-publish")
+            }
+            try await withAPIClient { client in
+                let body = UpdateTopicBody(publicRead: publicRead, publicPublish: publicPublish)
+                let topic = try await client.patch("/topics/\(name)", body: body, as: TopicDTO.self)
+                let access = "read=\(topic.publicRead ? "public" : "private") publish=\(topic.publicPublish ? "public" : "private")"
+                print("Updated topic '\(topic.name)' (\(access))")
+            }
+        }
+
+        struct UpdateTopicBody: Encodable {
+            let publicRead: Bool?
+            let publicPublish: Bool?
         }
     }
 

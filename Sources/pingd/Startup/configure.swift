@@ -19,7 +19,7 @@ func makeCORSConfiguration(from config: CORSConfig) -> CORSMiddleware.Configurat
             .contentType,
             .origin,
             .xRequestedWith,
-            .init("X-Topic-Password"),
+            .init("X-Topic-Token"),
         ]
     )
 }
@@ -60,6 +60,7 @@ public func configure(_ app: Application) async throws {
         CreateDeviceSubscription(),
         CreateMessageDelivery(),
         CreateTopicWebhook(),
+        CreateTopicShareToken(),
     ])
 
     if app.environment != .testing {

@@ -53,7 +53,7 @@ extension PingdTests {
             let login = try await login(app, username: "jinx", password: "hunter2")
 
             try await app.testing().test(
-                .POST, "topics/open-topic/messages",
+                .POST, "topics/public-topic/messages",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = BearerAuthorization(token: login.token)
                     try req.content.encode(
@@ -80,7 +80,7 @@ extension PingdTests {
 
             var token: String?
             try await app.testing().test(
-                .POST, "topics/open-topic/webhooks",
+                .POST, "topics/public-topic/webhooks",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
                     try req.content.encode(CreateWebhookRequest(template: WebhookTemplate(body: "x")))
@@ -127,7 +127,7 @@ extension PingdTests {
             let session = try await login(app, username: "jinx", password: "hunter2")
             var token: String?
             try await app.testing().test(
-                .POST, "topics/open-topic/webhooks",
+                .POST, "topics/public-topic/webhooks",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
                     try req.content.encode(CreateWebhookRequest(template: WebhookTemplate(body: "x")))
@@ -177,7 +177,7 @@ extension PingdTests {
             func createWebhook() async throws -> String {
                 var token: String?
                 try await app.testing().test(
-                    .POST, "topics/open-topic/webhooks",
+                    .POST, "topics/public-topic/webhooks",
                     beforeRequest: { req in
                         req.headers.bearerAuthorization = .init(token: session.token)
                         try req.content.encode(CreateWebhookRequest(template: WebhookTemplate(body: "x")))
@@ -227,7 +227,7 @@ extension PingdTests {
             let session = try await login(app, username: "jinx", password: "hunter2")
             var token: String?
             try await app.testing().test(
-                .POST, "topics/open-topic/webhooks",
+                .POST, "topics/public-topic/webhooks",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
                     try req.content.encode(CreateWebhookRequest(template: WebhookTemplate(body: "x")))
@@ -279,7 +279,7 @@ extension PingdTests {
             let login = try await login(app, username: "jinx", password: "hunter2")
 
             try await app.testing().test(
-                .POST, "topics/open-topic/messages",
+                .POST, "topics/public-topic/messages",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = BearerAuthorization(token: login.token)
                     try req.content.encode(

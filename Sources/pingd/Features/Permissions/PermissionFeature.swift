@@ -33,13 +33,15 @@ struct PermissionFeature {
         _ currentUser: User,
         _ targetUsername: String,
         _ accessLevel: AccessLevel,
-        _ topicPattern: String
+        _ topicPattern: String,
+        _ expiresAt: Date?
     ) async throws -> Permission
 
     let createGlobalPermission: @Sendable (
         _ currentUser: User,
         _ accessLevel: AccessLevel,
-        _ topicPattern: String
+        _ topicPattern: String,
+        _ expiresAt: Date?
     ) async throws -> Permission
 
     let deletePermission: @Sendable (
@@ -49,8 +51,18 @@ struct PermissionFeature {
 }
 
 extension PermissionFeature {
-    static func live(permissionClient: PermissionClient, userClient: UserClient) -> Self {
-        PermissionFeature(
+    static func live(
+        permissionClient: PermissionClient,
+        userClient: UserClient,
+        defaultPermissionTTL: TimeInterval?,
+        now: @escaping @Sendable () -> Date
+    ) -> Self {
+        @Sendable func resolveExpiresAt(_ explicit: Date?) -> Date? {
+            if let explicit { return explicit }
+            return defaultPermissionTTL.map { now().addingTimeInterval($0) }
+        }
+
+        return PermissionFeature(
             listPermissions: { currentUser, targetUsername in
                 let targetID = try await userClient.getUserId(for: targetUsername)
                 let currentUserID = try currentUser.requireID()
@@ -65,18 +77,18 @@ extension PermissionFeature {
                 }
                 return try await permissionClient.listGlobal()
             },
-            createPermission: { currentUser, targetUsername, accessLevel, topicPattern in
+            createPermission: { currentUser, targetUsername, accessLevel, topicPattern, expiresAt in
                 guard currentUser.role == .admin else {
                     throw PermissionError.accessDenied
                 }
                 let targetID = try await userClient.getUserId(for: targetUsername)
-                return try await permissionClient.create(targetID, .user, accessLevel, topicPattern)
+                return try await permissionClient.create(targetID, .user, accessLevel, topicPattern, resolveExpiresAt(expiresAt))
             },
-            createGlobalPermission: { currentUser, accessLevel, topicPattern in
+            createGlobalPermission: { currentUser, accessLevel, topicPattern, expiresAt in
                 guard currentUser.role == .admin else {
                     throw PermissionError.accessDenied
                 }
-                return try await permissionClient.create(nil, .global, accessLevel, topicPattern)
+                return try await permissionClient.create(nil, .global, accessLevel, topicPattern, resolveExpiresAt(expiresAt))
             },
             deletePermission: { currentUser, permissionID in
                 guard currentUser.role == .admin else {

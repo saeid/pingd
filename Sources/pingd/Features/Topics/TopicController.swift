@@ -2,7 +2,6 @@ import Vapor
 
 struct TopicController: RouteCollection, @unchecked Sendable {
     let topicFeature: TopicFeature
-    let authClient: AuthClient
     let auditLogger: AuditLogger
 
     func boot(routes: any RoutesBuilder) throws {
@@ -24,25 +23,20 @@ struct TopicController: RouteCollection, @unchecked Sendable {
         let currentUser = try req.user
         try CreateTopicRequest.validate(content: req)
         let body = try req.content.decode(CreateTopicRequest.self)
-        let passwordHash: String?
-        if let password = body.password, !password.isEmpty {
-            passwordHash = try authClient.hashPassword(password)
-        } else {
-            passwordHash = nil
-        }
+        let appConfig = req.application.appConfig
         do {
             let topic = try await topicFeature.createTopic(
                 currentUser,
                 body.name,
-                body.visibility ?? .protected,
-                passwordHash
+                body.publicRead ?? appConfig.defaultPublicRead,
+                body.publicPublish ?? appConfig.defaultPublicPublish
             )
             auditLogger.log("topic.create", req: req, metadata: [
                 "actor_username": currentUser.username,
                 "actor_role": currentUser.role.rawValue,
                 "topic_name": topic.name,
-                "visibility": topic.visibility.rawValue,
-                "has_password": topic.passwordHash == nil ? "false" : "true",
+                "public_read": String(topic.publicRead),
+                "public_publish": String(topic.publicPublish),
                 "ip": req.clientIP,
             ])
             return try TopicResponse(topic)
@@ -51,8 +45,6 @@ struct TopicController: RouteCollection, @unchecked Sendable {
                 "actor_username": currentUser.username,
                 "actor_role": currentUser.role.rawValue,
                 "topic_name": body.name,
-                "visibility": (body.visibility ?? .protected).rawValue,
-                "has_password": passwordHash == nil ? "false" : "true",
                 "ip": req.clientIP,
             ])
             throw error
@@ -61,7 +53,7 @@ struct TopicController: RouteCollection, @unchecked Sendable {
 
     func get(_ req: Request) async throws -> TopicResponse {
         guard let name = req.parameters.get("name") else { throw Abort(.badRequest) }
-        let topic = try await topicFeature.getTopic(req.optionalUser, name, req.topicPassword)
+        let topic = try await topicFeature.getTopic(req.optionalUser, name, req.topicToken)
         return try TopicResponse(topic)
     }
 
@@ -76,26 +68,19 @@ struct TopicController: RouteCollection, @unchecked Sendable {
         let currentUser = try req.user
         guard let name = req.parameters.get("name") else { throw Abort(.badRequest) }
         let body = try req.content.decode(UpdateTopicRequest.self)
-        let passwordHash: String?? = try body.password.map { password in
-            if password.isEmpty {
-                return nil
-            }
-            return try authClient.hashPassword(password)
-        }
         do {
             let topic = try await topicFeature.updateTopic(
                 currentUser,
                 name,
-                body.visibility,
-                passwordHash
+                body.publicRead,
+                body.publicPublish
             )
             auditLogger.log("topic.update", req: req, metadata: [
                 "actor_username": currentUser.username,
                 "actor_role": currentUser.role.rawValue,
                 "topic_name": topic.name,
-                "visibility": topic.visibility.rawValue,
-                "password_changed": body.password == nil ? "false" : "true",
-                "has_password": topic.passwordHash == nil ? "false" : "true",
+                "public_read": String(topic.publicRead),
+                "public_publish": String(topic.publicPublish),
                 "ip": req.clientIP,
             ])
             return try TopicResponse(topic)
@@ -104,8 +89,6 @@ struct TopicController: RouteCollection, @unchecked Sendable {
                 "actor_username": currentUser.username,
                 "actor_role": currentUser.role.rawValue,
                 "topic_name": name,
-                "visibility": body.visibility?.rawValue ?? "",
-                "password_changed": body.password == nil ? "false" : "true",
                 "ip": req.clientIP,
             ])
             throw error
@@ -142,16 +125,16 @@ struct TopicController: RouteCollection, @unchecked Sendable {
 struct TopicResponse: Content {
     let id: UUID
     let name: String
-    let visibility: TopicVisibility
-    let hasPassword: Bool
+    let publicRead: Bool
+    let publicPublish: Bool
     let ownerUserID: UUID
     let createdAt: Date?
 
     init(_ topic: Topic) throws {
         self.id = try topic.requireID()
         self.name = topic.name
-        self.visibility = topic.visibility
-        self.hasPassword = topic.passwordHash != nil
+        self.publicRead = topic.publicRead
+        self.publicPublish = topic.publicPublish
         self.ownerUserID = topic.$owner.id
         self.createdAt = topic.createdAt
     }
@@ -187,8 +170,8 @@ struct TopicDeliveryStatsResponse: Content {
 
 struct CreateTopicRequest: Content, Validatable {
     let name: String
-    let visibility: TopicVisibility?
-    let password: String?
+    let publicRead: Bool?
+    let publicPublish: Bool?
 
     static func validations(_ validations: inout Validations) {
         validations.add("name", as: String.self, is: .count(3...) && .characterSet(.alphanumerics + .init(charactersIn: "-_.")))
@@ -196,6 +179,6 @@ struct CreateTopicRequest: Content, Validatable {
 }
 
 struct UpdateTopicRequest: Content {
-    let visibility: TopicVisibility?
-    let password: String?
+    let publicRead: Bool?
+    let publicPublish: Bool?
 }

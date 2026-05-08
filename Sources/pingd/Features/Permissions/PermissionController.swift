@@ -26,7 +26,8 @@ struct PermissionController: RouteCollection, @unchecked Sendable {
             let permission = try await permissionFeature.createGlobalPermission(
                 currentUser,
                 body.accessLevel,
-                body.topicPattern
+                body.topicPattern,
+                body.expiresAt
             )
             auditLogger.log("permission.create", req: req, metadata: [
                 "actor_username": currentUser.username,
@@ -67,7 +68,8 @@ struct PermissionController: RouteCollection, @unchecked Sendable {
                 currentUser,
                 username,
                 body.accessLevel,
-                body.topicPattern
+                body.topicPattern,
+                body.expiresAt
             )
             auditLogger.log("permission.create", req: req, metadata: [
                 "actor_username": currentUser.username,
@@ -127,6 +129,7 @@ struct PermissionResponse: Content {
     let scope: PermissionScope
     let accessLevel: AccessLevel
     let topicPattern: String
+    let expiresAt: Date?
     let createdAt: Date?
 
     init(_ permission: Permission) throws {
@@ -135,6 +138,7 @@ struct PermissionResponse: Content {
         scope = permission.scope
         accessLevel = permission.accessLevel
         topicPattern = permission.topicPattern
+        expiresAt = permission.expiresAt
         createdAt = permission.createdAt
     }
 }
@@ -142,6 +146,7 @@ struct PermissionResponse: Content {
 struct CreatePermissionRequest: Content, Validatable {
     let accessLevel: AccessLevel
     let topicPattern: String
+    let expiresAt: Date?
 
     static func validations(_ validations: inout Validations) {
         validations.add("topicPattern", as: String.self, is: .count(1...) && .characterSet(.alphanumerics + .init(charactersIn: "-_.*>")))
@@ -151,6 +156,7 @@ struct CreatePermissionRequest: Content, Validatable {
 struct CreateGlobalPermissionRequest: Content, Validatable {
     let accessLevel: AccessLevel
     let topicPattern: String
+    let expiresAt: Date?
 
     static func validations(_ validations: inout Validations) {
         validations.add("topicPattern", as: String.self, is: .count(1...) && .characterSet(.alphanumerics + .init(charactersIn: "-_.*>")))

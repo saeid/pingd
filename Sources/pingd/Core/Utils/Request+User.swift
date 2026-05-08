@@ -5,8 +5,8 @@ struct UserStorageKey: StorageKey {
 }
 
 extension Request {
-    var topicPassword: String? {
-        headers.first(name: "X-Topic-Password")
+    var topicToken: String? {
+        headers.first(name: "X-Topic-Token")
     }
 
     var user: User {

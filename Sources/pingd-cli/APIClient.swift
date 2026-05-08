@@ -22,7 +22,7 @@ enum APIError: LocalizedError {
 struct APIClient {
     let config: CLIConfig
     let httpClient: HTTPClient
-    var topicPassword: String?
+    var topicToken: String?
 
     private var baseURL: String { config.serverURL }
 
@@ -37,13 +37,15 @@ struct APIClient {
         guard let token = config.token else { throw APIError.noToken }
         req.headers.add(name: "Authorization", value: "Bearer \(token)")
 
-        if let topicPassword {
-            req.headers.add(name: "X-Topic-Password", value: topicPassword)
+        if let topicToken {
+            req.headers.add(name: "X-Topic-Token", value: topicToken)
         }
 
         if let body {
             req.headers.add(name: "Content-Type", value: "application/json")
-            let data = try JSONEncoder().encode(body)
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            let data = try encoder.encode(body)
             req.body = .bytes(data)
         }
 
@@ -76,6 +78,11 @@ struct APIClient {
         return try decode(data, as: type)
     }
 
+    func post<T: Decodable>(_ path: String, as type: T.Type) async throws -> T {
+        let (data, _) = try await request(method: "POST", path: path)
+        return try decode(data, as: type)
+    }
+
     func patch<T: Decodable>(_ path: String, body: any Encodable, as type: T.Type) async throws -> T {
         let (data, _) = try await request(method: "PATCH", path: path, body: body)
         return try decode(data, as: type)
@@ -91,8 +98,8 @@ struct APIClient {
         req.headers.add(name: "Authorization", value: "Bearer \(token)")
         req.headers.add(name: "Accept", value: "text/event-stream")
 
-        if let topicPassword {
-            req.headers.add(name: "X-Topic-Password", value: topicPassword)
+        if let topicToken {
+            req.headers.add(name: "X-Topic-Token", value: topicToken)
         }
 
         let response = try await httpClient.execute(req, timeout: .hours(24))

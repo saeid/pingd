@@ -41,7 +41,7 @@ struct DispatchWorkerTests {
             payload: MessagePayload(title: "T", subtitle: nil, body: "B"),
             expiresAt: expiresAt
         )
-        message.$topic.value = Topic(name: topicName, ownerUserID: UUID(), visibility: .open)
+        message.$topic.value = Topic(name: topicName, ownerUserID: UUID(), publicRead: true, publicPublish: true)
         return message
     }
 

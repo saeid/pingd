@@ -31,6 +31,9 @@ final class Permission: Model, @unchecked Sendable {
     @Field(key: "topic_pattern")
     var topicPattern: String
 
+    @OptionalField(key: "expires_at")
+    var expiresAt: Date?
+
     @Timestamp(key: "created_at", on: .create)
     var createdAt: Date?
 
@@ -41,12 +44,14 @@ final class Permission: Model, @unchecked Sendable {
         scope: PermissionScope,
         accessLevel: AccessLevel,
         userId: UUID?,
-        topicPattern: String
+        topicPattern: String,
+        expiresAt: Date? = nil
     ) {
         self.id = id
         self.scope = scope
         self.accessLevel = accessLevel
         self.topicPattern = topicPattern
+        self.expiresAt = expiresAt
         $user.id = userId
     }
 

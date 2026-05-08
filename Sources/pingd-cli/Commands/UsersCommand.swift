@@ -113,7 +113,8 @@ struct UsersCommand: AsyncParsableCommand {
                     return
                 }
                 for sub in subs {
-                    print("\(sub.topic.name)  \(sub.topic.visibility)  \(sub.device.name)")
+                    let access = "read=\(sub.topic.publicRead ? "public" : "private") publish=\(sub.topic.publicPublish ? "public" : "private")"
+                    print("\(sub.topic.name)  \(access)  \(sub.device.name)")
                 }
             }
         }

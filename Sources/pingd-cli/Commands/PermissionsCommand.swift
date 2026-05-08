@@ -22,7 +22,7 @@ struct PermissionsCommand: AsyncParsableCommand {
                     return
                 }
                 for permission in permissions {
-                    print("\(permission.topicPattern)  \(permission.accessLevel)  \(permission.scope)  \(permission.id)")
+                    print("\(permission.topicPattern)  \(permission.accessLevel)  \(permission.scope)  \(formatExpiry(permission.expiresAt))  \(permission.id)")
                 }
             }
         }
@@ -42,7 +42,7 @@ struct PermissionsCommand: AsyncParsableCommand {
                     return
                 }
                 for permission in permissions {
-                    print("\(permission.topicPattern)  \(permission.accessLevel)  \(permission.id)")
+                    print("\(permission.topicPattern)  \(permission.accessLevel)  \(formatExpiry(permission.expiresAt))  \(permission.id)")
                 }
             }
         }
@@ -60,11 +60,15 @@ struct PermissionsCommand: AsyncParsableCommand {
         @Option(name: .shortAndLong, help: "Topic pattern (e.g. alerts.*, alerts.>, *)")
         var pattern: String
 
+        @Option(name: .long, help: "Expires in duration (e.g. 30d, 12h, 5m)")
+        var expiresIn: String?
+
         func run() async throws {
+            let expiry = try parseExpiresIn(expiresIn)
             try await withAPIClient { client in
-                let body = CreatePermissionDTO(accessLevel: access, topicPattern: pattern)
+                let body = CreatePermissionDTO(accessLevel: access, topicPattern: pattern, expiresAt: expiry)
                 let permission = try await client.post("/permissions/\(username)", body: body, as: PermissionDTO.self)
-                print("Created permission: \(permission.topicPattern) \(permission.accessLevel) for '\(username)'")
+                print("Created permission: \(permission.topicPattern) \(permission.accessLevel) for '\(username)' \(formatExpiry(permission.expiresAt))")
             }
         }
     }
@@ -81,11 +85,15 @@ struct PermissionsCommand: AsyncParsableCommand {
         @Option(name: .shortAndLong, help: "Topic pattern (e.g. alerts.*, alerts.>, *)")
         var pattern: String
 
+        @Option(name: .long, help: "Expires in duration (e.g. 30d, 12h, 5m)")
+        var expiresIn: String?
+
         func run() async throws {
+            let expiry = try parseExpiresIn(expiresIn)
             try await withAPIClient { client in
-                let body = CreatePermissionDTO(accessLevel: access, topicPattern: pattern)
+                let body = CreatePermissionDTO(accessLevel: access, topicPattern: pattern, expiresAt: expiry)
                 let permission = try await client.post("/permissions", body: body, as: PermissionDTO.self)
-                print("Created global permission: \(permission.topicPattern) \(permission.accessLevel)")
+                print("Created global permission: \(permission.topicPattern) \(permission.accessLevel) \(formatExpiry(permission.expiresAt))")
             }
         }
     }

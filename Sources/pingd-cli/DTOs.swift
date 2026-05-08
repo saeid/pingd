@@ -3,7 +3,8 @@ import Foundation
 struct TopicDTO: Codable {
     let id: UUID
     let name: String
-    let visibility: String
+    let publicRead: Bool
+    let publicPublish: Bool
     let ownerUserID: UUID
     let createdAt: Date?
 }
@@ -73,12 +74,50 @@ struct PermissionDTO: Codable {
     let scope: String
     let accessLevel: String
     let topicPattern: String
+    let expiresAt: Date?
     let createdAt: Date?
 }
 
 struct CreatePermissionDTO: Codable {
     let accessLevel: String
     let topicPattern: String
+    let expiresAt: Date?
+}
+
+struct TopicShareTokenDTO: Codable {
+    let id: UUID
+    let topicID: UUID
+    let label: String?
+    let accessLevel: String
+    let createdByUserID: UUID
+    let expiresAt: Date?
+    let createdAt: Date?
+    let token: String?
+}
+
+struct CreateTopicShareDTO: Codable {
+    let label: String?
+    let accessLevel: String
+    let expiresAt: Date?
+}
+
+struct UpdateTopicShareDTO: Encodable {
+    let label: String?
+    let accessLevel: String?
+    let expiresAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case label
+        case accessLevel
+        case expiresAt
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(label, forKey: .label)
+        try container.encodeIfPresent(accessLevel, forKey: .accessLevel)
+        try container.encodeIfPresent(expiresAt, forKey: .expiresAt)
+    }
 }
 
 struct UserSubscriptionDTO: Codable {
@@ -96,8 +135,8 @@ struct UserSubscriptionDTO: Codable {
     struct TopicInfo: Codable {
         let id: UUID
         let name: String
-        let visibility: String
-        let hasPassword: Bool
+        let publicRead: Bool
+        let publicPublish: Bool
         let ownerUserID: UUID
     }
 }

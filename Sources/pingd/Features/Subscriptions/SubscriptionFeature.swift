@@ -1,3 +1,4 @@
+import Foundation
 import Vapor
 
 enum SubscriptionError: AbortError {
@@ -39,7 +40,7 @@ struct SubscriptionFeature {
         _ currentUser: User,
         _ deviceID: UUID,
         _ topicName: String,
-        _ topicPassword: String?
+        _ topicToken: String?
     ) async throws -> (DeviceSubscription, Topic)
 
     let unsubscribe: @Sendable (
@@ -55,8 +56,9 @@ extension SubscriptionFeature {
         deviceClient: DeviceClient,
         topicClient: TopicClient,
         userClient: UserClient,
-        authClient: AuthClient,
-        permissionClient: PermissionClient
+        topicShareClient: TopicShareClient,
+        permissionClient: PermissionClient,
+        now: @escaping @Sendable () -> Date
     ) -> Self {
         SubscriptionFeature(
             listSubscriptions: { currentUser, deviceID in
@@ -87,15 +89,15 @@ extension SubscriptionFeature {
                         topic: .init(
                             id: topic.id!,
                             name: topic.name,
-                            visibility: topic.visibility.rawValue,
-                            hasPassword: topic.passwordHash != nil,
+                            publicRead: topic.publicRead,
+                            publicPublish: topic.publicPublish,
                             ownerUserID: topic.$owner.id
                         ),
                         createdAt: subscription.createdAt
                     )
                 }
             },
-            subscribe: { currentUser, deviceID, topicName, topicPassword in
+            subscribe: { currentUser, deviceID, topicName, topicToken in
                 guard let device = try await deviceClient.get(deviceID) else {
                     throw SubscriptionError.deviceNotFound
                 }
@@ -110,9 +112,10 @@ extension SubscriptionFeature {
                 if try await !TopicAccess.canRead(
                     topic: topic,
                     currentUser: currentUser,
-                    topicPassword: topicPassword,
-                    authClient: authClient,
-                    permissionClient: permissionClient
+                    topicToken: topicToken,
+                    topicShareClient: topicShareClient,
+                    permissionClient: permissionClient,
+                    now: now()
                 ) {
                     throw SubscriptionError.accessDenied
                 }

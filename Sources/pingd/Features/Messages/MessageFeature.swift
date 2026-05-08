@@ -1,3 +1,4 @@
+import Foundation
 import Vapor
 
 enum MessageError: AbortError {
@@ -26,14 +27,14 @@ struct MessageFeature {
     let listMessages: @Sendable (
         _ currentUser: User?,
         _ topicName: String,
-        _ topicPassword: String?,
+        _ topicToken: String?,
         _ now: Date
     ) async throws -> [Message]
 
     let publishMessage: @Sendable (
         _ currentUser: User?,
         _ topicName: String,
-        _ topicPassword: String?,
+        _ topicToken: String?,
         _ priority: UInt8,
         _ tags: [String]?,
         _ payload: MessagePayload,
@@ -45,30 +46,31 @@ struct MessageFeature {
 extension MessageFeature {
     static func live(
         topicClient: TopicClient,
-        authClient: AuthClient,
+        topicShareClient: TopicShareClient,
         permissionClient: PermissionClient,
         messageClient: MessageClient,
         dispatchFeature: DispatchFeature? = nil,
         topicBroadcaster: TopicBroadcaster? = nil
     ) -> Self {
         MessageFeature(
-            listMessages: { currentUser, topicName, topicPassword, now in
+            listMessages: { currentUser, topicName, topicToken, now in
                 guard let topic = try await topicClient.getByName(topicName) else {
                     throw MessageError.topicNotFound
                 }
                 if try await !TopicAccess.canRead(
                     topic: topic,
                     currentUser: currentUser,
-                    topicPassword: topicPassword,
-                    authClient: authClient,
-                    permissionClient: permissionClient
+                    topicToken: topicToken,
+                    topicShareClient: topicShareClient,
+                    permissionClient: permissionClient,
+                    now: now
                 ) {
                     throw MessageError.accessDenied
                 }
                 let topicID = try topic.requireID()
                 return try await messageClient.list(topicID, now)
             },
-            publishMessage: { currentUser, topicName, topicPassword, priority, tags, payload, time, ttl in
+            publishMessage: { currentUser, topicName, topicToken, priority, tags, payload, time, ttl in
                 guard (1...3).contains(priority) else {
                     throw MessageError.invalidPayload("priority must be between 1 and 3")
                 }
@@ -78,9 +80,10 @@ extension MessageFeature {
                 if try await !TopicAccess.canPublish(
                     topic: topic,
                     currentUser: currentUser,
-                    topicPassword: topicPassword,
-                    authClient: authClient,
-                    permissionClient: permissionClient
+                    topicToken: topicToken,
+                    topicShareClient: topicShareClient,
+                    permissionClient: permissionClient,
+                    now: time
                 ) {
                     throw MessageError.accessDenied
                 }
@@ -88,13 +91,11 @@ extension MessageFeature {
                 let expiresAt = ttl.map { time.addingTimeInterval(TimeInterval($0)) }
                 let message = try await messageClient.publish(topicID, priority, tags, payload, time, expiresAt)
 
-                // fan-out: create deliveries for subscribed devices
                 if let dispatchFeature {
                     let messageID = try message.requireID()
                     try await dispatchFeature.fanOut(messageID, topicID)
                 }
 
-                // broadcast to SSE listeners
                 if let topicBroadcaster {
                     let broadcast = BroadcastMessage(
                         priority: priority,

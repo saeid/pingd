@@ -25,15 +25,15 @@ extension PingdTests {
                 .POST, "devices/\(id)/subscriptions",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
-                    try req.content.encode(SubscribeRequest(topicName: "open-topic"))
+                    try req.content.encode(SubscribeRequest(topicName: "public-topic"))
                 },
                 afterResponse: { res in
                     #expect(res.status == .ok)
                     let sub = try res.content.decode(SubscriptionResponse.self)
                     #expect(sub.deviceID == id)
-                    #expect(sub.topicName == "open-topic")
-                    #expect(sub.topicVisibility == "open")
-                    #expect(sub.topicHasPassword == false)
+                    #expect(sub.topicName == "public-topic")
+                    #expect(sub.topicPublicRead)
+                    #expect(sub.topicPublicPublish)
                 }
             )
         }
@@ -67,21 +67,22 @@ extension PingdTests {
                 .POST, "devices/\(id)/subscriptions",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
-                    try req.content.encode(SubscribeRequest(topicName: "open-topic"))
+                    try req.content.encode(SubscribeRequest(topicName: "public-topic"))
                 },
                 afterResponse: { res in
                     #expect(res.status == .ok)
                     let sub = try res.content.decode(SubscriptionResponse.self)
-                    #expect(sub.topicName == "open-topic")
+                    #expect(sub.topicName == "public-topic")
                 }
             )
         }
     }
 
-    @Test("Subscriptions: guest needs password for protected topic")
-    func guestSubscribeProtectedTopicRequiresPassword() async throws {
+    @Test("Subscriptions: guest needs share token for private topic")
+    func guestSubscribePrivateTopicRequiresShareToken() async throws {
         try await withApp { app in
             try await seedTopics(app)
+            let raw = try await createShareToken(app, topicName: "private-topic", accessLevel: .readOnly)
             let session = try await loginGuest(app)
             var deviceID: UUID?
             try await app.testing().test(
@@ -106,7 +107,7 @@ extension PingdTests {
                 .POST, "devices/\(id)/subscriptions",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
-                    try req.content.encode(SubscribeRequest(topicName: "protected-topic"))
+                    try req.content.encode(SubscribeRequest(topicName: "private-topic"))
                 },
                 afterResponse: { res in
                     #expect(res.status == .forbidden)
@@ -117,13 +118,145 @@ extension PingdTests {
                 .POST, "devices/\(id)/subscriptions",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
-                    req.headers.replaceOrAdd(name: "X-Topic-Password", value: protectedTopicPassword)
-                    try req.content.encode(SubscribeRequest(topicName: "protected-topic"))
+                    req.headers.replaceOrAdd(name: "X-Topic-Token", value: raw)
+                    try req.content.encode(SubscribeRequest(topicName: "private-topic"))
                 },
                 afterResponse: { res in
                     #expect(res.status == .ok)
                     let sub = try res.content.decode(SubscriptionResponse.self)
-                    #expect(sub.topicName == "protected-topic")
+                    #expect(sub.topicName == "private-topic")
+                }
+            )
+        }
+    }
+
+    @Test("Subscriptions: non-owner cannot subscribe to restricted topic")
+    func nonOwnerCannotSubscribeRestrictedTopic() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            try await seedDevices(app)
+            let session = try await login(app, username: "vi", password: "password1")
+            let deviceID = try await requireDeviceID(app, username: "vi")
+
+            try await app.testing().test(
+                .POST, "devices/\(deviceID)/subscriptions",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(SubscribeRequest(topicName: "restricted-topic"))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .forbidden)
+                }
+            )
+        }
+    }
+
+    @Test("Subscriptions: owner can subscribe to restricted topic")
+    func ownerCanSubscribeRestrictedTopic() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            let owner = try await requireUser(app, username: "jinx")
+            let device = Device(
+                userID: try owner.requireID(),
+                name: "Jinx iPhone",
+                platform: .ios,
+                pushType: .apns,
+                pushToken: "token-jinx-restricted"
+            )
+            try await device.save(on: app.db)
+
+            let session = try await login(app, username: "jinx", password: "hunter2")
+            let deviceID = try device.requireID()
+            try await app.testing().test(
+                .POST, "devices/\(deviceID)/subscriptions",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(SubscribeRequest(topicName: "restricted-topic"))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let sub = try res.content.decode(SubscriptionResponse.self)
+                    #expect(sub.topicName == "restricted-topic")
+                    #expect(sub.topicPublicRead == false)
+                }
+            )
+        }
+    }
+
+    @Test("Subscriptions: guest can subscribe to private topic with valid share token")
+    func guestCanSubscribePrivateTopicWithShareToken() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            let raw = try await createShareToken(app, topicName: "restricted-topic", accessLevel: .readOnly)
+            let session = try await loginGuest(app)
+            var deviceID: UUID?
+            try await app.testing().test(
+                .POST, "devices",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(RegisterDeviceRequest(
+                        name: "Guest Phone",
+                        platform: .ios,
+                        pushType: .apns,
+                        pushToken: "guest-restricted-token"
+                    ))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    deviceID = try res.content.decode(DeviceResponse.self).id
+                }
+            )
+
+            let id = try #require(deviceID)
+            try await app.testing().test(
+                .POST, "devices/\(id)/subscriptions",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    req.headers.replaceOrAdd(name: "X-Topic-Token", value: raw)
+                    try req.content.encode(SubscribeRequest(topicName: "restricted-topic"))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let sub = try res.content.decode(SubscriptionResponse.self)
+                    #expect(sub.topicName == "restricted-topic")
+                }
+            )
+        }
+    }
+
+    @Test("Subscriptions: guest cannot subscribe to private topic with invalid share token")
+    func guestCannotSubscribePrivateTopicWithInvalidShareToken() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            let session = try await loginGuest(app)
+            var deviceID: UUID?
+            try await app.testing().test(
+                .POST, "devices",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(RegisterDeviceRequest(
+                        name: "Guest Phone",
+                        platform: .ios,
+                        pushType: .apns,
+                        pushToken: "guest-restricted-wrong-token"
+                    ))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    deviceID = try res.content.decode(DeviceResponse.self).id
+                }
+            )
+
+            let id = try #require(deviceID)
+            try await app.testing().test(
+                .POST, "devices/\(id)/subscriptions",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    req.headers.replaceOrAdd(name: "X-Topic-Token", value: "tk_bogus")
+                    try req.content.encode(SubscribeRequest(topicName: "restricted-topic"))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .forbidden)
                 }
             )
         }
@@ -152,7 +285,7 @@ extension PingdTests {
                 .POST, "devices/\(id)/subscriptions",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
-                    try req.content.encode(SubscribeRequest(topicName: "open-topic"))
+                    try req.content.encode(SubscribeRequest(topicName: "public-topic"))
                 },
                 afterResponse: { _ in }
             )
@@ -161,7 +294,7 @@ extension PingdTests {
                 .POST, "devices/\(id)/subscriptions",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
-                    try req.content.encode(SubscribeRequest(topicName: "open-topic"))
+                    try req.content.encode(SubscribeRequest(topicName: "public-topic"))
                 },
                 afterResponse: { res in
                     #expect(res.status == .conflict)
@@ -192,7 +325,7 @@ extension PingdTests {
                 .POST, "devices/\(id)/subscriptions",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
-                    try req.content.encode(SubscribeRequest(topicName: "open-topic"))
+                    try req.content.encode(SubscribeRequest(topicName: "public-topic"))
                 },
                 afterResponse: { _ in }
             )
@@ -205,7 +338,7 @@ extension PingdTests {
                     #expect(res.status == .ok)
                     let subs = try res.content.decode([SubscriptionResponse].self)
                     #expect(subs.count == 1)
-                    #expect(subs[0].topicName == "open-topic")
+                    #expect(subs[0].topicName == "public-topic")
                 }
             )
         }
@@ -233,12 +366,12 @@ extension PingdTests {
                 .POST, "devices/\(id)/subscriptions",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
-                    try req.content.encode(SubscribeRequest(topicName: "open-topic"))
+                    try req.content.encode(SubscribeRequest(topicName: "public-topic"))
                 },
                 afterResponse: { _ in }
             )
             try await app.testing().test(
-                .DELETE, "devices/\(id)/subscriptions/open-topic",
+                .DELETE, "devices/\(id)/subscriptions/public-topic",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
                 },
@@ -271,7 +404,7 @@ extension PingdTests {
                 .POST, "devices/\(id)/subscriptions",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
-                    try req.content.encode(SubscribeRequest(topicName: "open-topic"))
+                    try req.content.encode(SubscribeRequest(topicName: "public-topic"))
                 },
                 afterResponse: { _ in }
             )
@@ -284,7 +417,7 @@ extension PingdTests {
                     #expect(res.status == .ok)
                     let subs = try res.content.decode([UserSubscriptionResponse].self)
                     #expect(subs.count == 1)
-                    #expect(subs[0].topic.name == "open-topic")
+                    #expect(subs[0].topic.name == "public-topic")
                     #expect(subs[0].device.name == "Vi's iPhone")
                     #expect(subs[0].device.platform == "ios")
                 }
@@ -314,7 +447,7 @@ extension PingdTests {
                 .POST, "devices/\(id)/subscriptions",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: viSession.token)
-                    try req.content.encode(SubscribeRequest(topicName: "open-topic"))
+                    try req.content.encode(SubscribeRequest(topicName: "public-topic"))
                 },
                 afterResponse: { _ in }
             )
@@ -394,7 +527,7 @@ extension PingdTests {
                 .POST, "devices/\(id)/subscriptions",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: vanderSession.token)
-                    try req.content.encode(SubscribeRequest(topicName: "open-topic"))
+                    try req.content.encode(SubscribeRequest(topicName: "public-topic"))
                 },
                 afterResponse: { res in
                     #expect(res.status == .forbidden)

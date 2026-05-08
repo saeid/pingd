@@ -9,7 +9,7 @@ extension PingdTests {
         try await withApp { app in
             try await seedTopics(app)
             try await app.testing().test(
-                .POST, "topics/open-topic/messages",
+                .POST, "topics/public-topic/messages",
                 beforeRequest: { req in
                     try req.content.encode(PublishMessageRequest(
                         priority: 3,
@@ -32,7 +32,7 @@ extension PingdTests {
         try await withApp { app in
             try await seedTopics(app)
             try await app.testing().test(
-                .POST, "topics/open-topic/messages",
+                .POST, "topics/public-topic/messages",
                 beforeRequest: { req in
                     try req.content.encode(PublishMessageRequest(
                         priority: 3,
@@ -56,7 +56,7 @@ extension PingdTests {
         try await withApp { app in
             try await seedTopics(app)
             try await app.testing().test(
-                .POST, "topics/open-topic/messages",
+                .POST, "topics/public-topic/messages",
                 beforeRequest: { req in
                     try req.content.encode(PublishMessageRequest(
                         priority: 3,
@@ -77,7 +77,7 @@ extension PingdTests {
         try await withApp { app in
             try await seedTopics(app)
             try await app.testing().test(
-                .POST, "topics/open-topic/messages",
+                .POST, "topics/public-topic/messages",
                 beforeRequest: { req in
                     try req.content.encode(PublishMessageRequest(
                         priority: 3,
@@ -93,12 +93,12 @@ extension PingdTests {
         }
     }
 
-    @Test("Messages: POST /topics/:name/messages on protected topic as anonymous returns 403")
-    func publishToProtectedTopicAnonymous() async throws {
+    @Test("Messages: POST /topics/:name/messages on private topic as anonymous returns 403")
+    func publishToPrivateTopicAnonymous() async throws {
         try await withApp { app in
             try await seedTopics(app)
             try await app.testing().test(
-                .POST, "topics/protected-topic/messages",
+                .POST, "topics/private-topic/messages",
                 beforeRequest: { req in
                     try req.content.encode(PublishMessageRequest(
                         priority: 3,
@@ -113,14 +113,15 @@ extension PingdTests {
         }
     }
 
-    @Test("Messages: POST /topics/:name/messages on protected topic as anonymous with password publishes")
-    func publishToProtectedTopicAnonymousWithPassword() async throws {
+    @Test("Messages: POST /topics/:name/messages on private topic as anonymous with valid share token publishes")
+    func publishToPrivateTopicAnonymousWithShareToken() async throws {
         try await withApp { app in
             try await seedTopics(app)
+            let raw = try await createShareToken(app, topicName: "private-topic", accessLevel: .writeOnly)
             try await app.testing().test(
-                .POST, "topics/protected-topic/messages",
+                .POST, "topics/private-topic/messages",
                 beforeRequest: { req in
-                    req.headers.replaceOrAdd(name: "X-Topic-Password", value: protectedTopicPassword)
+                    req.headers.replaceOrAdd(name: "X-Topic-Token", value: raw)
                     try req.content.encode(PublishMessageRequest(
                         priority: 3,
                         tags: nil,
@@ -134,14 +135,14 @@ extension PingdTests {
         }
     }
 
-    @Test("Messages: POST /topics/:name/messages on protected topic as anonymous with wrong password returns 403")
-    func publishToProtectedTopicAnonymousWithWrongPassword() async throws {
+    @Test("Messages: POST /topics/:name/messages on private topic as anonymous with invalid share token returns 403")
+    func publishToPrivateTopicAnonymousWithInvalidShareToken() async throws {
         try await withApp { app in
             try await seedTopics(app)
             try await app.testing().test(
-                .POST, "topics/protected-topic/messages",
+                .POST, "topics/private-topic/messages",
                 beforeRequest: { req in
-                    req.headers.replaceOrAdd(name: "X-Topic-Password", value: "wrong-password")
+                    req.headers.replaceOrAdd(name: "X-Topic-Token", value: "tk_bogus")
                     try req.content.encode(PublishMessageRequest(
                         priority: 3,
                         tags: nil,
@@ -155,13 +156,36 @@ extension PingdTests {
         }
     }
 
-    @Test("Messages: POST /topics/:name/messages on protected topic as authenticated publishes")
-    func publishToProtectedTopicAuthenticated() async throws {
+    @Test("Messages: POST /topics/:name/messages on private topic as authenticated without permission returns 403")
+    func publishToPrivateTopicAuthenticatedWithoutPermission() async throws {
         try await withApp { app in
             try await seedTopics(app)
             let session = try await login(app, username: "vi", password: "password1")
             try await app.testing().test(
-                .POST, "topics/protected-topic/messages",
+                .POST, "topics/private-topic/messages",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(PublishMessageRequest(
+                        priority: 3,
+                        tags: nil,
+                        payload: MessagePayload(title: nil, subtitle: nil, body: "Hello")
+                    ))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .forbidden)
+                }
+            )
+        }
+    }
+
+    @Test("Messages: POST /topics/:name/messages on private topic as authenticated with rw permission publishes")
+    func publishToPrivateTopicAuthenticatedWithPermission() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            try await savePermission(app, username: "vi", accessLevel: .readWrite, topicPattern: "private-topic")
+            let session = try await login(app, username: "vi", password: "password1")
+            try await app.testing().test(
+                .POST, "topics/private-topic/messages",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
                     try req.content.encode(PublishMessageRequest(
@@ -177,10 +201,11 @@ extension PingdTests {
         }
     }
 
-    @Test("Messages: POST /topics/:name/messages on protected topic as guest requires password")
-    func publishToProtectedTopicGuestRequiresPassword() async throws {
+    @Test("Messages: POST /topics/:name/messages on private topic as guest requires share token")
+    func publishToPrivateTopicGuestRequiresShareToken() async throws {
         try await withApp { app in
             try await seedTopics(app)
+            let raw = try await createShareToken(app, topicName: "private-topic", accessLevel: .writeOnly)
             let session = try await loginGuest(app)
             let body = PublishMessageRequest(
                 priority: 3,
@@ -189,7 +214,7 @@ extension PingdTests {
             )
 
             try await app.testing().test(
-                .POST, "topics/protected-topic/messages",
+                .POST, "topics/private-topic/messages",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
                     try req.content.encode(body)
@@ -200,10 +225,10 @@ extension PingdTests {
             )
 
             try await app.testing().test(
-                .POST, "topics/protected-topic/messages",
+                .POST, "topics/private-topic/messages",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
-                    req.headers.replaceOrAdd(name: "X-Topic-Password", value: protectedTopicPassword)
+                    req.headers.replaceOrAdd(name: "X-Topic-Token", value: raw)
                     try req.content.encode(body)
                 },
                 afterResponse: { res in
@@ -213,13 +238,13 @@ extension PingdTests {
         }
     }
 
-    @Test("Messages: POST /topics/:name/messages on private topic as non-owner returns 403")
-    func publishToPrivateTopicAsNonOwner() async throws {
+    @Test("Messages: POST /topics/:name/messages on restricted topic as non-owner returns 403")
+    func publishToRestrictedTopicAsNonOwner() async throws {
         try await withApp { app in
             try await seedTopics(app)
             let session = try await login(app, username: "vi", password: "password1")
             try await app.testing().test(
-                .POST, "topics/private-topic/messages",
+                .POST, "topics/restricted-topic/messages",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
                     try req.content.encode(PublishMessageRequest(
@@ -235,14 +260,15 @@ extension PingdTests {
         }
     }
 
-    @Test("Messages: POST /topics/:name/messages on private topic as anonymous with password returns 403")
-    func publishToPrivateTopicAnonymousWithPassword() async throws {
+    @Test("Messages: POST /topics/:name/messages on restricted topic as anonymous with share token publishes")
+    func publishToRestrictedTopicAnonymousWithShareToken() async throws {
         try await withApp { app in
             try await seedTopics(app)
+            let raw = try await createShareToken(app, topicName: "restricted-topic", accessLevel: .readWrite)
             try await app.testing().test(
-                .POST, "topics/private-topic/messages",
+                .POST, "topics/restricted-topic/messages",
                 beforeRequest: { req in
-                    req.headers.replaceOrAdd(name: "X-Topic-Password", value: privateTopicPassword)
+                    req.headers.replaceOrAdd(name: "X-Topic-Token", value: raw)
                     try req.content.encode(PublishMessageRequest(
                         priority: 3,
                         tags: nil,
@@ -250,19 +276,19 @@ extension PingdTests {
                     ))
                 },
                 afterResponse: { res in
-                    #expect(res.status == .forbidden)
+                    #expect(res.status == .ok)
                 }
             )
         }
     }
 
-    @Test("Messages: POST /topics/:name/messages on private topic as owner publishes")
-    func publishToPrivateTopicAsOwner() async throws {
+    @Test("Messages: POST /topics/:name/messages on restricted topic as owner publishes")
+    func publishToRestrictedTopicAsOwner() async throws {
         try await withApp { app in
             try await seedTopics(app)
             let session = try await login(app, username: "jinx", password: "hunter2")
             try await app.testing().test(
-                .POST, "topics/private-topic/messages",
+                .POST, "topics/restricted-topic/messages",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
                     try req.content.encode(PublishMessageRequest(
@@ -285,7 +311,7 @@ extension PingdTests {
             let session = try await login(app, username: "jinx", password: "hunter2")
             // publish first
             try await app.testing().test(
-                .POST, "topics/open-topic/messages",
+                .POST, "topics/public-topic/messages",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
                     try req.content.encode(PublishMessageRequest(
@@ -297,7 +323,7 @@ extension PingdTests {
                 afterResponse: { _ in }
             )
             try await app.testing().test(
-                .GET, "topics/open-topic/messages",
+                .GET, "topics/public-topic/messages",
                 afterResponse: { res in
                     #expect(res.status == .ok)
                     let messages = try res.content.decode([MessageResponse].self)
@@ -314,7 +340,7 @@ extension PingdTests {
             try await seedTopics(app)
 
             guard let topic = try await Topic.query(on: app.db)
-                .filter(\.$name == "open-topic")
+                .filter(\.$name == "public-topic")
                 .first()
             else {
                 Issue.record("Expected seeded topic")
@@ -342,7 +368,7 @@ extension PingdTests {
             ).save(on: app.db)
 
             try await app.testing().test(
-                .GET, "topics/open-topic/messages",
+                .GET, "topics/public-topic/messages",
                 afterResponse: { res in
                     #expect(res.status == .ok)
                     let messages = try res.content.decode([MessageResponse].self)
@@ -352,12 +378,12 @@ extension PingdTests {
         }
     }
 
-    @Test("Messages: GET /topics/:name/messages on protected topic as anonymous returns 403")
-    func listMessagesOnProtectedTopicAnonymous() async throws {
+    @Test("Messages: GET /topics/:name/messages on private topic as anonymous returns 403")
+    func listMessagesOnPrivateTopicAnonymous() async throws {
         try await withApp { app in
             try await seedTopics(app)
             try await app.testing().test(
-                .GET, "topics/protected-topic/messages",
+                .GET, "topics/private-topic/messages",
                 afterResponse: { res in
                     #expect(res.status == .forbidden)
                 }
@@ -372,7 +398,7 @@ extension PingdTests {
             try await seedDevices(app)
 
             guard let topic = try await Topic.query(on: app.db)
-                .filter(\.$name == "open-topic")
+                .filter(\.$name == "public-topic")
                 .first()
             else {
                 Issue.record("Expected seeded topic")
@@ -428,7 +454,7 @@ extension PingdTests {
             let adminSession = try await login(app, username: "jinx", password: "hunter2")
 
             try await app.testing().test(
-                .GET, "topics/open-topic/stats",
+                .GET, "topics/public-topic/stats",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: adminSession.token)
                 },
@@ -454,7 +480,7 @@ extension PingdTests {
             let session = try await login(app, username: "vi", password: "password1")
 
             try await app.testing().test(
-                .GET, "topics/open-topic/stats",
+                .GET, "topics/public-topic/stats",
                 beforeRequest: { req in
                     req.headers.bearerAuthorization = .init(token: session.token)
                 },
@@ -465,14 +491,15 @@ extension PingdTests {
         }
     }
 
-    @Test("Messages: GET /topics/:name/messages on protected topic as anonymous with password returns messages")
-    func listMessagesOnProtectedTopicAnonymousWithPassword() async throws {
+    @Test("Messages: GET /topics/:name/messages on private topic as anonymous with share token returns messages")
+    func listMessagesOnPrivateTopicAnonymousWithShareToken() async throws {
         try await withApp { app in
             try await seedTopics(app)
+            let raw = try await createShareToken(app, topicName: "private-topic", accessLevel: .readOnly)
             try await app.testing().test(
-                .GET, "topics/protected-topic/messages",
+                .GET, "topics/private-topic/messages",
                 beforeRequest: { req in
-                    req.headers.replaceOrAdd(name: "X-Topic-Password", value: protectedTopicPassword)
+                    req.headers.replaceOrAdd(name: "X-Topic-Token", value: raw)
                 },
                 afterResponse: { res in
                     #expect(res.status == .ok)
@@ -483,14 +510,14 @@ extension PingdTests {
         }
     }
 
-    @Test("Messages: GET /topics/:name/messages on protected topic as anonymous with wrong password returns 403")
-    func listMessagesOnProtectedTopicAnonymousWithWrongPassword() async throws {
+    @Test("Messages: GET /topics/:name/messages on private topic as anonymous with invalid share token returns 403")
+    func listMessagesOnPrivateTopicAnonymousWithInvalidShareToken() async throws {
         try await withApp { app in
             try await seedTopics(app)
             try await app.testing().test(
-                .GET, "topics/protected-topic/messages",
+                .GET, "topics/private-topic/messages",
                 beforeRequest: { req in
-                    req.headers.replaceOrAdd(name: "X-Topic-Password", value: "wrong-password")
+                    req.headers.replaceOrAdd(name: "X-Topic-Token", value: "tk_bogus")
                 },
                 afterResponse: { res in
                     #expect(res.status == .forbidden)
@@ -499,30 +526,33 @@ extension PingdTests {
         }
     }
 
-    @Test("Messages: GET /topics/:name/messages on private topic as anonymous with password returns 403")
-    func listMessagesOnPrivateTopicAnonymousWithPassword() async throws {
+    @Test("Messages: GET /topics/:name/messages on restricted topic as anonymous with share token returns messages")
+    func listMessagesOnRestrictedTopicAnonymousWithShareToken() async throws {
         try await withApp { app in
             try await seedTopics(app)
+            let raw = try await createShareToken(app, topicName: "restricted-topic", accessLevel: .readOnly)
             try await app.testing().test(
-                .GET, "topics/private-topic/messages",
+                .GET, "topics/restricted-topic/messages",
                 beforeRequest: { req in
-                    req.headers.replaceOrAdd(name: "X-Topic-Password", value: privateTopicPassword)
+                    req.headers.replaceOrAdd(name: "X-Topic-Token", value: raw)
                 },
                 afterResponse: { res in
-                    #expect(res.status == .forbidden)
+                    #expect(res.status == .ok)
+                    let messages = try res.content.decode([MessageResponse].self)
+                    #expect(messages.isEmpty)
                 }
             )
         }
     }
 
-    @Test("Messages: GET /topics/:name/messages on private topic as anonymous with wrong password returns 403")
-    func listMessagesOnPrivateTopicAnonymousWithWrongPassword() async throws {
+    @Test("Messages: GET /topics/:name/messages on restricted topic as anonymous with invalid share token returns 403")
+    func listMessagesOnRestrictedTopicAnonymousWithInvalidShareToken() async throws {
         try await withApp { app in
             try await seedTopics(app)
             try await app.testing().test(
-                .GET, "topics/private-topic/messages",
+                .GET, "topics/restricted-topic/messages",
                 beforeRequest: { req in
-                    req.headers.replaceOrAdd(name: "X-Topic-Password", value: "wrong-password")
+                    req.headers.replaceOrAdd(name: "X-Topic-Token", value: "tk_bogus")
                 },
                 afterResponse: { res in
                     #expect(res.status == .forbidden)

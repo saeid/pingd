@@ -13,7 +13,8 @@ extension PingdTests {
                     req.headers.bearerAuthorization = .init(token: session.token)
                     try req.content.encode(CreatePermissionRequest(
                         accessLevel: .readWrite,
-                        topicPattern: "news.*"
+                        topicPattern: "news.*",
+                        expiresAt: nil
                     ))
                 },
                 afterResponse: { res in
@@ -37,7 +38,8 @@ extension PingdTests {
                     req.headers.bearerAuthorization = .init(token: session.token)
                     try req.content.encode(CreatePermissionRequest(
                         accessLevel: .readOnly,
-                        topicPattern: "*"
+                        topicPattern: "*",
+                        expiresAt: nil
                     ))
                 },
                 afterResponse: { res in
@@ -57,7 +59,8 @@ extension PingdTests {
                     req.headers.bearerAuthorization = .init(token: session.token)
                     try req.content.encode(CreatePermissionRequest(
                         accessLevel: .readOnly,
-                        topicPattern: "alerts.*"
+                        topicPattern: "alerts.*",
+                        expiresAt: nil
                     ))
                 },
                 afterResponse: { _ in }
@@ -86,7 +89,8 @@ extension PingdTests {
                     req.headers.bearerAuthorization = .init(token: adminSession.token)
                     try req.content.encode(CreatePermissionRequest(
                         accessLevel: .readOnly,
-                        topicPattern: "*"
+                        topicPattern: "*",
+                        expiresAt: nil
                     ))
                 },
                 afterResponse: { _ in }
@@ -133,7 +137,8 @@ extension PingdTests {
                     req.headers.bearerAuthorization = .init(token: session.token)
                     try req.content.encode(CreatePermissionRequest(
                         accessLevel: .readOnly,
-                        topicPattern: "*"
+                        topicPattern: "*",
+                        expiresAt: nil
                     ))
                 },
                 afterResponse: { res in
@@ -164,7 +169,8 @@ extension PingdTests {
                     req.headers.bearerAuthorization = .init(token: session.token)
                     try req.content.encode(CreateGlobalPermissionRequest(
                         accessLevel: .readOnly,
-                        topicPattern: "announcements.*"
+                        topicPattern: "announcements.*",
+                        expiresAt: nil
                     ))
                 },
                 afterResponse: { res in
@@ -173,6 +179,27 @@ extension PingdTests {
                     #expect(permission.scope == .global)
                     #expect(permission.topicPattern == "announcements.*")
                     #expect(permission.userID == nil)
+                }
+            )
+        }
+    }
+
+    @Test("Permissions: POST /permissions as non-admin returns 403")
+    func createGlobalPermissionAsNonAdmin() async throws {
+        try await withApp { app in
+            let session = try await login(app, username: "vi", password: "password1")
+            try await app.testing().test(
+                .POST, "permissions",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(CreateGlobalPermissionRequest(
+                        accessLevel: .readWrite,
+                        topicPattern: "*",
+                        expiresAt: nil
+                    ))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .forbidden)
                 }
             )
         }
@@ -188,7 +215,8 @@ extension PingdTests {
                     req.headers.bearerAuthorization = .init(token: session.token)
                     try req.content.encode(CreateGlobalPermissionRequest(
                         accessLevel: .readWrite,
-                        topicPattern: "*"
+                        topicPattern: "*",
+                        expiresAt: nil
                     ))
                 },
                 afterResponse: { _ in }
