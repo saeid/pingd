@@ -310,7 +310,7 @@ export function notificationStatus() {
     if (Notification.permission === "denied") {
         return {
             label: "Permission denied",
-            className: "badge-private",
+            className: "badge-danger",
             detail: "Blocked in browser settings.",
             canEnable: false,
         };
@@ -328,7 +328,7 @@ export function notificationStatus() {
     if (Notification.permission === "granted") {
         return {
             label: "Disabled",
-            className: "badge-protected",
+            className: "badge-warning",
             detail: "Permission granted, device not registered.",
             canEnable: true,
         };

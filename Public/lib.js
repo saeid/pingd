@@ -42,36 +42,31 @@ export function icon(name) {
         unsubscribe: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>`,
         trash: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>`,
         globe: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`,
-        protected: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 19 5.9v5.2c0 4.4-2.9 8.4-7 10.1-4.1-1.7-7-5.7-7-10.1V5.9L12 2.8Z"/><path d="M12 6.4v11.8"/></svg>`,
-        private: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
+        shield: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 19 5.9v5.2c0 4.4-2.9 8.4-7 10.1-4.1-1.7-7-5.7-7-10.1V5.9L12 2.8Z"/><path d="M12 6.4v11.8"/></svg>`,
+        lock: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
         logout: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
     };
 
     return icons[name] || "";
 }
 
-export function visibilityBadge(visibility) {
-    const value = visibility || "unknown";
-    const className = {
-        open: "badge-open",
-        protected: "badge-protected",
-        private: "badge-private",
-    }[value] || "badge-off";
-
-    return `<span class="badge ${className}">${escapeHtml(value)}</span>`;
+export function accessBadge(topic) {
+    if (topic.publicRead && topic.publicPublish) {
+        return `<span class="badge badge-open">public</span>`;
+    }
+    if (topic.publicRead) {
+        return `<span class="badge badge-warning">public read</span>`;
+    }
+    if (topic.publicPublish) {
+        return `<span class="badge badge-warning">public publish</span>`;
+    }
+    return `<span class="badge badge-danger">private</span>`;
 }
 
-export function visibilityIcon(visibility) {
-    switch (visibility) {
-    case "open":
-        return icon("globe");
-    case "protected":
-        return icon("protected");
-    case "private":
-        return icon("private");
-    default:
-        return "";
-    }
+export function accessIcon(topic) {
+    if (topic.publicRead && topic.publicPublish) return icon("globe");
+    if (topic.publicRead || topic.publicPublish) return icon("shield");
+    return icon("lock");
 }
 
 export function priorityClass(priority) {

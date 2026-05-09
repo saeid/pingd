@@ -4,15 +4,15 @@ import {
     upsertTopic,
     requestedTopicFromLocation,
     clearRequestedTopicFromLocation,
-    saveTopicPasswords,
+    saveTopicTokens,
 } from "./state.js";
 import {
     escapeHtml,
     encodePath,
     towerMark,
     icon,
-    visibilityBadge,
-    visibilityIcon,
+    accessBadge,
+    accessIcon,
     priorityClass,
     formatDateTime,
     truncateId,
@@ -25,7 +25,7 @@ import {
     render,
     openModal,
     closeModal,
-    openPasswordModal,
+    openTopicTokenModal,
 } from "./ui.js";
 
 function isCurrentSessionToken(tokenValue) {
@@ -64,8 +64,8 @@ function topicFromSubscription(subscription) {
     return {
         id: topic.id,
         name: topic.name,
-        visibility: topic.visibility,
-        hasPassword: !!topic.hasPassword,
+        publicRead: !!topic.publicRead,
+        publicPublish: !!topic.publicPublish,
         ownerUserID: topic.ownerUserID,
     };
 }
@@ -152,12 +152,12 @@ export async function handleProtectedAction(topicName, action) {
         await action();
     } catch (error) {
         if (error.status === 403) {
-            const hadPassword = !!state.topicPasswords[topicName];
-            if (hadPassword) {
-                delete state.topicPasswords[topicName];
-                saveTopicPasswords();
+            const hadToken = !!state.topicTokens[topicName];
+            if (hadToken) {
+                delete state.topicTokens[topicName];
+                saveTopicTokens();
             }
-            openPasswordModal(topicName, action, hadPassword ? "Wrong password" : "");
+            openTopicTokenModal(topicName, action, hadToken ? "Invalid share token" : "");
             return;
         }
         setToast(error.message, "error");
@@ -183,14 +183,14 @@ export async function lookupTopicByName(topicName, { subscribe = true, promptPer
         await Promise.all(loads);
         render();
     } catch (error) {
-        if (error.status === 403 && state.topicPasswords[name]) {
-            delete state.topicPasswords[name];
-            saveTopicPasswords();
-            openPasswordModal(name, () => lookupTopicByName(name, { subscribe, promptPermission }), "Wrong password");
+        if (error.status === 403 && state.topicTokens[name]) {
+            delete state.topicTokens[name];
+            saveTopicTokens();
+            openTopicTokenModal(name, () => lookupTopicByName(name, { subscribe, promptPermission }), "Invalid share token");
             return;
         }
         if (error.status === 403 && state.guest) {
-            openPasswordModal(name, () => lookupTopicByName(name, { subscribe, promptPermission }));
+            openTopicTokenModal(name, () => lookupTopicByName(name, { subscribe, promptPermission }));
             return;
         }
         setToast(error.status === 403 ? "Permission denied" : error.message, "error");
@@ -215,24 +215,20 @@ function hasSessionFromState() {
 
 export async function createTopic(form) {
     const name = form.get("name").trim();
-    const visibility = form.get("visibility");
-    const password = form.get("password").trim();
+    const publicRead = form.get("publicRead") === "on";
+    const publicPublish = form.get("publicPublish") === "on";
 
     if (!name) {
         throw new Error("Topic name is required");
     }
     const body = {
         name,
-        visibility,
-        password: password || null,
+        publicRead,
+        publicPublish,
     };
 
     const topic = await api("POST", "/topics", { body });
     upsertTopic(topic);
-    if (password) {
-        state.topicPasswords[name] = password;
-        saveTopicPasswords();
-    }
     await subscribeToTopic(topic.name);
     closeModal();
     setToast(`Created topic ${name}`, "success");
@@ -301,8 +297,8 @@ export async function removeCurrentTopic() {
     delete state.webhooksByTopic[topic.name];
     delete state.webhooksLoadedByTopic[topic.name];
     delete state.webhooksDeniedByTopic[topic.name];
-    delete state.topicPasswords[topic.name];
-    saveTopicPasswords();
+    delete state.topicTokens[topic.name];
+    saveTopicTokens();
     if (state.currentTopicName === topic.name) {
         state.currentTopicName = null;
     }
@@ -438,7 +434,7 @@ function renderTopicItems() {
     return state.topics.map((topic) => `
         <div class="topic-row ${state.currentTopicName === topic.name ? "active" : ""}">
             <button class="topic-item" data-topic="${escapeHtml(topic.name)}" type="button">
-                ${visibilityIcon(topic.visibility)}
+                ${accessIcon(topic)}
                 <span class="topic-name">${escapeHtml(topic.name)}</span>
             </button>
             ${state.user?.role === "user" && topic.ownerUserID !== state.user.id ? `
@@ -474,8 +470,7 @@ function renderMessagesPanel() {
                     <h2 class="mono">/${escapeHtml(topic.name)}</h2>
                 </div>
                 <div class="topbar-actions">
-                    ${topic.hasPassword ? '<span class="badge badge-muted" title="Password protected">' + icon("protected") + '</span>' : ""}
-                    ${visibilityBadge(topic.visibility)}
+                    ${accessBadge(topic)}
                     ${state.user?.role === "user" && topic.ownerUserID !== state.user.id ? `
                         <button class="btn btn-outline btn-small" data-action="unsubscribe-topic" data-topic-name="${escapeHtml(topic.name)}" type="button">
                             ${icon("unsubscribe")}
@@ -737,7 +732,7 @@ function renderTopbar() {
     const mobileTopics = state.topics.length
         ? state.topics.map((item) => `
             <button class="mobile-topic-pill ${state.currentTopicName === item.name ? "active" : ""}" type="button" data-topic="${escapeHtml(item.name)}">
-                ${visibilityIcon(item.visibility)}
+                ${accessIcon(item)}
                 <span>${escapeHtml(item.name)}</span>
             </button>
         `).join("")

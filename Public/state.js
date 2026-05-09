@@ -11,7 +11,7 @@ export const state = {
     currentTopicName: null,
     messagesByTopic: {},
     topicStatsByTopic: {},
-    topicPasswords: JSON.parse(localStorage.getItem("pingd_topic_passwords") || "{}"),
+    topicTokens: JSON.parse(localStorage.getItem("pingd_topic_tokens") || "{}"),
     authMode: "login",
     authError: "",
     modal: null,
@@ -51,8 +51,8 @@ export function clearRequestedTopicFromLocation() {
     window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
 }
 
-export function saveTopicPasswords() {
-    localStorage.setItem("pingd_topic_passwords", JSON.stringify(state.topicPasswords));
+export function saveTopicTokens() {
+    localStorage.setItem("pingd_topic_tokens", JSON.stringify(state.topicTokens));
 }
 
 export function persistWebPushDevice(device, pushToken) {

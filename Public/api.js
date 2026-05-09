@@ -9,8 +9,8 @@ export async function api(method, path, { body, topicName, headers: extraHeaders
     if (state.token) {
         headers.Authorization = `Bearer ${state.token}`;
     }
-    if (topicName && state.topicPasswords[topicName]) {
-        headers["X-Topic-Password"] = state.topicPasswords[topicName];
+    if (topicName && state.topicTokens[topicName]) {
+        headers["X-Topic-Token"] = state.topicTokens[topicName];
     }
 
     const response = await fetch(path, {

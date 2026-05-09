@@ -1,4 +1,4 @@
-import { state, saveTopicPasswords } from "./state.js";
+import { state, saveTopicTokens } from "./state.js";
 import { escapeHtml, truncateId } from "./lib.js";
 
 export const app = document.getElementById("app");
@@ -81,7 +81,7 @@ function populateDialog(type, data) {
     }
 
     switch (type) {
-    case "password":
+    case "topic-token":
         fillBindings(dialog, "topicName", data.topicName);
         if (data.errorMessage && errorElement) {
             errorElement.textContent = data.errorMessage;
@@ -134,26 +134,26 @@ export function closeModal() {
     state.modal = null;
 }
 
-export function openPasswordModal(topicName, onSuccess, errorMessage = "") {
-    openModal({ type: "password", topicName, onSuccess, errorMessage });
+export function openTopicTokenModal(topicName, onSuccess, errorMessage = "") {
+    openModal({ type: "topic-token", topicName, onSuccess, errorMessage });
 }
 
-async function handlePasswordSubmit(formData) {
-    const password = formData.get("password");
+async function handleTopicTokenSubmit(formData) {
+    const token = formData.get("token").trim();
     const topicName = state.modal.topicName;
     const action = state.modal.onSuccess;
-    state.topicPasswords[topicName] = password;
-    saveTopicPasswords();
+    state.topicTokens[topicName] = token;
+    saveTopicTokens();
     try {
         closeModal();
         await action();
     } catch (error) {
-        delete state.topicPasswords[topicName];
-        saveTopicPasswords();
-        openPasswordModal(
+        delete state.topicTokens[topicName];
+        saveTopicTokens();
+        openTopicTokenModal(
             topicName,
             action,
-            error.status === 403 ? "Wrong password" : error.message
+            error.status === 403 ? "Invalid share token" : error.message
         );
     }
 }
@@ -180,8 +180,8 @@ export function initModalHandlers({ onSubmit, onAction }) {
             event.preventDefault();
             const type = form.dataset.modalForm;
             try {
-                if (type === "password") {
-                    await handlePasswordSubmit(new FormData(form));
+                if (type === "topic-token") {
+                    await handleTopicTokenSubmit(new FormData(form));
                 } else {
                     await onSubmit(type, new FormData(form));
                 }

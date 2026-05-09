@@ -23,7 +23,7 @@
         <section class="modal">
             <header class="modal-header">
                 <h3>Create topic</h3>
-                <p>Set the topic name, visibility, and optional password.</p>
+                <p>Choose who can read and publish to this topic.</p>
             </header>
             <form data-modal-form="create-topic">
                 <div class="modal-body">
@@ -33,16 +33,16 @@
                         <input class="input mono" id="modal-topic-name" name="name" placeholder="alerts.critical" required>
                     </div>
                     <div class="field">
-                        <label for="modal-topic-visibility">Visibility</label>
-                        <select class="select" id="modal-topic-visibility" name="visibility">
-                            <option value="open">Open</option>
-                            <option value="protected" selected>Protected</option>
-                            <option value="private">Private</option>
-                        </select>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="publicRead">
+                            <span>Anyone can read</span>
+                        </label>
                     </div>
                     <div class="field">
-                        <label for="modal-topic-password">Password</label>
-                        <input class="input" id="modal-topic-password" name="password" type="password" placeholder="optional password">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="publicPublish">
+                            <span>Anyone can publish</span>
+                        </label>
                     </div>
                 </div>
                 <footer class="modal-footer">
@@ -53,18 +53,18 @@
         </section>
     </dialog>
 
-    <dialog id="dialog-password" class="app-modal">
+    <dialog id="dialog-topic-token" class="app-modal">
         <section class="modal">
             <header class="modal-header">
-                <h3>Topic password</h3>
-                <p>Access to <span class="mono">/<span data-bind="topicName"></span></span> requires a topic password.</p>
+                <h3>Share token required</h3>
+                <p>Access to <span class="mono">/<span data-bind="topicName"></span></span> requires a share token.</p>
             </header>
-            <form data-modal-form="password">
+            <form data-modal-form="topic-token">
                 <div class="modal-body">
                     <div class="error-text" data-bind="error" hidden></div>
                     <div class="field">
-                        <label for="topic-password-input">Password</label>
-                        <input class="input" id="topic-password-input" name="password" type="password" placeholder="topic password" required>
+                        <label for="topic-token-input">Share token</label>
+                        <input class="input mono" id="topic-token-input" name="token" placeholder="tk_..." required>
                     </div>
                 </div>
                 <footer class="modal-footer">
