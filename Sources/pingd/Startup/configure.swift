@@ -75,16 +75,16 @@ public func configure(_ app: Application) async throws {
     let webPushConfiguration = app.environment == .testing ? nil : try PushProvider.loadWebPushConfiguration()
 
     switch apnsMode {
-    case .direct(let config):
+    case let .direct(config):
         let keyData = try String(contentsOfFile: config.keyPath, encoding: .utf8)
-        let authMethod = APNSClientConfiguration.AuthenticationMethod.jwt(
-            privateKey: try .loadFrom(string: keyData),
+        let authMethod = try APNSClientConfiguration.AuthenticationMethod.jwt(
+            privateKey: .loadFrom(string: keyData),
             keyIdentifier: config.keyID,
             teamIdentifier: config.teamID
         )
         await app.apns.configure(authMethod)
         app.logger.info("APNS configured in direct mode (\(config.environment))")
-    case .relay(let config):
+    case let .relay(config):
         app.logger.info("APNS configured in relay mode (\(config.baseURL))")
     case nil:
         app.logger.info("APNS not configured, using mock provider")
