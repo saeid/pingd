@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#110f0d">
+    <title>APNS (iOS) · pingd docs</title>
+    <link rel="icon" href="assets/pingd-icon.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="topbar">
+    <button class="menu-toggle" aria-label="Menu">&#9776;</button>
+    <a href="/" class="brand"><img src="assets/pingd-icon.png" alt="" class="brand-icon">pingd <small>docs</small></a>
+    <div class="topbar-spacer"></div>
+    <nav class="topbar-links">
+        <a href="getting-started.html">Get started</a>
+        <a href="https://github.com/saeid/pingd">GitHub</a>
+    </nav>
+</header>
+<div class="shell">
+    <aside class="sidebar">
+        <h4>Start here</h4>
+        <ul>
+            <li><a href="/">What is pingd?</a></li>
+            <li><a href="install.html">Install</a></li>
+            <li><a href="getting-started.html">Getting started</a></li>
+            <li><a href="config.html">Configuration</a></li>
+        </ul>
+        <h4>Using pingd</h4>
+        <ul>
+            <li><a href="publish.html">Publishing</a></li>
+            <li><a href="subscribe.html">Subscribing</a></li>
+            <li><a href="topics.html">Topics</a></li>
+            <li><a href="permissions.html">Permissions</a></li>
+            <li><a href="users-tokens.html">Users &amp; tokens</a></li>
+            <li><a href="webhooks.html">Webhooks</a></li>
+        </ul>
+        <h4>Push channels</h4>
+        <ul>
+            <li><a href="web-push.html">Web Push</a></li>
+            <li><a href="apns.html">APNS (iOS)</a></li>
+            <li><a href="fcm.html">FCM</a></li>
+        </ul>
+        <h4>Reference</h4>
+        <ul>
+            <li><a href="examples.html">Examples</a></li>
+            <li><a href="releases.html">Releases</a></li>
+            <li><a href="faq.html">FAQ</a></li>
+        </ul>
+    </aside>
+    <main>
+        <h1>APNS (iOS)</h1>
+        <p class="lead">
+            pingd can send APNS pushes in two ways.
+        </p>
+        <ul>
+            <li><strong>direct</strong>: this server sends pushes straight to Apple.</li>
+            <li><strong>relay</strong>: this server forwards pushes to another pingd instance that holds the Apple credentials.</li>
+        </ul>
+
+        <h2>Modes</h2>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Mode</th><th>When to use</th></tr></thead>
+            <tbody>
+                <tr>
+                    <td>(unset)</td>
+                    <td>Mock provider. Logs push attempts, sends nothing. Default for development.</td>
+                </tr>
+                <tr>
+                    <td><code>direct</code></td>
+                    <td>You have your own Apple <code>.p8</code> key and want pingd to send to APNS itself.</td>
+                </tr>
+                <tr>
+                    <td><code>relay</code></td>
+                    <td>You don't have Apple credentials. Forward pushes to another pingd instance that does.</td>
+                </tr>
+            </tbody>
+        </table></div>
+
+        <h2>Direct mode</h2>
+        <p>You'll need:</p>
+        <ul>
+            <li>Apple Developer account with an active App ID</li>
+            <li>An APNS Authentication Key (<code>.p8</code> file)</li>
+            <li>The Key ID and Team ID associated with that key</li>
+            <li>Your app's Bundle ID</li>
+        </ul>
+        <p>Set the environment:</p>
+        <pre><code>PINGD_APNS_MODE=direct
+PINGD_APNS_KEY_PATH=/secrets/AuthKey_ABCDE12345.p8
+PINGD_APNS_KEY_ID=ABCDE12345
+PINGD_APNS_TEAM_ID=TEAM12345
+PINGD_APNS_BUNDLE_ID=com.example.app
+PINGD_APNS_ENV=production    # or "development" for sandbox</code></pre>
+        <p>Mount the <code>.p8</code> file into the container:</p>
+        <pre><code>volumes:
+  - ./secrets/AuthKey_ABCDE12345.p8:/secrets/AuthKey_ABCDE12345.p8:ro</code></pre>
+        <div class="warn">
+            <strong>Sandbox vs production tokens.</strong> APNS dev tokens only work with
+            <code>PINGD_APNS_ENV=development</code>; production tokens need
+            <code>PINGD_APNS_ENV=production</code>. The wrong combination silently fails.
+        </div>
+
+        <h2>Relay mode</h2>
+        <p>
+            In relay mode, this server forwards APNS push requests to an upstream pingd server.
+            You can use <code>pingd.dev</code> as the upstream push server, or run your own relay
+            with Apple credentials.
+        </p>
+        <pre><code>PINGD_APNS_MODE=relay
+PINGD_APNS_RELAY_BASE_URL=https://pingd.dev
+PINGD_APNS_RELAY_TOKEN=&lt;bearer token for the relay&gt;</code></pre>
+
+        <h2>Registering an iOS device</h2>
+        <p>Get the APNS device token from <code>didRegisterForRemoteNotificationsWithDeviceToken</code>, then:</p>
+        <pre><code><span class="method m-post">POST</span>/devices
+Authorization: Bearer &lt;user or guest token&gt;
+
+{
+  "name": "Vi's iPhone",
+  "platform": "ios",
+  "pushType": "apns",
+  "pushToken": "&lt;hex device token&gt;",
+  "deliveryEnabled": true
+}</code></pre>
+        <p>Then subscribe to topics:</p>
+        <pre><code><span class="method m-post">POST</span>/devices/:id/subscriptions
+Authorization: Bearer &lt;user or guest token&gt;
+
+{ "topicName": "alerts.critical" }</code></pre>
+
+        <div class="page-nav">
+            <a class="prev" href="web-push.html"><small>Previous</small>&larr; Web Push</a>
+            <a class="next" href="fcm.html"><small>Next</small>FCM &rarr;</a>
+        </div>
+    </main>
+</div>
+<script src="assets/docs.js"></script>
+</body>
+</html>

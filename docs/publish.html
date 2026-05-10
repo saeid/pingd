@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#110f0d">
+    <title>Publishing · pingd docs</title>
+    <link rel="icon" href="assets/pingd-icon.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="topbar">
+    <button class="menu-toggle" aria-label="Menu">&#9776;</button>
+    <a href="/" class="brand"><img src="assets/pingd-icon.png" alt="" class="brand-icon">pingd <small>docs</small></a>
+    <div class="topbar-spacer"></div>
+    <nav class="topbar-links">
+        <a href="getting-started.html">Get started</a>
+        <a href="https://github.com/saeid/pingd">GitHub</a>
+    </nav>
+</header>
+<div class="shell">
+    <aside class="sidebar">
+        <h4>Start here</h4>
+        <ul>
+            <li><a href="/">What is pingd?</a></li>
+            <li><a href="install.html">Install</a></li>
+            <li><a href="getting-started.html">Getting started</a></li>
+            <li><a href="config.html">Configuration</a></li>
+        </ul>
+        <h4>Using pingd</h4>
+        <ul>
+            <li><a href="publish.html">Publishing</a></li>
+            <li><a href="subscribe.html">Subscribing</a></li>
+            <li><a href="topics.html">Topics</a></li>
+            <li><a href="permissions.html">Permissions</a></li>
+            <li><a href="users-tokens.html">Users &amp; tokens</a></li>
+            <li><a href="webhooks.html">Webhooks</a></li>
+        </ul>
+        <h4>Push channels</h4>
+        <ul>
+            <li><a href="web-push.html">Web Push</a></li>
+            <li><a href="apns.html">APNS (iOS)</a></li>
+            <li><a href="fcm.html">FCM</a></li>
+        </ul>
+        <h4>Reference</h4>
+        <ul>
+            <li><a href="examples.html">Examples</a></li>
+            <li><a href="releases.html">Releases</a></li>
+            <li><a href="faq.html">FAQ</a></li>
+        </ul>
+    </aside>
+    <main>
+        <h1>Publishing messages</h1>
+        <p class="lead">
+            Send one JSON <code>POST</code> to a topic.
+        </p>
+
+        <h2>Endpoint</h2>
+        <pre><code><span class="method m-post">POST</span>/topics/:name/messages</code></pre>
+
+        <h2>Example</h2>
+        <p>For an open topic, publish with the fields you need.</p>
+        <div class="tabs">
+            <div class="tab-panel" data-label="curl">
+<pre><code>curl -s http://localhost:7685/topics/alerts.disk/messages \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "priority": 3,
+    "tags": ["prod", "storage"],
+    "payload": {
+      "title": "Disk full",
+      "body": "Volume /data is 95% full"
+    }
+  }'</code></pre>
+            </div>
+            <div class="tab-panel" data-label="pingd-cli">
+<pre><code>pingd-cli messages publish \
+  --topic alerts.disk \
+  --title "Disk full" \
+  --body "Volume /data is 95% full" \
+  --priority 3 \
+  --tags prod,storage</code></pre>
+            </div>
+            <div class="tab-panel" data-label="python">
+<pre><code>import requests
+
+requests.post(
+    "http://localhost:7685/topics/alerts.disk/messages",
+    json={
+        "priority": 3,
+        "tags": ["prod", "storage"],
+        "payload": {
+            "title": "Disk full",
+            "body": "Volume /data is 95% full",
+        },
+    },
+)</code></pre>
+            </div>
+        </div>
+
+        <h2>Request body</h2>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr></thead>
+            <tbody>
+                <tr><td><code>payload.body</code></td><td>string</td><td>yes</td><td>Main message text</td></tr>
+                <tr><td><code>payload.title</code></td><td>string</td><td>no</td><td>Short headline</td></tr>
+                <tr><td><code>payload.subtitle</code></td><td>string</td><td>no</td><td>Secondary line (used by APNS)</td></tr>
+                <tr><td><code>priority</code></td><td>1&ndash;3</td><td>no</td><td>Default <code>2</code>. <code>1</code> low, <code>3</code> urgent</td></tr>
+                <tr><td><code>tags</code></td><td>string[]</td><td>no</td><td>Up to 10 tags, 1&ndash;30 chars each, <code>[a-zA-Z0-9_-]</code></td></tr>
+                <tr><td><code>ttl</code></td><td>seconds</td><td>no</td><td>Time-to-live, max 30 days</td></tr>
+            </tbody>
+        </table></div>
+
+        <h2>Auth</h2>
+        <p>Pick the one that matches the topic and caller:</p>
+        <ul>
+            <li><strong>User/account publish</strong>: bearer token of the owner, an admin, or a user with <code>wo</code>/<code>rw</code> permission:
+                <pre><code>-H "Authorization: Bearer $TOKEN"</code></pre>
+            </li>
+            <li><strong>Share-token publish</strong>: topic share token with <code>wo</code> or <code>rw</code> access:
+                <pre><code>-H "X-Topic-Token: tk_..."</code></pre>
+            </li>
+            <li><strong>Public publish</strong>: no auth header if the topic has <code>publicPublish=true</code>.</li>
+        </ul>
+        <p><code>ro</code> is read-only. It works for listing, polling, SSE, and subscriptions, not publishing. See <a href="permissions.html">Permissions</a> for the full access matrix.</p>
+
+        <h2>Priority</h2>
+        <ul>
+            <li><code>1</code>: low</li>
+            <li><code>2</code>: default</li>
+            <li><code>3</code>: urgent</li>
+        </ul>
+        <p>
+            Priority <code>3</code> maps to APNS interrupting notifications and Web Push
+            <code>urgency</code> hints. Most clients, including the dashboard, sort by priority.
+        </p>
+
+        <h2>Tags</h2>
+        <p>
+            Tags are short labels for filtering and display. Up to 10 per message,
+            each 1&ndash;30 characters, alphanumeric plus dash and underscore.
+            They show up in the dashboard, in the SSE stream, and in the data payload sent to push clients.
+        </p>
+
+        <h2>TTL and expiry</h2>
+        <p>
+            If <code>ttl</code> is set, pingd records <code>expiresAt = now + ttl</code>. Expired messages
+            are filtered lazily on read, and the dispatch worker marks deliveries that haven't been sent
+            yet as <code>expired</code> instead of pushing them. Use this when a message should be ignored
+            after a specific time.
+        </p>
+        <div class="note">
+            <strong>Limit:</strong> max <code>ttl</code> is 30 days (2,592,000 seconds).
+            Without a <code>ttl</code>, messages never expire.
+        </div>
+
+        <h2>Delivery semantics</h2>
+        <p>
+            Publishing stores the message and creates <code>pending</code> delivery rows for active
+            subscriptions. A background worker picks those rows up, sends through APNS or Web Push,
+            and marks each delivery <code>delivered</code>, <code>failed</code>, or <code>expired</code>.
+        </p>
+        <p>
+            SSE listeners receive messages live on <code>/topics/:name/stream</code>.
+        </p>
+        <div class="note">
+            Real-time push dispatch is planned for upcoming versions.
+        </div>
+
+        <h2>Inspecting deliveries</h2>
+        <p>Once a message exists, you can list its delivery rows:</p>
+        <pre><code><span class="method m-get">GET</span>/messages/:id/deliveries</code></pre>
+        <p>Each row has <code>status</code>, <code>retryCount</code>, and timestamps. Useful for debugging "why didn't my phone get the push?"</p>
+
+        <h2>Listing messages</h2>
+        <pre><code><span class="method m-get">GET</span>/topics/:name/messages</code></pre>
+        <p>
+            Read access uses the same rules as <code>GET /topics/:name</code>.
+            Expired messages are filtered out of the response.
+        </p>
+
+        <div class="page-nav">
+            <a class="prev" href="config.html"><small>Previous</small>&larr; Configuration</a>
+            <a class="next" href="subscribe.html"><small>Next</small>Subscribing &rarr;</a>
+        </div>
+    </main>
+</div>
+<script src="assets/docs.js"></script>
+</body>
+</html>

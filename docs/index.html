@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#110f0d">
+    <meta name="description" content="pingd is a self-hosted HTTP push notification service. POST to a named topic, deliver to browsers, iOS, and terminals, with users, scoped permissions, retries, and full message history.">
+    <title>pingd · self-hosted notification relay</title>
+    <link rel="icon" href="assets/pingd-icon.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="topbar">
+    <button class="menu-toggle" aria-label="Menu">&#9776;</button>
+    <a href="/" class="brand"><img src="assets/pingd-icon.png" alt="" class="brand-icon">pingd <small>docs</small></a>
+    <div class="topbar-spacer"></div>
+    <nav class="topbar-links">
+        <a href="getting-started.html">Get started</a>
+        <a href="https://github.com/saeid/pingd">GitHub</a>
+    </nav>
+</header>
+<div class="shell">
+    <aside class="sidebar">
+        <h4>Start here</h4>
+        <ul>
+            <li><a href="/">What is pingd?</a></li>
+            <li><a href="install.html">Install</a></li>
+            <li><a href="getting-started.html">Getting started</a></li>
+            <li><a href="config.html">Configuration</a></li>
+        </ul>
+        <h4>Using pingd</h4>
+        <ul>
+            <li><a href="publish.html">Publishing</a></li>
+            <li><a href="subscribe.html">Subscribing</a></li>
+            <li><a href="topics.html">Topics</a></li>
+            <li><a href="permissions.html">Permissions</a></li>
+            <li><a href="users-tokens.html">Users &amp; tokens</a></li>
+            <li><a href="webhooks.html">Webhooks</a></li>
+        </ul>
+        <h4>Push channels</h4>
+        <ul>
+            <li><a href="web-push.html">Web Push</a></li>
+            <li><a href="apns.html">APNS (iOS)</a></li>
+            <li><a href="fcm.html">FCM</a></li>
+        </ul>
+        <h4>Reference</h4>
+        <ul>
+            <li><a href="examples.html">Examples</a></li>
+            <li><a href="releases.html">Releases</a></li>
+            <li><a href="faq.html">FAQ</a></li>
+        </ul>
+    </aside>
+    <main>
+        <section class="hero">
+            <h1>A small and self-hosted service for sending <span class="accent">push notifications</span>.</h1>
+            <p class="lead">
+                pingd is a small, self-hosted push notification service. It lets you send notifications
+                to your phone or desktop from any script, app, or service you run, with user accounts,
+                fine-grained permissions, and automatic retries on transient delivery failures.
+                Free software, runs in one Docker container.
+            </p>
+            <div class="hero-actions">
+                <a class="btn btn-primary" href="getting-started.html" data-goatcounter-click="/docs/get-started" data-goatcounter-title="Docs get started button">Get started &rarr;</a>
+                <a class="btn btn-outline" href="install.html" data-goatcounter-click="/docs/install" data-goatcounter-title="Docs install button">Install with Docker</a>
+                <a class="btn btn-outline" href="https://github.com/saeid/pingd" data-goatcounter-click="/docs/github" data-goatcounter-title="Docs GitHub button">GitHub</a>
+            </div>
+        </section>
+
+        <h2>How it works</h2>
+        <div class="tabs">
+            <div class="tab-panel" data-label="curl">
+<pre><code>curl -s https://pingd.example.com/topics/news/messages \
+  -H 'Content-Type: application/json' \
+  -d '{ "payload": { "body": "Hello" } }'</code></pre>
+            </div>
+            <div class="tab-panel" data-label="pingd-cli">
+<pre><code>pingd-cli messages publish --topic news --body "Hello"</code></pre>
+            </div>
+            <div class="tab-panel" data-label="python">
+<pre><code>import requests
+
+requests.post(
+    "https://pingd.example.com/topics/news/messages",
+    json={"payload": {"body": "Hello"}},
+)</code></pre>
+            </div>
+        </div>
+
+        <h2>What pingd gives you</h2>
+        <div class="feature-grid">
+            <div class="feature">
+                <span>Topics</span>
+                <h3>Access you can reason about</h3>
+                <p>Public read/write flags, per-topic tokens for limited access, and NATS-style pattern permissions such as <code>alerts.&gt;</code> and <code>deploy.*</code> with <code>ro</code>, <code>wo</code>, <code>rw</code>, or <code>deny</code>.</p>
+            </div>
+            <div class="feature">
+                <span>Delivery</span>
+                <h3>Per-device state</h3>
+                <p>Each push to each device has a delivery row, so missed notifications are inspectable instead of mysterious.</p>
+            </div>
+            <div class="feature">
+                <span>Expiry</span>
+                <h3>Messages can go stale</h3>
+                <p>Set a TTL for time-sensitive alerts. Late deliveries are marked <code>expired</code> instead of being pushed after they no longer matter.</p>
+            </div>
+            <div class="feature">
+                <span>Webhooks</span>
+                <h3>Accept JSON from other tools</h3>
+                <p>Give a service a webhook URL and a small template. Incoming JSON becomes a message on the topic you choose.</p>
+            </div>
+            <div class="feature">
+                <span>Clients</span>
+                <h3>Use the surface that fits</h3>
+                <p>Use the dashboard for interactive work, or <code>pingd-cli</code> from scripts and terminals.</p>
+            </div>
+            <div class="feature">
+                <span>Operations</span>
+                <h3>Small deployment shape</h3>
+                <p>Runs as a small Docker container and is quick to set up.</p>
+            </div>
+        </div>
+
+        <div class="page-nav">
+            <a class="prev" href="install.html"><small>Next</small>Install &rarr;</a>
+        </div>
+    </main>
+</div>
+<script src="assets/docs.js"></script>
+<script data-goatcounter="https://pingd.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+</body>
+</html>

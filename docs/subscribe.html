@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#110f0d">
+    <title>Subscribing · pingd docs</title>
+    <link rel="icon" href="assets/pingd-icon.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="topbar">
+    <button class="menu-toggle" aria-label="Menu">&#9776;</button>
+    <a href="/" class="brand"><img src="assets/pingd-icon.png" alt="" class="brand-icon">pingd <small>docs</small></a>
+    <div class="topbar-spacer"></div>
+    <nav class="topbar-links">
+        <a href="getting-started.html">Get started</a>
+        <a href="https://github.com/saeid/pingd">GitHub</a>
+    </nav>
+</header>
+<div class="shell">
+    <aside class="sidebar">
+        <h4>Start here</h4>
+        <ul>
+            <li><a href="/">What is pingd?</a></li>
+            <li><a href="install.html">Install</a></li>
+            <li><a href="getting-started.html">Getting started</a></li>
+            <li><a href="config.html">Configuration</a></li>
+        </ul>
+        <h4>Using pingd</h4>
+        <ul>
+            <li><a href="publish.html">Publishing</a></li>
+            <li><a href="subscribe.html">Subscribing</a></li>
+            <li><a href="topics.html">Topics</a></li>
+            <li><a href="permissions.html">Permissions</a></li>
+            <li><a href="users-tokens.html">Users &amp; tokens</a></li>
+            <li><a href="webhooks.html">Webhooks</a></li>
+        </ul>
+        <h4>Push channels</h4>
+        <ul>
+            <li><a href="web-push.html">Web Push</a></li>
+            <li><a href="apns.html">APNS (iOS)</a></li>
+            <li><a href="fcm.html">FCM</a></li>
+        </ul>
+        <h4>Reference</h4>
+        <ul>
+            <li><a href="examples.html">Examples</a></li>
+            <li><a href="releases.html">Releases</a></li>
+            <li><a href="faq.html">FAQ</a></li>
+        </ul>
+    </aside>
+    <main>
+        <h1>Subscribing</h1>
+        <p class="lead">
+            There are three ways to receive messages from a topic.
+        </p>
+        <ul>
+            <li><strong>Push</strong>: register a device and subscribe it to a topic.</li>
+            <li><strong>SSE</strong>: keep a live stream open for new messages.</li>
+            <li><strong>Polling</strong>: read the message list when you need it.</li>
+        </ul>
+
+        <h2>Concepts</h2>
+        <p>
+            A <strong>device</strong> is any client endpoint that can receive a push: a browser,
+            an iOS app, an Android app (planned), or anything else that owns a push token.
+            A <strong>subscription</strong> connects one device to one concrete topic.
+        </p>
+        <div class="note">
+            Pattern subscriptions are not supported.
+        </div>
+
+        <h2>1. Push (browsers and iOS)</h2>
+        <p>
+            Register a device with a push token, subscribe it to topics, and pingd will deliver pushes through
+            the appropriate channel. This is the only path that works when the receiver is offline / app is closed.
+        </p>
+
+        <h3>Register the device</h3>
+        <pre><code><span class="method m-post">POST</span>/devices
+Authorization: Bearer &lt;token&gt;
+
+{
+  "name": "Vi's iPhone",
+  "platform": "ios",
+  "pushType": "apns",
+  "pushToken": "apns-token-here",
+  "deliveryEnabled": true
+}</code></pre>
+        <p>Web Push devices use <code>platform: "web"</code> and <code>pushType: "webpush"</code> with the serialized <code>PushSubscription</code> as <code>pushToken</code>. See <a href="web-push.html">Web Push</a>.</p>
+
+        <h3>Subscribe to topics</h3>
+<pre><code><span class="method m-post">POST</span>/devices/:id/subscriptions
+Authorization: Bearer &lt;token&gt;
+X-Topic-Token: tk_...   # optional
+
+{ "topicName": "alerts.cpu" }</code></pre>
+        <p>One topic per call. Subscribe to <code>alerts.cpu</code>, <code>alerts.disk</code>, etc. separately. Include <code>X-Topic-Token</code> when read access comes from a share token.</p>
+
+        <h3>Unsubscribe</h3>
+        <pre><code><span class="method m-delete">DELETE</span>/devices/:id/subscriptions/:topicName
+Authorization: Bearer &lt;token&gt;</code></pre>
+
+        <h3>List subscriptions</h3>
+        <pre><code><span class="method m-get">GET</span>/devices/:id/subscriptions
+Authorization: Bearer &lt;token&gt;
+
+<span class="method m-get">GET</span>/users/:username/subscriptions
+Authorization: Bearer &lt;token&gt;</code></pre>
+        <p>The user-scoped variant returns every subscription across the user's devices, with topic identity attached. The dashboard uses it to rebuild a logged-in user's topic list across refreshes.</p>
+
+        <h2>2. Live SSE stream</h2>
+        <p>For terminals, dashboards, and long-running scripts:</p>
+        <pre><code><span class="method m-get">GET</span>/topics/:name/stream</code></pre>
+        <p>The response is <code>text/event-stream</code>. Each new message published to the topic is delivered as a single event. Read access uses the same rules as <code>GET /topics/:name</code>.</p>
+        <pre><code>curl -N http://localhost:7685/topics/alerts/stream \
+  -H "Authorization: Bearer $TOKEN"</code></pre>
+        <p>The CLI wraps this with auto-reconnect:</p>
+        <pre><code>pingd-cli messages watch --topic alerts</code></pre>
+        <div class="note">
+            <strong>SSE is for live tailing.</strong> Reverse proxies need <code>proxy_buffering off</code> and a long
+            read timeout. See <a href="config.html">Configuration</a>.
+        </div>
+
+        <h2>3. Polling the message list</h2>
+        <p>For batch jobs and HTTP-only environments:</p>
+        <pre><code><span class="method m-get">GET</span>/topics/:name/messages</code></pre>
+        <p>
+            Returns recent messages in reverse chronological order. Expired messages are filtered.
+            For change-detection, sort by <code>time</code> and remember the last ID you saw.
+        </p>
+
+        <h2>Anonymous subscribers (guest sessions)</h2>
+        <p>
+            Anonymous device registration is not allowed. Apps that want push without forcing user signup
+            should call <code>POST /auth/guest</code> first to get a guest bearer token, then register a
+            device and subscribe with that token. Guests behave like anonymous callers for topic access:
+            they can use public topics and share tokens, but they do not receive permission grants.
+            See <a href="users-tokens.html">Users &amp; tokens</a>.
+        </p>
+
+        <h2>Delivery toggle</h2>
+        <p>
+            Devices have a <code>deliveryEnabled</code> flag. Set to <code>false</code> if a device should
+            keep its subscriptions for membership tracking but should not actually receive pushes
+            (useful for read-only mirrors). The default is <code>true</code>.
+        </p>
+
+        <h2>Logout-time deactivation</h2>
+        <p>When a user logs out from a device, send the device's push token to deactivate it server-side:</p>
+        <pre><code><span class="method m-delete">DELETE</span>/auth/logout
+Authorization: Bearer &lt;token&gt;
+X-Push-Token: &lt;push token&gt;</code></pre>
+        <p>The device is only deactivated if the push token belongs to the current user. Omitting the header revokes the bearer token only.</p>
+
+        <h2>Subscription access rules</h2>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Access source</th><th>Who can subscribe</th></tr></thead>
+            <tbody>
+                <tr><td><code>publicRead=true</code></td><td>Any authenticated user, including guests</td></tr>
+                <tr><td>Owner or admin</td><td>Always allowed</td></tr>
+                <tr><td>Share token</td><td>Authenticated caller with a valid <code>ro</code> or <code>rw</code> <code>X-Topic-Token</code></td></tr>
+                <tr><td>Permission</td><td>Non-guest user with matching <code>ro</code> or <code>rw</code> permission</td></tr>
+                <tr><td><code>wo</code>, <code>deny</code>, expired grant, or no read source</td><td>Denied</td></tr>
+            </tbody>
+        </table></div>
+
+        <div class="page-nav">
+            <a class="prev" href="publish.html"><small>Previous</small>&larr; Publishing</a>
+            <a class="next" href="topics.html"><small>Next</small>Topics &rarr;</a>
+        </div>
+    </main>
+</div>
+<script src="assets/docs.js"></script>
+</body>
+</html>

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#110f0d">
+    <title>Examples · pingd docs</title>
+    <link rel="icon" href="assets/pingd-icon.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="topbar">
+    <button class="menu-toggle" aria-label="Menu">&#9776;</button>
+    <a href="/" class="brand"><img src="assets/pingd-icon.png" alt="" class="brand-icon">pingd <small>docs</small></a>
+    <div class="topbar-spacer"></div>
+    <nav class="topbar-links">
+        <a href="getting-started.html">Get started</a>
+        <a href="https://github.com/saeid/pingd">GitHub</a>
+    </nav>
+</header>
+<div class="shell">
+    <aside class="sidebar">
+        <h4>Start here</h4>
+        <ul>
+            <li><a href="/">What is pingd?</a></li>
+            <li><a href="install.html">Install</a></li>
+            <li><a href="getting-started.html">Getting started</a></li>
+            <li><a href="config.html">Configuration</a></li>
+        </ul>
+        <h4>Using pingd</h4>
+        <ul>
+            <li><a href="publish.html">Publishing</a></li>
+            <li><a href="subscribe.html">Subscribing</a></li>
+            <li><a href="topics.html">Topics</a></li>
+            <li><a href="permissions.html">Permissions</a></li>
+            <li><a href="users-tokens.html">Users &amp; tokens</a></li>
+            <li><a href="webhooks.html">Webhooks</a></li>
+        </ul>
+        <h4>Push channels</h4>
+        <ul>
+            <li><a href="web-push.html">Web Push</a></li>
+            <li><a href="apns.html">APNS (iOS)</a></li>
+            <li><a href="fcm.html">FCM</a></li>
+        </ul>
+        <h4>Reference</h4>
+        <ul>
+            <li><a href="examples.html">Examples</a></li>
+            <li><a href="releases.html">Releases</a></li>
+            <li><a href="faq.html">FAQ</a></li>
+        </ul>
+    </aside>
+    <main>
+        <h1>Examples</h1>
+        <p class="lead">
+            Real-world recipes. Replace the host, tokens, and topic names with your own.
+        </p>
+
+        <h2>Disk-space alert from a cron</h2>
+        <p>Set up a topic share token with <code>wo</code> access and publish from a host's crontab:</p>
+        <pre><code>#!/bin/sh
+USAGE=$(df / | awk 'NR==2 {gsub("%",""); print $5}')
+if [ "$USAGE" -gt 90 ]; then
+  curl -s https://pingd.example.com/topics/alerts.disk/messages \
+    -H 'Content-Type: application/json' \
+    -H "X-Topic-Token: $PINGD_TOPIC_TOKEN" \
+    -d "{
+      \"priority\": 3,
+      \"tags\": [\"disk\", \"$(hostname)\"],
+      \"payload\": {
+        \"title\": \"Disk ${USAGE}% full\",
+        \"body\": \"$(hostname): / is ${USAGE}% full\"
+      }
+    }"
+fi</code></pre>
+        <pre><code>*/5 * * * * /usr/local/bin/disk-alert.sh</code></pre>
+
+        <h2>CI deploy notifications</h2>
+        <p>Create a CI user with write-only permission on <code>deploy.&gt;</code>, then mint a bearer token for it:</p>
+        <pre><code>pingd-cli users create \
+  --username ci-bot --password '&lt;strong-password&gt;' --role user
+
+pingd-cli permissions create \
+  --username ci-bot --access wo --pattern 'deploy.&gt;'
+
+pingd-cli tokens create --username ci-bot --label github-actions</code></pre>
+        <p>Then in your GitHub Actions workflow:</p>
+        <pre><code>- name: Notify deploy
+  run: |
+    curl -s "$PINGD_URL/topics/deploy.prod.api/messages" \
+      -H "Authorization: Bearer ${{ secrets.PINGD_TOKEN }}" \
+      -H 'Content-Type: application/json' \
+      -d '{
+        "tags": ["github", "${{ github.repository }}"],
+        "payload": {
+          "title": "Deployed ${{ github.sha }}",
+          "body": "${{ github.actor }} deployed to prod"
+        }
+      }'</code></pre>
+
+        <h2>Watch a topic from a terminal</h2>
+        <pre><code>pingd-cli messages watch --topic alerts.disk</code></pre>
+        <p>Or with raw curl:</p>
+        <pre><code>curl -N https://pingd.example.com/topics/alerts.disk/stream \
+  -H "Authorization: Bearer $PINGD_TOKEN"</code></pre>
+
+        <h2>Grafana alerting</h2>
+        <p>Webhook template for <code>alerts.grafana</code>:</p>
+        <pre><code>{
+  "template": {
+    "title": "{{title}}",
+    "body": "{{message}}",
+    "tags": "grafana,{{state}}",
+    "priority": 3
+  }
+}</code></pre>
+        <p>Point Grafana's webhook contact point at the <code>/hooks/...</code> URL.</p>
+
+        <h2>Home Assistant automation</h2>
+        <p>From a Home Assistant <code>rest_command</code>. Store the full bearer header value in <code>secrets.yaml</code>.</p>
+        <pre><code>rest_command:
+  pingd_doorbell:
+    url: "https://pingd.example.com/topics/home.frontdoor/messages"
+    method: POST
+    headers:
+      Authorization: !secret pingd_authorization_header
+      Content-Type: application/json
+    payload: |
+      {
+        "priority": 3,
+        "tags": ["frontdoor"],
+        "payload": {
+          "title": "Doorbell",
+          "body": "Front door rung at {{ now().strftime('%H:%M') }}"
+        }
+      }</code></pre>
+
+        <h2>Python publisher</h2>
+        <pre><code>import os, requests
+
+requests.post(
+    f"{os.environ['PINGD_URL']}/topics/alerts.app/messages",
+    headers={
+        "Authorization": f"Bearer {os.environ['PINGD_TOKEN']}",
+        "Content-Type": "application/json",
+    },
+    json={
+        "priority": 2,
+        "tags": ["python"],
+        "payload": {
+            "title": "Job finished",
+            "body": "Nightly batch completed successfully",
+        },
+    },
+    timeout=5,
+)</code></pre>
+
+        <h2>Node.js SSE listener</h2>
+        <pre><code>import EventSource from "eventsource";
+
+const es = new EventSource(
+    "https://pingd.example.com/topics/alerts.app/stream",
+    { headers: { Authorization: `Bearer ${process.env.PINGD_TOKEN}` } },
+);
+
+es.onmessage = (event) =&gt; {
+    const message = JSON.parse(event.data);
+    console.log(message.payload.title, "-", message.payload.body);
+};</code></pre>
+
+        <h2>Topic per host (NATS-style)</h2>
+        <p>Use a topic per host for fanout to many machines:</p>
+        <pre><code>alerts.host.web-01
+alerts.host.web-02
+alerts.host.db-01</code></pre>
+        <p>A permission grant like <code>alerts.host.&gt;</code> can cover read access for the whole fleet. Subscriptions are still concrete topic names.</p>
+
+        <h2>Per-environment topics</h2>
+        <pre><code>deploy.prod.api
+deploy.prod.web
+deploy.staging.api
+deploy.staging.web</code></pre>
+        <p>Give CI <code>wo</code> on <code>deploy.&gt;</code>, and on-call users <code>ro</code> on <code>deploy.prod.&gt;</code>. Subscribe devices to the concrete prod topics that should notify them.</p>
+
+        <div class="page-nav">
+            <a class="prev" href="fcm.html"><small>Previous</small>&larr; FCM</a>
+            <a class="next" href="releases.html"><small>Next</small>Releases &rarr;</a>
+        </div>
+    </main>
+</div>
+<script src="assets/docs.js"></script>
+</body>
+</html>

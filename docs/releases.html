@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#110f0d">
+    <title>Releases · pingd docs</title>
+    <link rel="icon" href="assets/pingd-icon.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="topbar">
+    <button class="menu-toggle" aria-label="Menu">&#9776;</button>
+    <a href="/" class="brand"><img src="assets/pingd-icon.png" alt="" class="brand-icon">pingd <small>docs</small></a>
+    <div class="topbar-spacer"></div>
+    <nav class="topbar-links">
+        <a href="getting-started.html">Get started</a>
+        <a href="https://github.com/saeid/pingd">GitHub</a>
+    </nav>
+</header>
+<div class="shell">
+    <aside class="sidebar">
+        <h4>Start here</h4>
+        <ul>
+            <li><a href="/">What is pingd?</a></li>
+            <li><a href="install.html">Install</a></li>
+            <li><a href="getting-started.html">Getting started</a></li>
+            <li><a href="config.html">Configuration</a></li>
+        </ul>
+        <h4>Using pingd</h4>
+        <ul>
+            <li><a href="publish.html">Publishing</a></li>
+            <li><a href="subscribe.html">Subscribing</a></li>
+            <li><a href="topics.html">Topics</a></li>
+            <li><a href="permissions.html">Permissions</a></li>
+            <li><a href="users-tokens.html">Users &amp; tokens</a></li>
+            <li><a href="webhooks.html">Webhooks</a></li>
+        </ul>
+        <h4>Push channels</h4>
+        <ul>
+            <li><a href="web-push.html">Web Push</a></li>
+            <li><a href="apns.html">APNS (iOS)</a></li>
+            <li><a href="fcm.html">FCM</a></li>
+        </ul>
+        <h4>Reference</h4>
+        <ul>
+            <li><a href="examples.html">Examples</a></li>
+            <li><a href="releases.html">Releases</a></li>
+            <li><a href="faq.html">FAQ</a></li>
+        </ul>
+    </aside>
+    <main>
+        <h1>Releases</h1>
+        <p class="lead">
+            Binaries and container images for each release are on the
+            <a href="https://github.com/saeid/pingd/releases">GitHub releases page</a> and
+            <a href="https://github.com/saeid/pingd/pkgs/container/pingd">GHCR</a>.
+        </p>
+
+        <section id="v0.2.0">
+            <h2>pingd v0.2.0 (UNRELEASED)</h2>
+            <p><strong>Features:</strong></p>
+            <ul>
+                <li><em>placeholder, describe next user-visible feature</em></li>
+            </ul>
+            <p><strong>Bug fixes:</strong></p>
+            <ul>
+                <li><em>placeholder</em></li>
+            </ul>
+            <p><strong>Documentation:</strong></p>
+            <ul>
+                <li><em>placeholder</em></li>
+            </ul>
+        </section>
+
+        <section id="v0.1.0">
+            <h2>pingd v0.1.0 (2026-05-05)</h2>
+            <p>
+                Initial public release. Self-hosted push notification relay over HTTP, written
+                in Swift on Vapor with a single SQLite file for storage.
+            </p>
+            <p><strong>Features:</strong></p>
+            <ul>
+                <li>Topics with independent <code>publicRead</code> and <code>publicPublish</code> access flags</li>
+                <li>NATS-style permission patterns (<code>alerts.&gt;</code>, <code>deploy.*</code>) with <code>ro</code> / <code>wo</code> / <code>rw</code> / <code>deny</code></li>
+                <li>Per-delivery row tracking with retry semantics and TTL-aware expiry</li>
+                <li>Per-topic message history queryable from dashboard, CLI, and HTTP endpoints</li>
+                <li>Web Push (VAPID) and APNS (direct + relay modes) push channels</li>
+                <li>Webhook ingress with <code>{{path.to.field}}</code> template rendering, scoped per topic</li>
+                <li>Server-Sent Events (<code>/topics/:name/stream</code>) for live tailing</li>
+                <li>Bearer-token auth, guest sessions, and per-topic share tokens</li>
+                <li><code>pingd-cli</code> for topics, messages, users, tokens, permissions, shares, webhooks</li>
+                <li>Static dashboard at <code>/</code> for end users</li>
+            </ul>
+            <p><strong>Operations:</strong></p>
+            <ul>
+                <li>Single binary, single SQLite file, single port (default <code>7685</code>)</li>
+                <li>Docker image at <code>ghcr.io/saeid/pingd:latest</code>, multi-arch <code>amd64</code> + <code>arm64</code></li>
+                <li><code>/health</code> endpoint for orchestrators</li>
+            </ul>
+            <p><strong>Documentation:</strong></p>
+            <ul>
+                <li>Initial docs site covering install, getting started, config, publishing,
+                    subscribing, topics, permissions, users &amp; tokens, webhooks, web push, APNS,
+                    examples, releases, FAQ</li>
+            </ul>
+        </section>
+
+        <div class="page-nav">
+            <a class="prev" href="examples.html"><small>Previous</small>&larr; Examples</a>
+            <a class="next" href="faq.html"><small>Next</small>FAQ &rarr;</a>
+        </div>
+    </main>
+</div>
+<script src="assets/docs.js"></script>
+</body>
+</html>

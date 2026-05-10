@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#110f0d">
+    <title>Configuration · pingd docs</title>
+    <link rel="icon" href="assets/pingd-icon.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="topbar">
+    <button class="menu-toggle" aria-label="Menu">&#9776;</button>
+    <a href="/" class="brand"><img src="assets/pingd-icon.png" alt="" class="brand-icon">pingd <small>docs</small></a>
+    <div class="topbar-spacer"></div>
+    <nav class="topbar-links">
+        <a href="getting-started.html">Get started</a>
+        <a href="https://github.com/saeid/pingd">GitHub</a>
+    </nav>
+</header>
+<div class="shell">
+    <aside class="sidebar">
+        <h4>Start here</h4>
+        <ul>
+            <li><a href="/">What is pingd?</a></li>
+            <li><a href="install.html">Install</a></li>
+            <li><a href="getting-started.html">Getting started</a></li>
+            <li><a href="config.html">Configuration</a></li>
+        </ul>
+        <h4>Using pingd</h4>
+        <ul>
+            <li><a href="publish.html">Publishing</a></li>
+            <li><a href="subscribe.html">Subscribing</a></li>
+            <li><a href="topics.html">Topics</a></li>
+            <li><a href="permissions.html">Permissions</a></li>
+            <li><a href="users-tokens.html">Users &amp; tokens</a></li>
+            <li><a href="webhooks.html">Webhooks</a></li>
+        </ul>
+        <h4>Push channels</h4>
+        <ul>
+            <li><a href="web-push.html">Web Push</a></li>
+            <li><a href="apns.html">APNS (iOS)</a></li>
+            <li><a href="fcm.html">FCM</a></li>
+        </ul>
+        <h4>Reference</h4>
+        <ul>
+            <li><a href="examples.html">Examples</a></li>
+            <li><a href="releases.html">Releases</a></li>
+            <li><a href="faq.html">FAQ</a></li>
+        </ul>
+    </aside>
+    <main>
+        <h1>Configuration</h1>
+        <p class="lead">
+            pingd reads its configuration from environment variables. There is no config file. Defaults
+            are tuned for local development; production deployments need to set at least an admin
+            password, a data directory, and (for browser pushes) a VAPID config.
+        </p>
+
+        <h2>Core</h2>
+        <p>
+            The repository also includes <code>.env.example</code> with the same variables in copyable form.
+        </p>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Variable</th><th>Default</th><th>Purpose</th></tr></thead>
+            <tbody>
+                <tr><td><code>ADMIN_USERNAME</code></td><td><code>admin</code></td><td>Admin username, seeded on first run</td></tr>
+                <tr><td><code>ADMIN_PASSWORD</code></td><td><code>changeme</code></td><td>Admin password, seeded on first run</td></tr>
+                <tr><td><code>PINGD_DATA_DIR</code></td><td><code>data</code></td><td>Directory for SQLite database and CLI config</td></tr>
+                <tr><td><code>PINGD_ALLOW_REGISTRATION</code></td><td><code>false</code></td><td>If <code>true</code>, exposes <code>POST /auth/register</code></td></tr>
+                <tr><td><code>PINGD_GUEST_ENABLED</code></td><td><code>true</code></td><td>If <code>false</code>, disables <code>POST /auth/guest</code></td></tr>
+                <tr><td><code>PINGD_RESERVED_TOPIC_NAMES</code></td><td>unset</td><td>Comma-separated topic names that users cannot create; case-insensitive</td></tr>
+                <tr><td><code>PINGD_DEFAULT_PUBLIC_READ</code></td><td><code>false</code></td><td>Default <code>publicRead</code> for newly created topics when omitted</td></tr>
+                <tr><td><code>PINGD_DEFAULT_PUBLIC_PUBLISH</code></td><td><code>false</code></td><td>Default <code>publicPublish</code> for newly created topics when omitted</td></tr>
+                <tr><td><code>PINGD_DEFAULT_SHARE_TOKEN_TTL</code></td><td>unset</td><td>Default share-token expiry when <code>expiresAt</code> is omitted; accepts <code>30d</code>, <code>12h</code>, <code>5m</code>, <code>60s</code>, or seconds</td></tr>
+                <tr><td><code>PINGD_DEFAULT_PERMISSION_TTL</code></td><td>unset</td><td>Default permission expiry when <code>expiresAt</code> is omitted; same duration format</td></tr>
+                <tr><td><code>PINGD_MAX_TOPICS_PER_USER</code></td><td>unset</td><td>Maximum topics per non-admin user; unset means unlimited</td></tr>
+                <tr><td><code>PINGD_MAX_SHARE_TOKENS_PER_TOPIC</code></td><td>unset</td><td>Maximum active share tokens per topic; unset means unlimited</td></tr>
+                <tr><td><code>PINGD_LOG_FORMAT</code></td><td><code>text</code></td><td><code>text</code> or <code>json</code></td></tr>
+                <tr><td><code>LOG_LEVEL</code></td><td>environment</td><td>Vapor log level (<code>trace</code>, <code>debug</code>, <code>info</code>, ...)</td></tr>
+            </tbody>
+        </table></div>
+
+        <div class="warn">
+            <strong>Always override <code>ADMIN_PASSWORD</code> on first boot.</strong> It is only used to seed the very
+            first user; once the database exists, changing it has no effect. Rotate the admin password through the dashboard or API.
+        </div>
+
+        <h2>HTTP</h2>
+        <p>
+            pingd listens on port <code>7685</code> by default. The port is fixed at startup;
+            change the host port mapping (<code>-p 8080:7685</code>) if you want to expose it differently.
+        </p>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Variable</th><th>Default</th><th>Purpose</th></tr></thead>
+            <tbody>
+                <tr><td><code>PORT</code></td><td><code>7685</code></td><td>HTTP listen port inside the container/process</td></tr>
+                <tr><td><code>PINGD_CORS_ORIGIN</code></td><td><code>*</code></td><td><code>*</code> or comma-separated list of allowed origins</td></tr>
+                <tr><td><code>PINGD_RATE_LIMIT_COUNT</code></td><td><code>30</code></td><td>API requests/minute per IP</td></tr>
+                <tr><td><code>PINGD_PUBLISH_RATE_LIMIT_PER_USER_PER_MIN</code></td><td>unset</td><td>Publish requests/minute per authenticated user; unset means unlimited</td></tr>
+                <tr><td><code>PINGD_ANON_PUBLISH_RATE_LIMIT_PER_IP_PER_MIN</code></td><td>unset</td><td>Publish requests/minute per anonymous client IP; unset means unlimited</td></tr>
+                <tr><td><code>PINGD_WEBHOOK_RATE_LIMIT_PER_TOKEN</code></td><td><code>120</code></td><td>Webhook receives/minute per token</td></tr>
+                <tr><td><code>PINGD_WEBHOOK_RATE_LIMIT_PER_IP</code></td><td><code>300</code></td><td>Webhook receives/minute per IP</td></tr>
+            </tbody>
+        </table></div>
+        <p>
+            Allowed CORS request headers: <code>Authorization</code>, <code>Content-Type</code>,
+            <code>Origin</code>, <code>X-Requested-With</code>, <code>X-Topic-Token</code>, and <code>X-Push-Token</code>.
+        </p>
+
+        <h2>APNS (iOS push)</h2>
+        <p>
+            APNS can run in either mode:
+        </p>
+        <ul>
+            <li><code>direct</code>: this server holds the Apple <code>.p8</code> key and sends pushes itself.</li>
+            <li><code>relay</code>: this server forwards pushes to another pingd server that has the key.</li>
+        </ul>
+        <p>The simplest setup is to point at a relay you trust:</p>
+        <pre><code>PINGD_APNS_MODE=relay
+PINGD_APNS_RELAY_BASE_URL=https://pingd.dev
+PINGD_APNS_RELAY_TOKEN=&lt;bearer token&gt;</code></pre>
+        <p>Leave <code>PINGD_APNS_MODE</code> unset for the mock provider, which logs pushes but sends nothing. Full walkthrough in <a href="apns.html">APNS</a>.</p>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Variable</th><th>Mode</th><th>Purpose</th></tr></thead>
+            <tbody>
+                <tr><td><code>PINGD_APNS_MODE</code></td><td>both</td><td><code>direct</code>, <code>relay</code>, or unset for mock</td></tr>
+                <tr><td><code>PINGD_APNS_KEY_PATH</code></td><td>direct</td><td>Path to Apple <code>.p8</code> key file</td></tr>
+                <tr><td><code>PINGD_APNS_KEY_ID</code></td><td>direct</td><td>Apple key ID</td></tr>
+                <tr><td><code>PINGD_APNS_TEAM_ID</code></td><td>direct</td><td>Apple team ID</td></tr>
+                <tr><td><code>PINGD_APNS_BUNDLE_ID</code></td><td>direct</td><td>App bundle identifier</td></tr>
+                <tr><td><code>PINGD_APNS_ENV</code></td><td>direct</td><td><code>development</code> or <code>production</code> (default)</td></tr>
+                <tr><td><code>PINGD_APNS_RELAY_BASE_URL</code></td><td>relay</td><td>Base URL of the upstream pingd in direct mode</td></tr>
+                <tr><td><code>PINGD_APNS_RELAY_TOKEN</code></td><td>relay</td><td>Bearer token for the relay server</td></tr>
+            </tbody>
+        </table></div>
+
+        <h2>Web Push (browsers)</h2>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Variable</th><th>Purpose</th></tr></thead>
+            <tbody>
+                <tr><td><code>PINGD_WEBPUSH_VAPID_CONFIG</code></td><td>JSON with <code>contactInformation</code>, <code>primaryKey</code>, <code>expirationDuration</code>, <code>validityDuration</code></td></tr>
+            </tbody>
+        </table></div>
+        <p>Generate the value once per deployment with the bundled keygen:</p>
+        <div class="tabs">
+            <div class="tab-panel" data-label="Docker">
+<pre><code>docker compose exec pingd ./pingd-webpush-keygen --email admin@example.com</code></pre>
+            </div>
+            <div class="tab-panel" data-label="Source">
+<pre><code>swift run pingd-webpush-keygen --email admin@example.com</code></pre>
+            </div>
+        </div>
+        <p>
+            When this variable is unset, <code>GET /webpush/vapid-key</code> returns <code>404</code> and
+            Web Push deliveries are treated as no-op deliveries.
+            Full setup in <a href="web-push.html">Web Push</a>.
+        </p>
+
+        <h2>Logging</h2>
+        <p>Request logs include request ID, method, path, status, and duration. Audit logs cover security-sensitive events: login, guest creation, user changes, topic changes, device registration, subscriptions, permissions, token changes, and webhook activity.</p>
+        <p>Use JSON logs in production:</p>
+        <pre><code>PINGD_LOG_FORMAT=json
+LOG_LEVEL=info</code></pre>
+
+        <h2 id="reverse-proxy">Reverse proxy setup</h2>
+        <p>
+            pingd serves plain HTTP and does not terminate TLS. In production, run it behind a
+            reverse proxy that handles TLS and forwards requests to pingd. The proxy must send a
+            clean client IP in <code>X-Real-IP</code> or <code>X-Forwarded-For</code> so pingd's
+            rate limiter sees the real client instead of the proxy.
+        </p>
+        <p>
+            Below are minimal working configs for Caddy and Nginx. Adapt hostnames, ports, and TLS
+            paths to your deployment.
+        </p>
+
+        <h3>Caddy</h3>
+        <pre><code>pingd.example.com {
+    reverse_proxy localhost:7685 {
+        header_up X-Real-IP {remote_host}
+
+        flush_interval -1
+        transport http {
+            read_timeout 1h
+        }
+    }
+}</code></pre>
+
+        <h3>Nginx</h3>
+        <pre><code>upstream pingd {
+    server 127.0.0.1:7685;
+    keepalive 32;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name pingd.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/pingd.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/pingd.example.com/privkey.pem;
+
+    location / {
+        proxy_pass http://pingd;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host  $host;
+        proxy_set_header Connection        "";
+
+        # SSE: keep the stream open and unbuffered
+        proxy_buffering    off;
+        proxy_cache        off;
+        proxy_read_timeout 1h;
+        proxy_send_timeout 1h;
+    }
+}
+
+server {
+    listen 80;
+    server_name pingd.example.com;
+    return 301 https://$host$request_uri;
+}</code></pre>
+
+        <h3>What pingd needs from the proxy</h3>
+        <ul>
+            <li><strong>No response buffering</strong> on streaming routes. SSE flushes one event at a time;
+                buffering breaks live tailing.</li>
+            <li><strong>Long read timeouts</strong> (1 hour or more). Idle SSE connections time out under
+                default proxy settings.</li>
+            <li><strong>HTTP/1.1</strong> to upstream so streaming works.</li>
+            <li><strong>Clean client IP headers</strong>. Set <code>X-Real-IP</code> or
+                <code>X-Forwarded-For</code> from the proxy's observed remote address. pingd ignores
+                <code>Forwarded</code> and other vendor IP headers.</li>
+        </ul>
+
+        <h2>Rate limiting</h2>
+        <p>
+            Rate limits are configured with the variables above. The general API limit is per client IP.
+            Publish and webhook routes have separate limits so they can be tuned without changing the rest
+            of the API.
+        </p>
+
+        <div class="page-nav">
+            <a class="prev" href="getting-started.html"><small>Previous</small>&larr; Getting started</a>
+            <a class="next" href="publish.html"><small>Next</small>Publishing &rarr;</a>
+        </div>
+    </main>
+</div>
+<script src="assets/docs.js"></script>
+</body>
+</html>

@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#110f0d">
+    <title>Topics · pingd docs</title>
+    <link rel="icon" href="assets/pingd-icon.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="topbar">
+    <button class="menu-toggle" aria-label="Menu">&#9776;</button>
+    <a href="/" class="brand"><img src="assets/pingd-icon.png" alt="" class="brand-icon">pingd <small>docs</small></a>
+    <div class="topbar-spacer"></div>
+    <nav class="topbar-links">
+        <a href="getting-started.html">Get started</a>
+        <a href="https://github.com/saeid/pingd">GitHub</a>
+    </nav>
+</header>
+<div class="shell">
+    <aside class="sidebar">
+        <h4>Start here</h4>
+        <ul>
+            <li><a href="/">What is pingd?</a></li>
+            <li><a href="install.html">Install</a></li>
+            <li><a href="getting-started.html">Getting started</a></li>
+            <li><a href="config.html">Configuration</a></li>
+        </ul>
+        <h4>Using pingd</h4>
+        <ul>
+            <li><a href="publish.html">Publishing</a></li>
+            <li><a href="subscribe.html">Subscribing</a></li>
+            <li><a href="topics.html">Topics</a></li>
+            <li><a href="permissions.html">Permissions</a></li>
+            <li><a href="users-tokens.html">Users &amp; tokens</a></li>
+            <li><a href="webhooks.html">Webhooks</a></li>
+        </ul>
+        <h4>Push channels</h4>
+        <ul>
+            <li><a href="web-push.html">Web Push</a></li>
+            <li><a href="apns.html">APNS (iOS)</a></li>
+            <li><a href="fcm.html">FCM</a></li>
+        </ul>
+        <h4>Reference</h4>
+        <ul>
+            <li><a href="examples.html">Examples</a></li>
+            <li><a href="releases.html">Releases</a></li>
+            <li><a href="faq.html">FAQ</a></li>
+        </ul>
+    </aside>
+    <main>
+        <h1>Topics</h1>
+        <p class="lead">
+            A topic is a named stream of messages. Topics are concrete names; patterns are only used
+            for <a href="permissions.html">permissions</a>. Use public flags for open read/publish access,
+            and permissions or share tokens for scoped access.
+        </p>
+
+        <h2>Naming</h2>
+        <p>
+            Topic names are at least 3 characters and use only <code>a&ndash;z</code>, <code>A&ndash;Z</code>,
+            <code>0&ndash;9</code>, <code>.</code>, <code>-</code>, and <code>_</code>.
+            The dot is the recommended hierarchy separator (NATS-style):
+        </p>
+        <pre><code>alerts
+alerts.disk
+alerts.disk.full
+deploy.prod.api
+home.frontdoor</code></pre>
+        <p>
+            <strong>Topics are concrete.</strong> Subscribing to <code>alerts.disk</code> does not
+            subscribe you to <code>alerts.cpu</code>. Wildcard subscriptions don't exist;
+            you subscribe to each name explicitly. Wildcards do exist for permissions
+            (<a href="permissions.html">see Permissions</a>).
+        </p>
+
+        <h2>Access flags</h2>
+        <p>
+            Every topic has two independent public access flags. By default both are <code>false</code>,
+            unless <code>PINGD_DEFAULT_PUBLIC_READ</code> or <code>PINGD_DEFAULT_PUBLIC_PUBLISH</code>
+            is set. Without public access, a new topic is private.
+        </p>
+        <p>The full access matrix:</p>
+        <div class="table-wrap"><table>
+            <thead><tr><th><code>publicRead</code></th><th><code>publicPublish</code></th><th>Default access</th></tr></thead>
+            <tbody>
+                <tr>
+                    <td>false</td>
+                    <td>false</td>
+                    <td>private; owner, admin, matching permission, or share token only</td>
+                </tr>
+                <tr>
+                    <td>true</td>
+                    <td>false</td>
+                    <td>public read, restricted publish</td>
+                </tr>
+                <tr>
+                    <td>false</td>
+                    <td>true</td>
+                    <td>restricted read, public publish</td>
+                </tr>
+                <tr>
+                    <td>true</td>
+                    <td>true</td>
+                    <td>public read and publish</td>
+                </tr>
+            </tbody>
+        </table></div>
+        <p>
+            Admin and owner access are resolved before permissions, so they always have read/publish
+            access. For non-owners, a matching <code>deny</code> permission overrides public flags.
+        </p>
+
+        <h2>Share tokens</h2>
+        <p>
+            For per-topic credentials, the owner or an admin creates a share token with fixed access:
+            <code>ro</code>, <code>wo</code>, or <code>rw</code>.
+            Clients send the token in <code>X-Topic-Token</code>.
+        </p>
+        <pre><code>curl http://localhost:7685/topics/alerts/messages \
+  -H 'X-Topic-Token: tk_...' \
+  -H 'Content-Type: application/json' \
+  -d '{ "payload": { "body": "Hello" } }'</code></pre>
+        <p>
+            Share tokens can expire and can be rotated or revoked without changing the topic's public flags.
+            See <a href="permissions.html">Permissions</a> for details.
+        </p>
+
+        <h2>Endpoints</h2>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><span class="method m-get">GET</span></td><td><code>/topics</code></td><td>List topics visible to caller</td></tr>
+                <tr><td><span class="method m-post">POST</span></td><td><code>/topics</code></td><td>Create topic (auth required)</td></tr>
+                <tr><td><span class="method m-get">GET</span></td><td><code>/topics/:name</code></td><td>Get a topic</td></tr>
+                <tr><td><span class="method m-patch">PATCH</span></td><td><code>/topics/:name</code></td><td>Update public flags (owner or admin)</td></tr>
+                <tr><td><span class="method m-delete">DELETE</span></td><td><code>/topics/:name</code></td><td>Delete topic (owner or admin)</td></tr>
+                <tr><td><span class="method m-get">GET</span></td><td><code>/topics/:name/stats</code></td><td>Stats (admin only)</td></tr>
+                <tr><td><span class="method m-get">GET</span></td><td><code>/topics/:name/shares</code></td><td>List share tokens (owner or admin)</td></tr>
+                <tr><td><span class="method m-post">POST</span></td><td><code>/topics/:name/shares</code></td><td>Create share token (owner or admin)</td></tr>
+                <tr><td><span class="method m-patch">PATCH</span></td><td><code>/topics/:name/shares/:id</code></td><td>Update share token (owner or admin)</td></tr>
+                <tr><td><span class="method m-post">POST</span></td><td><code>/topics/:name/shares/:id/rotate</code></td><td>Rotate share token (owner or admin)</td></tr>
+                <tr><td><span class="method m-delete">DELETE</span></td><td><code>/topics/:name/shares/:id</code></td><td>Revoke share token (owner or admin)</td></tr>
+            </tbody>
+        </table></div>
+
+        <h2>Create</h2>
+        <div class="tabs">
+            <div class="tab-panel" data-label="curl">
+<pre><code>curl -s http://localhost:7685/topics \
+  -H 'Authorization: Bearer $TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "alerts.critical",
+    "publicRead": true,
+    "publicPublish": false
+  }'</code></pre>
+            </div>
+            <div class="tab-panel" data-label="pingd-cli">
+<pre><code>pingd-cli topics create \
+  --name alerts.critical \
+  --public-read</code></pre>
+            </div>
+            <div class="tab-panel" data-label="python">
+<pre><code>import requests
+
+requests.post(
+    "http://localhost:7685/topics",
+    headers={"Authorization": "Bearer TOKEN"},
+    json={
+        "name": "alerts.critical",
+        "publicRead": True,
+        "publicPublish": False,
+    },
+)</code></pre>
+            </div>
+        </div>
+        <p>The caller becomes the owner.</p>
+
+        <h2>Update</h2>
+        <div class="tabs">
+            <div class="tab-panel" data-label="curl">
+<pre><code>curl -s -X PATCH http://localhost:7685/topics/alerts.critical \
+  -H 'Authorization: Bearer $TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "publicRead": false,
+    "publicPublish": false
+  }'</code></pre>
+            </div>
+            <div class="tab-panel" data-label="pingd-cli">
+<pre><code>pingd-cli topics update \
+  --name alerts.critical \
+  --no-public-read \
+  --no-public-publish</code></pre>
+            </div>
+            <div class="tab-panel" data-label="python">
+<pre><code>import requests
+
+requests.patch(
+    "http://localhost:7685/topics/alerts.critical",
+    headers={"Authorization": "Bearer TOKEN"},
+    json={
+        "publicRead": False,
+        "publicPublish": False,
+    },
+)</code></pre>
+            </div>
+        </div>
+        <p>Owner-or-admin only. Omitted fields keep their existing values.</p>
+
+        <h2>Delete</h2>
+        <div class="tabs">
+            <div class="tab-panel" data-label="curl">
+<pre><code>curl -s -X DELETE http://localhost:7685/topics/alerts.critical \
+  -H 'Authorization: Bearer $TOKEN'</code></pre>
+            </div>
+            <div class="tab-panel" data-label="pingd-cli">
+<pre><code>pingd-cli topics delete --name alerts.critical</code></pre>
+            </div>
+            <div class="tab-panel" data-label="python">
+<pre><code>import requests
+
+requests.delete(
+    "http://localhost:7685/topics/alerts.critical",
+    headers={"Authorization": "Bearer TOKEN"},
+)</code></pre>
+            </div>
+        </div>
+        <p>Cascades to messages, deliveries, subscriptions, share tokens, and webhooks attached to the topic. Pattern permissions are not topic-owned rows and are not deleted.</p>
+
+        <h2>Stats</h2>
+        <p>
+            Admin-only. Returns counts of messages, active subscriptions, deliveries, and recent activity
+            for capacity planning.
+        </p>
+        <div class="tabs">
+            <div class="tab-panel" data-label="curl">
+<pre><code>curl -s http://localhost:7685/topics/alerts.critical/stats \
+  -H 'Authorization: Bearer $TOKEN'</code></pre>
+            </div>
+            <div class="tab-panel" data-label="pingd-cli">
+<pre><code>pingd-cli topics stats --name alerts.critical</code></pre>
+            </div>
+            <div class="tab-panel" data-label="python">
+<pre><code>import requests
+
+response = requests.get(
+    "http://localhost:7685/topics/alerts.critical/stats",
+    headers={"Authorization": "Bearer TOKEN"},
+)
+print(response.json())</code></pre>
+            </div>
+        </div>
+
+        <h2>Naming conventions</h2>
+        <p>
+            Use dots to namespace by domain. Examples that work well in practice:
+        </p>
+        <ul>
+            <li><code>alerts.disk</code>, <code>alerts.cpu</code>, <code>alerts.network</code></li>
+            <li><code>deploy.prod.api</code>, <code>deploy.staging.web</code></li>
+            <li><code>home.frontdoor</code>, <code>home.dishwasher</code></li>
+            <li><code>ci.github.repo-name</code></li>
+        </ul>
+        <p>
+            Then a permission like <code>alerts.&gt;</code> covers everything under <code>alerts</code>,
+            and a CI service token can be limited to <code>deploy.&gt;</code>.
+        </p>
+
+        <div class="page-nav">
+            <a class="prev" href="subscribe.html"><small>Previous</small>&larr; Subscribing</a>
+            <a class="next" href="permissions.html"><small>Next</small>Permissions &rarr;</a>
+        </div>
+    </main>
+</div>
+<script src="assets/docs.js"></script>
+</body>
+</html>

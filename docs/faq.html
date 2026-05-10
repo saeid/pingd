@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#110f0d">
+    <title>FAQ · pingd docs</title>
+    <link rel="icon" href="assets/pingd-icon.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="topbar">
+    <button class="menu-toggle" aria-label="Menu">&#9776;</button>
+    <a href="/" class="brand"><img src="assets/pingd-icon.png" alt="" class="brand-icon">pingd <small>docs</small></a>
+    <div class="topbar-spacer"></div>
+    <nav class="topbar-links">
+        <a href="getting-started.html">Get started</a>
+        <a href="https://github.com/saeid/pingd">GitHub</a>
+    </nav>
+</header>
+<div class="shell">
+    <aside class="sidebar">
+        <h4>Start here</h4>
+        <ul>
+            <li><a href="/">What is pingd?</a></li>
+            <li><a href="install.html">Install</a></li>
+            <li><a href="getting-started.html">Getting started</a></li>
+            <li><a href="config.html">Configuration</a></li>
+        </ul>
+        <h4>Using pingd</h4>
+        <ul>
+            <li><a href="publish.html">Publishing</a></li>
+            <li><a href="subscribe.html">Subscribing</a></li>
+            <li><a href="topics.html">Topics</a></li>
+            <li><a href="permissions.html">Permissions</a></li>
+            <li><a href="users-tokens.html">Users &amp; tokens</a></li>
+            <li><a href="webhooks.html">Webhooks</a></li>
+        </ul>
+        <h4>Push channels</h4>
+        <ul>
+            <li><a href="web-push.html">Web Push</a></li>
+            <li><a href="apns.html">APNS (iOS)</a></li>
+            <li><a href="fcm.html">FCM</a></li>
+        </ul>
+        <h4>Reference</h4>
+        <ul>
+            <li><a href="examples.html">Examples</a></li>
+            <li><a href="releases.html">Releases</a></li>
+            <li><a href="faq.html">FAQ</a></li>
+        </ul>
+    </aside>
+    <main>
+        <h1>FAQ</h1>
+
+        <h2>Why did you build this?</h2>
+        <p>
+            Because I can! It started as a fun side project, so I decided to build a notification
+            relay from scratch and play with push protocols, NATS-style permissions, templating,
+            retry queues, all of it.
+        </p>
+        <p>
+            After running it for a while it's matured into something I actually rely on, and
+            somewhere along the way it picked up a bit of personality.
+        </p>
+
+        <h2>Okay but why would I use it?</h2>
+        <p>
+            A few things pingd does well:
+        </p>
+        <ul>
+            <li>
+                <strong>NATS-style permissions.</strong> Grant <code>ro</code>, <code>wo</code>,
+                <code>rw</code>, or <code>deny</code> on topic name patterns, per user or globally.
+                Wildcards and inheritance work the way you'd expect. See <a href="permissions.html">Permissions</a>.
+            </li>
+            <li>
+                <strong>Per-topic webhooks with templates.</strong> Point pingd at any JSON source
+                (GitHub, Grafana, your scripts) and rewrite the payload with
+                <code>{{path.to.field}}</code> templates. No glue script in between.
+            </li>
+            <li>
+                <strong>Per-delivery tracking.</strong> Every push to every device is its own row
+                with status, retry count, and timestamps. When something doesn't arrive you can
+                actually find out why.
+            </li>
+            <li>
+                <strong>Per-device subscriptions and controls.</strong> Devices are first-class on
+                the server, so you can list them, mute one without unsubscribing the rest, see
+                exactly which device received (or missed) a message, and revoke one when you lose it.
+            </li>
+            <li>
+                <strong>TTL-aware expiry.</strong> Past-TTL deliveries get marked expired instead
+                of pushed late.
+            </li>
+            <li>
+                <strong>Share tokens for topics.</strong> Hand out read-only, write-only, or
+                read-write access to a single topic without creating a user. Each token rotates
+                and revokes on its own, so cutting off one publisher or subscriber leaves the
+                rest untouched.
+            </li>
+            <li>
+                <strong>Free and self-hostable.</strong> One Docker container, one SQLite file,
+                your hardware, your data.
+            </li>
+        </ul>
+
+        <h2>Is it really free?</h2>
+        <p>
+            Yes. No paid tier hiding the good parts. If you self-host, your only cost is the box
+            you run it on.
+        </p>
+
+        <h2>Is there a hosted version?</h2>
+        <p>
+            Yes! <a href="https://pingd.dev">pingd.dev</a> (COMMING SOON!), if you just want to try it or don't
+            feel like running your own. But pingd is meant to be self-hosted. That's the
+            default story!
+        </p>
+
+        <h2>Why not just use Slack / Discord / PagerDuty?</h2>
+        <p>
+            Use them if they work for you. pingd is for when you want self-hosting, one boring
+            relay between many publishers and many devices, and access control beyond a shared
+            channel webhook. If "post to a Slack channel" already solves your problem, keep
+            doing that.
+        </p>
+
+        <h2>Can I use Postgres instead of SQLite?</h2>
+        <p>
+            Not yet, maybe later for heavier deployments. For most self-hosted use cases, a single SQLite file with regular backups is enough.
+        </p>
+
+        <h2>Can I publish without authenticating?</h2>
+        <p>There are three ways to publish, in order of openness:</p>
+        <ul>
+            <li>
+                <strong>Anonymous,</strong> if the topic has <code>publicPublish=true</code>. No
+                token needed, anyone can post.
+            </li>
+            <li>
+                <strong>With a share token,</strong> by passing a <code>wo</code> or <code>rw</code>
+                topic share token in the <code>X-Topic-Token</code> header. The token itself grants
+                access, no user account or permission grant needed.
+            </li>
+            <li>
+                <strong>With a bearer token,</strong> if the user owns the topic or has been granted
+                <code>wo</code>/<code>rw</code> via the <a href="permissions.html">permissions system</a>.
+                This is the normal authenticated path.
+            </li>
+        </ul>
+        <p>See <a href="permissions.html">Permissions</a> for the full ACL rules.</p>
+
+        <h2>Can I subscribe without an account?</h2>
+        <p>
+            Anonymous clients can't subscribe for push, but they can watch a topic over SSE using
+            a share token. To actually receive push, you need a guest or authenticated account.
+            Guest accounts work without signup. See <a href="subscribe.html">Subscribing</a>.
+        </p>
+
+        <h2>How do I rotate the admin password?</h2>
+        <p>Three ways:</p>
+        <ul>
+            <li><strong>Dashboard:</strong> account view, change password.</li>
+            <li><strong>CLI:</strong> <code>pingd-cli users update admin --password &lt;new&gt;</code>.</li>
+            <li><strong>API:</strong> <code>PATCH /users/admin</code> with the new password.</li>
+        </ul>
+        <p>
+            The <code>ADMIN_PASSWORD</code> env var only seeds the very first user on a fresh
+            database. Changing it later does nothing.
+        </p>
+
+        <h2>Why isn't my iOS device getting pushes?</h2>
+        <p>Common causes:</p>
+        <ul>
+            <li><code>PINGD_APNS_MODE</code> is unset, so pingd is using the mock provider. See <a href="config.html">Configuration</a>.</li>
+            <li>Sandbox token registered against a production-mode server, or vice versa. Match <code>PINGD_APNS_ENV</code> to the build. See <a href="apns.html">APNS</a>.</li>
+            <li>The device's <code>isActive</code> flag is <code>false</code> (logout deactivates it).</li>
+            <li>The device's <code>deliveryEnabled</code> flag is <code>false</code>.</li>
+            <li>No subscription to the topic. Subscribing to <code>alerts</code> does <em>not</em> cover <code>alerts.disk</code>. See <a href="subscribe.html">Subscribing</a>.</li>
+        </ul>
+        <p>Check <code>GET /messages/:id/deliveries</code> after publishing. Each delivery row has <code>status</code>, <code>retryCount</code>, and timestamps.</p>
+
+        <h2>Can I subscribe to wildcards?</h2>
+        <p>
+            No. Subscriptions are concrete (<code>alerts.disk</code>, not <code>alerts.*</code>).
+            Wildcards exist at the permission layer only. They grant access to a pattern, but you
+            still subscribe to each topic by name.
+        </p>
+
+        <h2>What happens when I delete a topic?</h2>
+        <p>It's a hard delete and it cascades. Gone with the topic:</p>
+        <ul>
+            <li>All messages in the topic, and their delivery records.</li>
+            <li>All device subscriptions to it (the devices themselves stay).</li>
+            <li>All share tokens for it.</li>
+            <li>All webhooks attached to it.</li>
+        </ul>
+        <p>
+            Permission grants are pattern-based, not topic-id references, so a grant like
+            <code>rw</code> on <code>alerts.*</code> survives the deletion of <code>alerts.disk</code>.
+            If you re-create a topic with the same name, those grants apply again immediately.
+        </p>
+
+        <h2>How do I back up everything?</h2>
+        <p>
+            Back up <code>$PINGD_DATA_DIR</code>. It contains the SQLite database and the CLI token
+            config. The simple option is to stop pingd, copy the data directory, then start it again.
+            For online backups, use SQLite's <code>.backup</code> command against the database file.
+        </p>
+
+        <h2>Can I contribute?</h2>
+        <p>
+            Yes please! The repo is on
+            <a href="https://github.com/saeid/pingd">GitHub</a>. Bug reports, feature ideas, and
+            PRs are all welcome.
+        </p>
+        <p>
+            For anything beyond a small fix, opening an issue first helps so we can talk through
+            the shape before you spend time on it. Build and test commands are in the README.
+        </p>
+        <p>
+            One small note: the codebase is hand-written and that's part of why working on it
+            is fun. AI-assisted PRs are absolutely welcome, just mention it in the description
+            so reviewers have the context.
+        </p>
+
+        <div class="page-nav">
+            <a class="prev" href="releases.html"><small>Previous</small>&larr; Releases</a>
+            <a class="next" href="/"><small>Back to start</small>What is pingd?</a>
+        </div>
+    </main>
+</div>
+<script src="assets/docs.js"></script>
+</body>
+</html>
