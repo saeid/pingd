@@ -36,6 +36,14 @@ RUN --mount=type=cache,target=/build/.build \
         -Xlinker -ljemalloc && \
     cp "$(swift build -c release --show-bin-path)/pingd-cli" /staging
 
+# Build VAPID keygen
+RUN --mount=type=cache,target=/build/.build \
+    swift build -c release \
+        --product pingd-webpush-keygen \
+        --static-swift-stdlib \
+        -Xlinker -ljemalloc && \
+    cp "$(swift build -c release --show-bin-path)/pingd-webpush-keygen" /staging
+
 WORKDIR /staging
 
 RUN cp "/usr/libexec/swift/linux/swift-backtrace-static" ./
