@@ -20,6 +20,7 @@ func makeCORSConfiguration(from config: CORSConfig) -> CORSMiddleware.Configurat
             .origin,
             .xRequestedWith,
             .init("X-Topic-Token"),
+            .init("X-Push-Token"),
         ]
     )
 }
