@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#110f0d">
+    <title>Webhooks · pingd docs</title>
+    <link rel="icon" href="assets/pingd-icon.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="topbar">
+    <button class="menu-toggle" aria-label="Menu">&#9776;</button>
+    <a href="/" class="brand"><img src="assets/pingd-icon.png" alt="" class="brand-icon">pingd <small>docs</small></a>
+    <div class="topbar-spacer"></div>
+    <nav class="topbar-links">
+        <a href="getting-started.html">Get started</a>
+        <a href="https://github.com/saeid/pingd">GitHub</a>
+    </nav>
+</header>
+<div class="shell">
+    <aside class="sidebar">
+        <h4>Start here</h4>
+        <ul>
+            <li><a href="/">What is pingd?</a></li>
+            <li><a href="install.html">Install</a></li>
+            <li><a href="getting-started.html">Getting started</a></li>
+            <li><a href="config.html">Configuration</a></li>
+        </ul>
+        <h4>Using pingd</h4>
+        <ul>
+            <li><a href="publish.html">Publishing</a></li>
+            <li><a href="subscribe.html">Subscribing</a></li>
+            <li><a href="topics.html">Topics</a></li>
+            <li><a href="permissions.html">Permissions</a></li>
+            <li><a href="users-tokens.html">Users &amp; tokens</a></li>
+            <li><a href="webhooks.html">Webhooks</a></li>
+        </ul>
+        <h4>Push channels</h4>
+        <ul>
+            <li><a href="web-push.html">Web Push</a></li>
+            <li><a href="apns.html">APNS (iOS)</a></li>
+            <li><a href="fcm.html">FCM</a></li>
+        </ul>
+        <h4>Reference</h4>
+        <ul>
+            <li><a href="examples.html">Examples</a></li>
+            <li><a href="releases.html">Releases</a></li>
+            <li><a href="faq.html">FAQ</a></li>
+        </ul>
+    </aside>
+    <main>
+        <h1>Webhooks</h1>
+        <p class="lead">
+            A webhook is an inbound URL that turns arbitrary JSON into a published message on one
+            topic. Use them to wire third-party services into your topics without writing a custom integration.
+        </p>
+
+        <h2>How it works</h2>
+        <ol>
+            <li>You create a webhook attached to a topic, with a <strong>template</strong> that maps fields from incoming JSON into a message payload.</li>
+            <li>pingd generates a one-time bearer-style token and returns the receive URL: <code>POST /hooks/:token</code>.</li>
+            <li>The third-party service <code>POST</code>s JSON to that URL.</li>
+            <li>pingd renders the template against the JSON, publishes the message.</li>
+            <li>Normal dispatch fanout happens (push, SSE, history).</li>
+        </ol>
+
+        <h2>Create a webhook</h2>
+        <div class="tabs">
+            <div class="tab-panel" data-label="curl">
+<pre><code>curl -s http://localhost:7685/topics/ci.github/webhooks \
+  -H 'Authorization: Bearer $TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "template": {
+      "title": "{{repository.full_name}} push",
+      "body": "{{head_commit.author.name}}: {{head_commit.message}}",
+      "tags": "github,{{repository.name}}",
+      "priority": 2
+    }
+  }'</code></pre>
+            </div>
+            <div class="tab-panel" data-label="pingd-cli">
+<pre><code>pingd-cli webhooks create \
+  --topic ci.github \
+  --template template.json</code></pre>
+            </div>
+            <div class="tab-panel" data-label="python">
+<pre><code>import requests
+
+requests.post(
+    "http://localhost:7685/topics/ci.github/webhooks",
+    headers={"Authorization": "Bearer TOKEN"},
+    json={
+        "template": {
+            "title": "{{repository.full_name}} push",
+            "body": "{{head_commit.author.name}}: {{head_commit.message}}",
+            "tags": "github,{{repository.name}}",
+            "priority": 2,
+        },
+    },
+)</code></pre>
+            </div>
+        </div>
+        <p>Response (token shown <strong>once</strong>):</p>
+        <pre><code>{
+  "id": "uuid",
+  "topicID": "uuid",
+  "token": "whk_...",
+  "template": { "...": "..." },
+  "createdAt": "..."
+}</code></pre>
+        <p>The receive URL is:</p>
+        <pre><code>POST /hooks/whk_...</code></pre>
+
+        <h2>Template fields</h2>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+            <tbody>
+                <tr><td><code>title</code></td><td>template string</td><td>Optional message title</td></tr>
+                <tr><td><code>subtitle</code></td><td>template string</td><td>Optional subtitle</td></tr>
+                <tr><td><code>body</code></td><td>template string</td><td>Falls back to the raw request body if empty</td></tr>
+                <tr><td><code>tags</code></td><td>comma-separated template</td><td>Split on commas, trimmed</td></tr>
+                <tr><td><code>priority</code></td><td>1&ndash;3</td><td>Optional, default 2</td></tr>
+                <tr><td><code>ttl</code></td><td>seconds</td><td>Optional, max 30 days</td></tr>
+            </tbody>
+        </table></div>
+
+        <h2>Template syntax</h2>
+        <p>Templates use <code>{{path.to.field}}</code> lookups against the incoming JSON. Examples:</p>
+        <pre><code>{{alert.title}}
+{{source}}
+{{event.repository.full_name}}</code></pre>
+        <p>Missing fields render as empty string. There are no conditionals or loops, by design.</p>
+
+        <h2>Receive payload</h2>
+        <p>Webhook receive does not use bearer auth. The token in the URL is the credential.</p>
+        <pre><code>curl -s http://localhost:7685/hooks/whk_example \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "alert": { "title": "Disk full" },
+    "source": "nas",
+    "message": "Volume /data is 95% full",
+    "service": "storage"
+  }'</code></pre>
+        <p>Successful receives return <code>202 Accepted</code>.</p>
+
+        <h2>Endpoints</h2>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Method</th><th>Path</th><th>Auth</th></tr></thead>
+            <tbody>
+                <tr><td><span class="method m-get">GET</span></td><td><code>/topics/:name/webhooks</code></td><td>Owner / admin</td></tr>
+                <tr><td><span class="method m-post">POST</span></td><td><code>/topics/:name/webhooks</code></td><td>Owner / admin</td></tr>
+                <tr><td><span class="method m-get">GET</span></td><td><code>/webhooks/:id</code></td><td>Owner / admin</td></tr>
+                <tr><td><span class="method m-patch">PATCH</span></td><td><code>/webhooks/:id</code></td><td>Owner / admin</td></tr>
+                <tr><td><span class="method m-delete">DELETE</span></td><td><code>/webhooks/:id</code></td><td>Owner / admin</td></tr>
+                <tr><td><span class="method m-post">POST</span></td><td><code>/hooks/:token</code></td><td>Token in URL only</td></tr>
+            </tbody>
+        </table></div>
+        <div class="note">
+            <strong>Webhook management is owner/admin-only.</strong> A user with <code>rw</code>
+            permission on a topic cannot create webhooks for it.
+        </div>
+
+        <h2>Worked example: GitHub push events</h2>
+        <p>Point GitHub's webhook at <code>https://your-pingd/hooks/whk_...</code>. For a payload like:</p>
+        <pre><code>{
+  "repository": {
+    "full_name": "acme/inventory",
+    "name": "inventory"
+  },
+  "head_commit": {
+    "author": { "name": "alice" },
+    "message": "fix tax rounding"
+  }
+}</code></pre>
+        <p>The template renders a message on <code>ci.github</code>:</p>
+        <pre><code>title:  acme/inventory push
+body:   alice: fix tax rounding
+tags:   github, inventory</code></pre>
+
+        <p>Save your template to a file (<code>template.json</code>):</p>
+        <pre><code>{
+  "title": "{{repository.full_name}} push",
+  "body": "{{head_commit.author.name}}: {{head_commit.message}}",
+  "tags": "github,{{repository.name}}",
+  "priority": 2
+}</code></pre>
+
+        <h2>Rate limiting</h2>
+        <p>
+            Webhook receives are rate-limited per token and per IP, separately from the general API.
+            Tune them with
+            <code>PINGD_WEBHOOK_RATE_LIMIT_PER_TOKEN</code> and <code>PINGD_WEBHOOK_RATE_LIMIT_PER_IP</code>.
+        </p>
+
+        <h2>Security notes</h2>
+        <ul>
+            <li>The webhook token is a bearer credential. Anyone with the URL can publish.</li>
+            <li>Tokens are shown <strong>once</strong> on creation. Save them then.</li>
+            <li>Deleting a webhook invalidates its URL immediately.</li>
+            <li>Token rotation is on the roadmap; for now, rotate by deleting + recreating.</li>
+            <li>Logging redaction for webhook tokens is on the roadmap; treat request logs as sensitive.</li>
+        </ul>
+
+        <div class="page-nav">
+            <a class="prev" href="users-tokens.html"><small>Previous</small>&larr; Users &amp; tokens</a>
+            <a class="next" href="web-push.html"><small>Next</small>Web Push &rarr;</a>
+        </div>
+    </main>
+</div>
+<script src="assets/docs.js"></script>
+</body>
+</html>

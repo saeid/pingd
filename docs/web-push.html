@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#110f0d">
+    <title>Web Push · pingd docs</title>
+    <link rel="icon" href="assets/pingd-icon.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="topbar">
+    <button class="menu-toggle" aria-label="Menu">&#9776;</button>
+    <a href="/" class="brand"><img src="assets/pingd-icon.png" alt="" class="brand-icon">pingd <small>docs</small></a>
+    <div class="topbar-spacer"></div>
+    <nav class="topbar-links">
+        <a href="getting-started.html">Get started</a>
+        <a href="https://github.com/saeid/pingd">GitHub</a>
+    </nav>
+</header>
+<div class="shell">
+    <aside class="sidebar">
+        <h4>Start here</h4>
+        <ul>
+            <li><a href="/">What is pingd?</a></li>
+            <li><a href="install.html">Install</a></li>
+            <li><a href="getting-started.html">Getting started</a></li>
+            <li><a href="config.html">Configuration</a></li>
+        </ul>
+        <h4>Using pingd</h4>
+        <ul>
+            <li><a href="publish.html">Publishing</a></li>
+            <li><a href="subscribe.html">Subscribing</a></li>
+            <li><a href="topics.html">Topics</a></li>
+            <li><a href="permissions.html">Permissions</a></li>
+            <li><a href="users-tokens.html">Users &amp; tokens</a></li>
+            <li><a href="webhooks.html">Webhooks</a></li>
+        </ul>
+        <h4>Push channels</h4>
+        <ul>
+            <li><a href="web-push.html">Web Push</a></li>
+            <li><a href="apns.html">APNS (iOS)</a></li>
+            <li><a href="fcm.html">FCM</a></li>
+        </ul>
+        <h4>Reference</h4>
+        <ul>
+            <li><a href="examples.html">Examples</a></li>
+            <li><a href="releases.html">Releases</a></li>
+            <li><a href="faq.html">FAQ</a></li>
+        </ul>
+    </aside>
+    <main>
+        <h1>Web Push (browsers)</h1>
+        <p class="lead">
+            pingd uses VAPID Web Push for browser notifications. The bundled dashboard turns into
+            a PWA you can install.</p>
+
+        <h2>1. Generate a VAPID config</h2>
+        <p>One time per deployment:</p>
+        <div class="tabs">
+            <div class="tab-panel" data-label="Docker">
+<pre><code>docker compose exec pingd ./pingd-webpush-keygen --email admin@example.com</code></pre>
+            </div>
+            <div class="tab-panel" data-label="Source">
+<pre><code>swift run pingd-webpush-keygen --email admin@example.com</code></pre>
+            </div>
+        </div>
+        <p>Or use a support URL instead of an email:</p>
+        <div class="tabs">
+            <div class="tab-panel" data-label="Docker">
+<pre><code>docker compose exec pingd ./pingd-webpush-keygen --url https://example.com/support</code></pre>
+            </div>
+            <div class="tab-panel" data-label="Source">
+<pre><code>swift run pingd-webpush-keygen --url https://example.com/support</code></pre>
+            </div>
+        </div>
+        <p>The output is an env-ready value:</p>
+        <pre><code>PINGD_WEBPUSH_VAPID_CONFIG='{"contactInformation":"mailto:admin@example.com","expirationDuration":79200,"primaryKey":"...","validityDuration":72000}'</code></pre>
+        <div class="warn">
+            <strong>Treat the VAPID config as a secret.</strong> The <code>primaryKey</code>
+            field is the private signing key. Reuse the same value across restarts;
+            rotating it invalidates every existing browser subscription.
+        </div>
+
+        <h2>2. Set the env var</h2>
+        <p>Add to your Compose file or environment:</p>
+        <pre><code>PINGD_WEBPUSH_VAPID_CONFIG={"contactInformation":"mailto:admin@example.com","expirationDuration":79200,"primaryKey":"...","validityDuration":72000}</code></pre>
+        <p>Restart pingd. Verify with:</p>
+        <pre><code>curl http://localhost:7685/webpush/vapid-key</code></pre>
+        <p>Returns <code>200</code> with the public VAPID key, or <code>404</code> if Web Push is unconfigured.</p>
+
+        <h2>3. Subscribe a browser</h2>
+        <p>
+            Open the dashboard, log in, and click the bell icon to enable notifications. The dashboard
+            fetches the VAPID key, registers the service worker, creates a <code>PushSubscription</code>,
+            and registers the browser as a Web Push device.
+        </p>
+
+        <h2>Browser requirements</h2>
+        <ul>
+            <li>HTTPS, except for <code>localhost</code> during development</li>
+            <li>A modern browser with Push API + Service Worker support</li>
+            <li>Notification permission granted by the user</li>
+        </ul>
+        <div class="note">
+            <strong>Plain HTTP on a public host or LAN IP does not work.</strong> Browsers block
+            <code>pushManager.subscribe()</code> outside secure contexts.
+        </div>
+
+        <div class="page-nav">
+            <a class="prev" href="webhooks.html"><small>Previous</small>&larr; Webhooks</a>
+            <a class="next" href="apns.html"><small>Next</small>APNS (iOS) &rarr;</a>
+        </div>
+    </main>
+</div>
+<script src="assets/docs.js"></script>
+</body>
+</html>

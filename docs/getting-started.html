@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#110f0d">
+    <title>Getting started · pingd docs</title>
+    <link rel="icon" href="assets/pingd-icon.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="topbar">
+    <button class="menu-toggle" aria-label="Menu">&#9776;</button>
+    <a href="/" class="brand"><img src="assets/pingd-icon.png" alt="" class="brand-icon">pingd <small>docs</small></a>
+    <div class="topbar-spacer"></div>
+    <nav class="topbar-links">
+        <a href="getting-started.html">Get started</a>
+        <a href="https://github.com/saeid/pingd">GitHub</a>
+    </nav>
+</header>
+<div class="shell">
+    <aside class="sidebar">
+        <h4>Start here</h4>
+        <ul>
+            <li><a href="/">What is pingd?</a></li>
+            <li><a href="install.html">Install</a></li>
+            <li><a href="getting-started.html">Getting started</a></li>
+            <li><a href="config.html">Configuration</a></li>
+        </ul>
+        <h4>Using pingd</h4>
+        <ul>
+            <li><a href="publish.html">Publishing</a></li>
+            <li><a href="subscribe.html">Subscribing</a></li>
+            <li><a href="topics.html">Topics</a></li>
+            <li><a href="permissions.html">Permissions</a></li>
+            <li><a href="users-tokens.html">Users &amp; tokens</a></li>
+            <li><a href="webhooks.html">Webhooks</a></li>
+        </ul>
+        <h4>Push channels</h4>
+        <ul>
+            <li><a href="web-push.html">Web Push</a></li>
+            <li><a href="apns.html">APNS (iOS)</a></li>
+            <li><a href="fcm.html">FCM</a></li>
+        </ul>
+        <h4>Reference</h4>
+        <ul>
+            <li><a href="examples.html">Examples</a></li>
+            <li><a href="releases.html">Releases</a></li>
+            <li><a href="faq.html">FAQ</a></li>
+        </ul>
+    </aside>
+    <main>
+        <h1>Getting started</h1>
+        <p class="lead">
+            From zero to delivered notification in under five minutes. Assumes pingd is already running on
+            <code>http://localhost:7685</code>. See <a href="install.html">Install</a> if not.
+        </p>
+
+        <h2>1. Log in as the admin user</h2>
+        <p>Use the <code>ADMIN_USERNAME</code> and <code>ADMIN_PASSWORD</code> you set on first boot:</p>
+        <div class="tabs">
+            <div class="tab-panel" data-label="curl">
+<pre><code>curl -s http://localhost:7685/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"changeme","label":"local"}'</code></pre>
+            </div>
+            <div class="tab-panel" data-label="pingd-cli">
+<pre><code># the bundled CLI is already authenticated via cli-config.json,
+# no login step needed inside the container
+docker compose exec pingd ./pingd-cli users list</code></pre>
+            </div>
+            <div class="tab-panel" data-label="python">
+<pre><code>import requests
+
+response = requests.post(
+    "http://localhost:7685/auth/login",
+    json={"username": "admin", "password": "changeme", "label": "local"},
+).json()
+token = response["token"]</code></pre>
+            </div>
+        </div>
+        <p>Response:</p>
+        <pre><code>{
+  "token": "bearer-token-here",
+  "userID": "uuid",
+  "username": "admin"
+}</code></pre>
+        <p>Stash the token in your shell:</p>
+        <pre><code>export TOKEN="bearer-token-here"</code></pre>
+
+        <h2>2. Create a topic</h2>
+        <p>Topics route messages. Names use <code>a-z 0-9 . - _</code> and are at least 3 characters long. The simplest public topic allows both public read and public publish.</p>
+        <div class="tabs">
+            <div class="tab-panel" data-label="curl">
+<pre><code>curl -s http://localhost:7685/topics \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{ "name": "alerts", "publicRead": true, "publicPublish": true }'</code></pre>
+            </div>
+            <div class="tab-panel" data-label="pingd-cli">
+<pre><code>pingd-cli topics create --name alerts --public-read --public-publish</code></pre>
+            </div>
+            <div class="tab-panel" data-label="python">
+<pre><code>requests.post(
+    "http://localhost:7685/topics",
+    headers={"Authorization": f"Bearer {token}"},
+    json={"name": "alerts", "publicRead": True, "publicPublish": True},
+)</code></pre>
+            </div>
+        </div>
+        <p>
+            Public flags decide anonymous read and publish. For restricted topics, use bearer-token
+            permissions or per-topic share tokens. Full rules are in <a href="topics.html">Topics</a> and
+            <a href="permissions.html">Permissions</a>.
+        </p>
+
+        <h2>3. Publish a message</h2>
+        <div class="tabs">
+            <div class="tab-panel" data-label="curl">
+<pre><code>curl -s http://localhost:7685/topics/alerts/messages \
+  -H 'Content-Type: application/json' \
+  -d '{ "payload": { "body": "Hello" } }'</code></pre>
+            </div>
+            <div class="tab-panel" data-label="pingd-cli">
+<pre><code>pingd-cli messages publish --topic alerts --body "Hello"</code></pre>
+            </div>
+            <div class="tab-panel" data-label="python">
+<pre><code>requests.post(
+    "http://localhost:7685/topics/alerts/messages",
+    json={"payload": {"body": "Hello"}},
+)</code></pre>
+            </div>
+        </div>
+
+        <h2>4. Watch the live stream</h2>
+        <p>Tail the topic over Server-Sent Events. New messages arrive as they happen.</p>
+        <div class="tabs">
+            <div class="tab-panel" data-label="curl">
+<pre><code>curl -N http://localhost:7685/topics/alerts/stream</code></pre>
+            </div>
+            <div class="tab-panel" data-label="pingd-cli">
+<pre><code>pingd-cli messages watch --topic alerts</code></pre>
+            </div>
+            <div class="tab-panel" data-label="python">
+<pre><code>with requests.get(
+    "http://localhost:7685/topics/alerts/stream",
+    stream=True,
+) as response:
+    for line in response.iter_lines():
+        if line:
+            print(line.decode())</code></pre>
+            </div>
+        </div>
+
+        <h2>5. Subscribe a browser</h2>
+        <p>
+            Open <a href="http://localhost:7685">http://localhost:7685</a> in a browser, log in,
+            and click the bell icon to enable browser push. The dashboard registers a Web Push
+            device for you and subscribes it to every topic you open. From then on, the browser
+            receives notifications even when the dashboard tab is closed.
+        </p>
+        <div class="note">
+            <strong>Note:</strong> Web Push requires HTTPS in browsers. <code>localhost</code> is exempt
+            for development. To deliver to browsers from a public host, set up TLS and configure
+            <a href="web-push.html">Web Push (VAPID)</a>.
+        </div>
+
+        <h2>What next?</h2>
+        <ul>
+            <li><a href="users-tokens.html">Users &amp; tokens</a>: invite a teammate, mint a long-lived token for a script.</li>
+            <li><a href="permissions.html">Permissions</a>: give a CI user write-only access to <code>deploy.&gt;</code>.</li>
+            <li><a href="webhooks.html">Webhooks</a>: let GitHub, Grafana, or any other JSON-posting service fire pings into your topics.</li>
+            <li><a href="apns.html">APNS</a>: wire up iOS push.</li>
+        </ul>
+
+        <div class="page-nav">
+            <a class="prev" href="install.html"><small>Previous</small>&larr; Install</a>
+            <a class="next" href="publish.html"><small>Next</small>Publishing &rarr;</a>
+        </div>
+    </main>
+</div>
+<script src="assets/docs.js"></script>
+</body>
+</html>

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#110f0d">
+    <title>Install · pingd docs</title>
+    <link rel="icon" href="assets/pingd-icon.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="topbar">
+    <button class="menu-toggle" aria-label="Menu">&#9776;</button>
+    <a href="/" class="brand"><img src="assets/pingd-icon.png" alt="" class="brand-icon">pingd <small>docs</small></a>
+    <div class="topbar-spacer"></div>
+    <nav class="topbar-links">
+        <a href="getting-started.html">Get started</a>
+        <a href="https://github.com/saeid/pingd">GitHub</a>
+    </nav>
+</header>
+<div class="shell">
+    <aside class="sidebar">
+        <h4>Start here</h4>
+        <ul>
+            <li><a href="/">What is pingd?</a></li>
+            <li><a href="install.html">Install</a></li>
+            <li><a href="getting-started.html">Getting started</a></li>
+            <li><a href="config.html">Configuration</a></li>
+        </ul>
+        <h4>Using pingd</h4>
+        <ul>
+            <li><a href="publish.html">Publishing</a></li>
+            <li><a href="subscribe.html">Subscribing</a></li>
+            <li><a href="topics.html">Topics</a></li>
+            <li><a href="permissions.html">Permissions</a></li>
+            <li><a href="users-tokens.html">Users &amp; tokens</a></li>
+            <li><a href="webhooks.html">Webhooks</a></li>
+        </ul>
+        <h4>Push channels</h4>
+        <ul>
+            <li><a href="web-push.html">Web Push</a></li>
+            <li><a href="apns.html">APNS (iOS)</a></li>
+            <li><a href="fcm.html">FCM</a></li>
+        </ul>
+        <h4>Reference</h4>
+        <ul>
+            <li><a href="examples.html">Examples</a></li>
+            <li><a href="releases.html">Releases</a></li>
+            <li><a href="faq.html">FAQ</a></li>
+        </ul>
+    </aside>
+    <main>
+        <h1>Install</h1>
+        <p class="lead">
+            pingd ships as a single Docker image. The fastest way to a running server is Docker Compose.
+        </p>
+
+        <h2>Docker (recommended)</h2>
+        <p>Published on GitHub Container Registry as <code>ghcr.io/saeid/pingd</code>.</p>
+
+        <h3>Run directly</h3>
+        <pre><code>docker run --rm \
+  --name pingd \
+  -p 7685:7685 \
+  -e ADMIN_USERNAME=admin \
+  -e ADMIN_PASSWORD=changeme \
+  -e PINGD_DATA_DIR=/data \
+  -v "$PWD/data:/data" \
+  ghcr.io/saeid/pingd:latest</code></pre>
+        <p>Open <a href="http://localhost:7685">http://localhost:7685</a>, log in with the admin credentials you supplied, and create your first topic.</p>
+
+        <h3>Docker Compose</h3>
+        <p>Save this as <code>docker-compose.yml</code>:</p>
+        <pre><code>services:
+  pingd:
+    image: ghcr.io/saeid/pingd:latest
+    ports:
+      - "7685:7685"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/data
+    restart: unless-stopped</code></pre>
+        <p>Use <code>.env.example</code> as the starting point for the <code>.env</code> file referenced above.</p>
+        <p>Then:</p>
+        <pre><code>docker compose up -d</code></pre>
+
+        <div class="warn">
+            <strong>Change the admin password.</strong>
+            <code>ADMIN_USERNAME</code> and <code>ADMIN_PASSWORD</code> are only used to seed the first user on a fresh database.
+            See <a href="config.html">Configuration</a> for the full environment variable list.
+        </div>
+
+        <h2>Build the image yourself</h2>
+        <p>From a clone of the repo:</p>
+        <pre><code>git clone https://github.com/saeid/pingd
+cd pingd
+docker build -t pingd:local .</code></pre>
+
+        <h2>Build from source (no Docker)</h2>
+        <p>Requires Swift 6 or later. Tested on macOS 13+ and Ubuntu Noble; any Linux with a working Swift 6 toolchain should build.</p>
+        <pre><code>swift build -c release --product pingd
+.build/release/pingd serve</code></pre>
+
+        <h2>Using the CLI</h2>
+        <p>
+            <code>pingd-cli</code> is the command-line client for managing topics, users, tokens,
+            permissions, webhooks, and for tailing messages. It ships inside the same Docker image,
+            and can also be built standalone.
+        </p>
+        <div class="tabs">
+            <div class="tab-panel" data-label="Inside the container">
+<pre><code>docker compose exec pingd ./pingd-cli --help
+docker compose exec pingd ./pingd-cli topics list</code></pre>
+            </div>
+            <div class="tab-panel" data-label="On the host (from source)">
+<pre><code>swift build -c release --product pingd-cli
+sudo cp .build/release/pingd-cli /usr/local/bin/
+
+pingd-cli --help</code></pre>
+            </div>
+            <div class="tab-panel" data-label="Shell alias">
+<pre><code>alias pingd-cli='docker compose exec -T pingd ./pingd-cli'
+
+pingd-cli topics list</code></pre>
+            </div>
+        </div>
+        <p>
+            On first boot the server seeds an admin token into <code>$PINGD_DATA_DIR/cli-config.json</code>,
+            so the bundled CLI works out of the box.
+        </p>
+
+        <h2>Health check</h2>
+        <p>Once it is running, hit:</p>
+        <pre><code>curl http://localhost:7685/health</code></pre>
+        <p>The container has a built-in <code>HEALTHCHECK</code> on the same endpoint, so <code>docker ps</code> will show <code>(healthy)</code> when ready.</p>
+
+        <h2>Reverse proxy</h2>
+        <p>
+            For HTTPS in production, run pingd behind a reverse proxy that handles TLS and forwards
+            traffic to the pingd instance. See the
+            <a href="config.html#reverse-proxy">Reverse proxy</a> section for full Nginx and Caddy configs,
+            including the SSE-specific tweaks needed for live streaming endpoints.
+        </p>
+
+        <div class="page-nav">
+            <a class="prev" href="/"><small>Previous</small>&larr; What is pingd?</a>
+            <a class="next" href="getting-started.html"><small>Next</small>Getting started &rarr;</a>
+        </div>
+    </main>
+</div>
+<script src="assets/docs.js"></script>
+</body>
+</html>

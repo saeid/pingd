@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#110f0d">
+    <title>Permissions · pingd docs</title>
+    <link rel="icon" href="assets/pingd-icon.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="topbar">
+    <button class="menu-toggle" aria-label="Menu">&#9776;</button>
+    <a href="/" class="brand"><img src="assets/pingd-icon.png" alt="" class="brand-icon">pingd <small>docs</small></a>
+    <div class="topbar-spacer"></div>
+    <nav class="topbar-links">
+        <a href="getting-started.html">Get started</a>
+        <a href="https://github.com/saeid/pingd">GitHub</a>
+    </nav>
+</header>
+<div class="shell">
+    <aside class="sidebar">
+        <h4>Start here</h4>
+        <ul>
+            <li><a href="/">What is pingd?</a></li>
+            <li><a href="install.html">Install</a></li>
+            <li><a href="getting-started.html">Getting started</a></li>
+            <li><a href="config.html">Configuration</a></li>
+        </ul>
+        <h4>Using pingd</h4>
+        <ul>
+            <li><a href="publish.html">Publishing</a></li>
+            <li><a href="subscribe.html">Subscribing</a></li>
+            <li><a href="topics.html">Topics</a></li>
+            <li><a href="permissions.html">Permissions</a></li>
+            <li><a href="users-tokens.html">Users &amp; tokens</a></li>
+            <li><a href="webhooks.html">Webhooks</a></li>
+        </ul>
+        <h4>Push channels</h4>
+        <ul>
+            <li><a href="web-push.html">Web Push</a></li>
+            <li><a href="apns.html">APNS (iOS)</a></li>
+            <li><a href="fcm.html">FCM</a></li>
+        </ul>
+        <h4>Reference</h4>
+        <ul>
+            <li><a href="examples.html">Examples</a></li>
+            <li><a href="releases.html">Releases</a></li>
+            <li><a href="faq.html">FAQ</a></li>
+        </ul>
+    </aside>
+    <main>
+        <h1>Permissions</h1>
+        <p class="lead">
+            pingd has NATS-style pattern permissions on top of topic access flags and share tokens.
+            A permission grants or denies read and/or publish access for a user, or globally for all
+            non-guest users, on a topic pattern.
+        </p>
+
+        <h2>Access levels</h2>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Level</th><th>Read</th><th>Publish</th></tr></thead>
+            <tbody>
+                <tr><td><code>rw</code></td><td>yes</td><td>yes</td></tr>
+                <tr><td><code>ro</code></td><td>yes</td><td>no</td></tr>
+                <tr><td><code>wo</code></td><td>no</td><td>yes</td></tr>
+                <tr><td><code>deny</code></td><td>no</td><td>no</td></tr>
+            </tbody>
+        </table></div>
+
+        <h2>Scopes</h2>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Scope</th><th>Applies to</th></tr></thead>
+            <tbody>
+                <tr><td><code>user</code></td><td>One specific user</td></tr>
+                <tr><td><code>global</code></td><td>All non-guest authenticated users; guests ignore permissions</td></tr>
+            </tbody>
+        </table></div>
+        <p>
+            Permissions may also include <code>expiresAt</code>. Expired rows are ignored. If
+            <code>expiresAt</code> is omitted when creating a permission, the server uses
+            <code>PINGD_DEFAULT_PERMISSION_TTL</code> when configured; otherwise the permission does not expire.
+        </p>
+        <p>
+            Guests are never affected by user or global permissions. They use public topic flags and
+            share tokens only.
+        </p>
+
+        <h2>Share tokens</h2>
+        <p>
+            Share tokens are per-topic credentials managed by the topic owner or an admin. They use
+            the header <code>X-Topic-Token: tk_...</code>, grant <code>ro</code>, <code>wo</code>, or
+            <code>rw</code>, and can expire. The raw token is returned only when created or rotated;
+            the server stores a hash.
+        </p>
+        <p>
+            A valid share token is a cap, not an add-on. For example, an <code>ro</code> share token
+            can read but cannot publish, even if the topic has <code>publicPublish=true</code>.
+            Revoke or rotate the share to cut off token holders.
+        </p>
+        <p>
+            If <code>expiresAt</code> is omitted when creating a share, the server uses
+            <code>PINGD_DEFAULT_SHARE_TOKEN_TTL</code> when configured; otherwise the share does not expire.
+            <code>PINGD_MAX_SHARE_TOKENS_PER_TOPIC</code> can cap active shares per topic.
+        </p>
+
+        <h2>Pattern matching</h2>
+        <p>Patterns use dot separators. They follow NATS conventions:</p>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Pattern</th><th>Matches</th></tr></thead>
+            <tbody>
+                <tr><td><code>alerts</code></td><td>only the topic <code>alerts</code></td></tr>
+                <tr><td><code>alerts.*</code></td><td><code>alerts</code> and one child level: <code>alerts.cpu</code>, but not <code>alerts.cpu.high</code></td></tr>
+                <tr><td><code>alerts.&gt;</code></td><td><code>alerts</code> and any depth below it</td></tr>
+                <tr><td><code>*</code></td><td>everything</td></tr>
+            </tbody>
+        </table></div>
+        <div class="note">
+            <strong>Slashes are not supported.</strong> Use dots: <code>alerts.disk</code>, not <code>alerts/disk</code>.
+        </div>
+
+        <h2>Resolution order</h2>
+        <ol>
+            <li><strong>Admin</strong>: always allowed.</li>
+            <li><strong>Topic owner</strong>: always allowed.</li>
+            <li><strong>Share token</strong>: a valid unexpired <code>X-Topic-Token</code> decides access and skips permission/public fallback.</li>
+            <li><strong>Permissions</strong>: registered non-guest users only; matching user and global grants are combined.</li>
+            <li><strong>Public flags</strong>: read falls back to <code>publicRead</code>, publish falls back to <code>publicPublish</code>.</li>
+        </ol>
+        <p>
+            When multiple permissions match, <code>deny</code> wins outright.
+            Otherwise <code>rw</code> wins. Two separate permissions
+            (<code>ro</code> + <code>wo</code>) on the same pattern combine to <code>rw</code>.
+        </p>
+        <p>
+            A matching <code>deny</code> blocks non-owner, non-admin registered users even when public
+            flags would otherwise allow access. It does not override the topic owner, an admin, or a
+            valid share token. Owner/admin management routes (update/delete topic, share management,
+            webhook management) and admin-only stats ignore permission grants entirely.
+        </p>
+
+        <h2>Examples</h2>
+        <div class="table-wrap"><table>
+            <thead><tr><th>User</th><th>Topic</th><th>publicRead</th><th>publicPublish</th><th>Token</th><th>Permission</th><th>Read</th><th>Publish</th></tr></thead>
+            <tbody>
+                <tr><td>anon</td><td><code>news</code></td><td>true</td><td>true</td><td>&ndash;</td><td>&ndash;</td><td>yes</td><td>yes</td></tr>
+                <tr><td>anon</td><td><code>news</code></td><td>true</td><td>false</td><td>&ndash;</td><td>&ndash;</td><td>yes</td><td>no</td></tr>
+                <tr><td>anon</td><td><code>team</code></td><td>false</td><td>false</td><td><code>rw</code></td><td>&ndash;</td><td>yes</td><td>yes</td></tr>
+                <tr><td>anon</td><td><code>team</code></td><td>false</td><td>false</td><td><code>ro</code></td><td>&ndash;</td><td>yes</td><td>no</td></tr>
+                <tr><td>jinx</td><td><code>secrets</code></td><td>false</td><td>false</td><td>&ndash;</td><td>user <code>ro</code></td><td>yes</td><td>no</td></tr>
+                <tr><td>jinx</td><td><code>secrets</code></td><td>false</td><td>false</td><td>&ndash;</td><td>user <code>rw</code></td><td>yes</td><td>yes</td></tr>
+                <tr><td>jinx</td><td><code>news</code></td><td>true</td><td>true</td><td>&ndash;</td><td>user <code>deny</code></td><td>no</td><td>no</td></tr>
+                <tr><td>ops</td><td><code>deploy.prod</code></td><td>false</td><td>false</td><td>&ndash;</td><td>global <code>ro</code> on <code>deploy.&gt;</code></td><td>yes</td><td>no</td></tr>
+                <tr><td>guest</td><td><code>team</code></td><td>false</td><td>false</td><td>&ndash;</td><td>user <code>rw</code> ignored</td><td>no</td><td>no</td></tr>
+                <tr><td>owner</td><td><code>secrets</code></td><td>false</td><td>false</td><td>&ndash;</td><td>user <code>deny</code></td><td>yes</td><td>yes</td></tr>
+                <tr><td>admin</td><td>any</td><td>any</td><td>any</td><td>any</td><td>any</td><td>yes</td><td>yes</td></tr>
+            </tbody>
+        </table></div>
+
+        <h2>Endpoints</h2>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Method</th><th>Path</th><th>Who</th></tr></thead>
+            <tbody>
+                <tr><td><span class="method m-get">GET</span></td><td><code>/permissions/:username</code></td><td>List user's permissions; admin or self</td></tr>
+                <tr><td><span class="method m-post">POST</span></td><td><code>/permissions/:username</code></td><td>Create user permission; admin only</td></tr>
+                <tr><td><span class="method m-get">GET</span></td><td><code>/permissions</code></td><td>List global permissions; admin only</td></tr>
+                <tr><td><span class="method m-post">POST</span></td><td><code>/permissions</code></td><td>Create global permission; admin only</td></tr>
+                <tr><td><span class="method m-delete">DELETE</span></td><td><code>/permissions/:id</code></td><td>Delete any permission; admin only</td></tr>
+                <tr><td><span class="method m-get">GET</span></td><td><code>/topics/:name/shares</code></td><td>List topic shares; owner or admin</td></tr>
+                <tr><td><span class="method m-post">POST</span></td><td><code>/topics/:name/shares</code></td><td>Create topic share; owner or admin</td></tr>
+                <tr><td><span class="method m-patch">PATCH</span></td><td><code>/topics/:name/shares/:id</code></td><td>Update share label, access, or expiry</td></tr>
+                <tr><td><span class="method m-post">POST</span></td><td><code>/topics/:name/shares/:id/rotate</code></td><td>Rotate raw share token</td></tr>
+                <tr><td><span class="method m-delete">DELETE</span></td><td><code>/topics/:name/shares/:id</code></td><td>Revoke share</td></tr>
+            </tbody>
+        </table></div>
+
+        <h3>Create a user permission</h3>
+        <div class="tabs">
+            <div class="tab-panel" data-label="curl">
+<pre><code>curl -s http://localhost:7685/permissions/jinx \
+  -H 'Authorization: Bearer $ADMIN_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "accessLevel": "rw",
+    "topicPattern": "alerts.&gt;",
+    "expiresAt": "2026-12-31T23:59:59Z"
+  }'</code></pre>
+            </div>
+            <div class="tab-panel" data-label="pingd-cli">
+<pre><code>pingd-cli permissions create \
+  --username jinx \
+  --access rw \
+  --pattern 'alerts.&gt;' \
+  --expires-in 30d</code></pre>
+            </div>
+            <div class="tab-panel" data-label="python">
+<pre><code>import requests
+
+requests.post(
+    "http://localhost:7685/permissions/jinx",
+    headers={"Authorization": "Bearer ADMIN_TOKEN"},
+    json={
+        "accessLevel": "rw",
+        "topicPattern": "alerts.&gt;",
+        "expiresAt": "2026-12-31T23:59:59Z",
+    },
+)</code></pre>
+            </div>
+        </div>
+
+        <h3>Create a global permission</h3>
+        <div class="tabs">
+            <div class="tab-panel" data-label="curl">
+<pre><code>curl -s http://localhost:7685/permissions \
+  -H 'Authorization: Bearer $ADMIN_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "accessLevel": "ro",
+    "topicPattern": "announcements.&gt;"
+  }'</code></pre>
+            </div>
+            <div class="tab-panel" data-label="pingd-cli">
+<pre><code>pingd-cli permissions create-global \
+  --access ro \
+  --pattern 'announcements.&gt;'</code></pre>
+            </div>
+            <div class="tab-panel" data-label="python">
+<pre><code>import requests
+
+requests.post(
+    "http://localhost:7685/permissions",
+    headers={"Authorization": "Bearer ADMIN_TOKEN"},
+    json={
+        "accessLevel": "ro",
+        "topicPattern": "announcements.&gt;",
+    },
+)</code></pre>
+            </div>
+        </div>
+
+        <h3>Create a share token</h3>
+        <div class="tabs">
+            <div class="tab-panel" data-label="curl">
+<pre><code>curl -s http://localhost:7685/topics/alerts/shares \
+  -H 'Authorization: Bearer $TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "label": "dashboard",
+    "accessLevel": "ro",
+    "expiresAt": "2026-12-31T23:59:59Z"
+  }'</code></pre>
+            </div>
+            <div class="tab-panel" data-label="pingd-cli">
+<pre><code>pingd-cli shares create \
+  --topic alerts \
+  --access ro \
+  --label dashboard \
+  --expires-in 30d</code></pre>
+            </div>
+            <div class="tab-panel" data-label="python">
+<pre><code>import requests
+
+requests.post(
+    "http://localhost:7685/topics/alerts/shares",
+    headers={"Authorization": "Bearer TOKEN"},
+    json={
+        "label": "dashboard",
+        "accessLevel": "ro",
+        "expiresAt": "2026-12-31T23:59:59Z",
+    },
+)</code></pre>
+            </div>
+        </div>
+
+        <h2>What permissions don't grant</h2>
+        <p>
+            Permissions only affect read/publish for topics, messages, subscriptions, and SSE streams.
+            They do not grant topic management. Updating or deleting a topic, managing topic
+            shares or webhooks remains owner/admin-only, and reading admin-only stats remains admin-only
+            even if another user has <code>rw</code> on the topic.
+        </p>
+
+        <div class="page-nav">
+            <a class="prev" href="topics.html"><small>Previous</small>&larr; Topics</a>
+            <a class="next" href="users-tokens.html"><small>Next</small>Users &amp; tokens &rarr;</a>
+        </div>
+    </main>
+</div>
+<script src="assets/docs.js"></script>
+</body>
+</html>

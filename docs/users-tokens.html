@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#110f0d">
+    <title>Users &amp; tokens · pingd docs</title>
+    <link rel="icon" href="assets/pingd-icon.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="topbar">
+    <button class="menu-toggle" aria-label="Menu">&#9776;</button>
+    <a href="/" class="brand"><img src="assets/pingd-icon.png" alt="" class="brand-icon">pingd <small>docs</small></a>
+    <div class="topbar-spacer"></div>
+    <nav class="topbar-links">
+        <a href="getting-started.html">Get started</a>
+        <a href="https://github.com/saeid/pingd">GitHub</a>
+    </nav>
+</header>
+<div class="shell">
+    <aside class="sidebar">
+        <h4>Start here</h4>
+        <ul>
+            <li><a href="/">What is pingd?</a></li>
+            <li><a href="install.html">Install</a></li>
+            <li><a href="getting-started.html">Getting started</a></li>
+            <li><a href="config.html">Configuration</a></li>
+        </ul>
+        <h4>Using pingd</h4>
+        <ul>
+            <li><a href="publish.html">Publishing</a></li>
+            <li><a href="subscribe.html">Subscribing</a></li>
+            <li><a href="topics.html">Topics</a></li>
+            <li><a href="permissions.html">Permissions</a></li>
+            <li><a href="users-tokens.html">Users &amp; tokens</a></li>
+            <li><a href="webhooks.html">Webhooks</a></li>
+        </ul>
+        <h4>Push channels</h4>
+        <ul>
+            <li><a href="web-push.html">Web Push</a></li>
+            <li><a href="apns.html">APNS (iOS)</a></li>
+            <li><a href="fcm.html">FCM</a></li>
+        </ul>
+        <h4>Reference</h4>
+        <ul>
+            <li><a href="examples.html">Examples</a></li>
+            <li><a href="releases.html">Releases</a></li>
+            <li><a href="faq.html">FAQ</a></li>
+        </ul>
+    </aside>
+    <main>
+        <h1>Users &amp; tokens</h1>
+        <h2>Roles</h2>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Role</th><th>What they can do</th></tr></thead>
+            <tbody>
+                <tr><td><code>admin</code></td><td>Manage users, topics, permissions, devices, tokens.</td></tr>
+                <tr><td><code>user</code></td><td>Own topics, devices, tokens. Subscribe to topics they can read.</td></tr>
+                <tr><td><code>guest</code></td><td>System-created low-privilege account for anonymous installs. Cannot create topics or extra tokens.</td></tr>
+            </tbody>
+        </table></div>
+        <p>The <code>guest</code> role is system-only. Admin endpoints can't create or assign it.</p>
+
+        <h2>Anonymous access</h2>
+        <p>
+            Anonymous means no bearer token. Anonymous callers can only use public topic access
+            (<code>publicRead</code> / <code>publicPublish</code>) or a topic share token.
+            They cannot create devices, manage subscriptions, or call user/account endpoints.
+        </p>
+
+        <h2>Authentication</h2>
+        <p>Bearer tokens go in the <code>Authorization</code> header:</p>
+        <pre><code>Authorization: Bearer &lt;token&gt;</code></pre>
+
+        <h2>Login</h2>
+        <div class="tabs">
+            <div class="tab-panel" data-label="curl">
+<pre><code>curl -s http://localhost:7685/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "username": "vi",
+    "password": "password1",
+    "label": "web"
+  }'</code></pre>
+            </div>
+            <div class="tab-panel" data-label="python">
+<pre><code>import requests
+
+requests.post(
+    "http://localhost:7685/auth/login",
+    json={
+        "username": "vi",
+        "password": "password1",
+        "label": "web",
+    },
+)</code></pre>
+            </div>
+        </div>
+        <p>Returns:</p>
+        <pre><code>{
+  "token": "bearer-token",
+  "userID": "uuid",
+  "username": "vi"
+}</code></pre>
+        <p>
+            If a token with the same <code>label</code> already exists for the user and is still valid,
+            login reuses it. Otherwise it creates a new one. <code>label</code> is just a hint;
+            "web", "iphone", "ci", whatever helps you tell tokens apart.
+        </p>
+
+        <h2>Registration</h2>
+        <p>Public registration is <strong>off by default</strong>. Enable it with:</p>
+        <pre><code>PINGD_ALLOW_REGISTRATION=true</code></pre>
+        <p>Then:</p>
+        <div class="tabs">
+            <div class="tab-panel" data-label="curl">
+<pre><code>curl -s http://localhost:7685/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "username": "vi",
+    "password": "password1",
+    "label": "web"
+  }'</code></pre>
+            </div>
+            <div class="tab-panel" data-label="python">
+<pre><code>import requests
+
+requests.post(
+    "http://localhost:7685/auth/register",
+    json={
+        "username": "vi",
+        "password": "password1",
+        "label": "web",
+    },
+)</code></pre>
+            </div>
+        </div>
+        <p>Registration creates a normal <code>user</code> account. Admins can also create users via <code>POST /users</code>.</p>
+
+        <h2>Guest sessions</h2>
+        <div class="tabs">
+            <div class="tab-panel" data-label="curl">
+<pre><code>curl -s -X POST http://localhost:7685/auth/guest</code></pre>
+            </div>
+            <div class="tab-panel" data-label="python">
+<pre><code>import requests
+
+requests.post("http://localhost:7685/auth/guest")</code></pre>
+            </div>
+        </div>
+        <p>
+            Creates a system-generated user (<code>guest-xxxxxx</code>) and a non-expiring bearer token.
+            Use this for anonymous app/device installs that still need authenticated endpoints. Guests can:
+        </p>
+        <ul>
+            <li>register devices</li>
+            <li>subscribe their devices to topics they can read</li>
+            <li>read topics with <code>publicRead=true</code></li>
+            <li>publish topics with <code>publicPublish=true</code></li>
+            <li>read or publish with a valid share token</li>
+        </ul>
+        <p>Guests <strong>cannot</strong> create topics or create extra bearer tokens. User/global permission grants do not affect guests.</p>
+
+        <h2>Current user</h2>
+        <div class="tabs">
+            <div class="tab-panel" data-label="curl">
+<pre><code>curl -s http://localhost:7685/me \
+  -H 'Authorization: Bearer $TOKEN'</code></pre>
+            </div>
+            <div class="tab-panel" data-label="python">
+<pre><code>import requests
+
+requests.get(
+    "http://localhost:7685/me",
+    headers={"Authorization": "Bearer TOKEN"},
+)</code></pre>
+            </div>
+        </div>
+        <p>Returns the authenticated user's profile.</p>
+
+        <h2>Logout</h2>
+        <div class="tabs">
+            <div class="tab-panel" data-label="curl">
+<pre><code>curl -s -X DELETE http://localhost:7685/auth/logout \
+  -H 'Authorization: Bearer $TOKEN'</code></pre>
+            </div>
+            <div class="tab-panel" data-label="python">
+<pre><code>import requests
+
+requests.delete(
+    "http://localhost:7685/auth/logout",
+    headers={"Authorization": "Bearer TOKEN"},
+)</code></pre>
+            </div>
+        </div>
+        <p>Revokes the active token. To also deactivate a push device on logout, send the device's push token:</p>
+        <div class="tabs">
+            <div class="tab-panel" data-label="curl">
+<pre><code>curl -s -X DELETE http://localhost:7685/auth/logout \
+  -H 'Authorization: Bearer $TOKEN' \
+  -H 'X-Push-Token: &lt;push-token&gt;'</code></pre>
+            </div>
+            <div class="tab-panel" data-label="python">
+<pre><code>import requests
+
+requests.delete(
+    "http://localhost:7685/auth/logout",
+    headers={
+        "Authorization": "Bearer TOKEN",
+        "X-Push-Token": "&lt;push-token&gt;",
+    },
+)</code></pre>
+            </div>
+        </div>
+        <p>The device is only deactivated if it belongs to the calling user.</p>
+
+        <h2>API tokens</h2>
+        <p>Mint long-lived tokens for scripts, CI, and integrations.</p>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Method</th><th>Path</th><th>Who</th></tr></thead>
+            <tbody>
+                <tr><td><span class="method m-get">GET</span></td><td><code>/users/:username/tokens</code></td><td>Self or admin</td></tr>
+                <tr><td><span class="method m-post">POST</span></td><td><code>/users/:username/tokens</code></td><td>Self or admin (guests denied)</td></tr>
+                <tr><td><span class="method m-delete">DELETE</span></td><td><code>/tokens/:id</code></td><td>Owner or admin</td></tr>
+            </tbody>
+        </table></div>
+
+        <h3>Create a token</h3>
+        <div class="tabs">
+            <div class="tab-panel" data-label="curl">
+<pre><code>curl -s http://localhost:7685/users/vi/tokens \
+  -H 'Authorization: Bearer $TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "label": "automation",
+    "expiresAt": "2026-12-31T23:59:59Z"
+  }'</code></pre>
+            </div>
+            <div class="tab-panel" data-label="pingd-cli">
+<pre><code>pingd-cli tokens create \
+  --username vi \
+  --label automation \
+  --expires-in 30d</code></pre>
+            </div>
+            <div class="tab-panel" data-label="python">
+<pre><code>import requests
+
+requests.post(
+    "http://localhost:7685/users/vi/tokens",
+    headers={"Authorization": "Bearer TOKEN"},
+    json={
+        "label": "automation",
+        "expiresAt": "2026-12-31T23:59:59Z",
+    },
+)</code></pre>
+            </div>
+        </div>
+        <p>Omit <code>expiresAt</code> for a non-expiring token. The plaintext
+                    token is returned <strong>once</strong>.</p>
+
+        <h2>Token visibility</h2>
+        <p>
+            Admins see full token values when listing tokens.
+            Non-admin users see masked values for previously created tokens
+            (the plaintext is only available at creation time).
+        </p>
+
+        <h2>User management (admin)</h2>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Method</th><th>Path</th><th>Notes</th></tr></thead>
+            <tbody>
+                <tr><td><span class="method m-get">GET</span></td><td><code>/users</code></td><td>Admin only</td></tr>
+                <tr><td><span class="method m-post">POST</span></td><td><code>/users</code></td><td>Admin only; cannot create <code>guest</code></td></tr>
+                <tr><td><span class="method m-get">GET</span></td><td><code>/users/:username</code></td><td>Admin or self</td></tr>
+                <tr><td><span class="method m-patch">PATCH</span></td><td><code>/users/:username</code></td><td>Admin or self (some fields admin-only)</td></tr>
+                <tr><td><span class="method m-delete">DELETE</span></td><td><code>/users/:username</code></td><td>Admin only; cannot remove last admin</td></tr>
+            </tbody>
+        </table></div>
+
+        <h3>Create a user</h3>
+        <div class="tabs">
+            <div class="tab-panel" data-label="curl">
+<pre><code>curl -s http://localhost:7685/users \
+  -H 'Authorization: Bearer $ADMIN_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "username": "vi",
+    "password": "password1",
+    "role": "user"
+  }'</code></pre>
+            </div>
+            <div class="tab-panel" data-label="pingd-cli">
+<pre><code>pingd-cli users create \
+  --username vi \
+  --password password1 \
+  --role user</code></pre>
+            </div>
+            <div class="tab-panel" data-label="python">
+<pre><code>import requests
+
+requests.post(
+    "http://localhost:7685/users",
+    headers={"Authorization": "Bearer ADMIN_TOKEN"},
+    json={
+        "username": "vi",
+        "password": "password1",
+        "role": "user",
+    },
+)</code></pre>
+            </div>
+        </div>
+
+        <h2>Bearer token vs share token</h2>
+        <p>Two unrelated credentials. You can use either, both, or neither, depending on the topic:</p>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Header</th><th>Value</th><th>Used for</th></tr></thead>
+            <tbody>
+                <tr><td><code>Authorization</code></td><td><code>Bearer &lt;token&gt;</code></td><td>Identifying a user/account</td></tr>
+                <tr><td><code>X-Topic-Token</code></td><td><code>tk_...</code></td><td>Capped access to one topic without granting account permissions</td></tr>
+            </tbody>
+        </table></div>
+
+        <div class="page-nav">
+            <a class="prev" href="permissions.html"><small>Previous</small>&larr; Permissions</a>
+            <a class="next" href="webhooks.html"><small>Next</small>Webhooks &rarr;</a>
+        </div>
+    </main>
+</div>
+<script src="assets/docs.js"></script>
+</body>
+</html>
