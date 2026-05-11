@@ -5,3 +5,5 @@
 *.sqlite
 requests/
 plan.md
+.local/
+docs/

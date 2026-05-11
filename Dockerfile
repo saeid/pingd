@@ -3,10 +3,12 @@
 # ================================
 FROM swift:6.1-noble AS build
 
+ARG TARGETPLATFORM
+
 RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true \
     && apt-get -q update \
-    && apt-get -q dist-upgrade -y \
-    && apt-get install -y libjemalloc-dev
+    && apt-get install -y libjemalloc-dev \
+    && rm -r /var/lib/apt/lists/*
 
 WORKDIR /build
 
@@ -20,7 +22,7 @@ COPY . .
 RUN mkdir /staging
 
 # Build server
-RUN --mount=type=cache,target=/build/.build \
+RUN --mount=type=cache,id=pingd-swift-build-${TARGETPLATFORM},target=/build/.build \
     swift build -c release \
         --product pingd \
         --static-swift-stdlib \
@@ -29,7 +31,7 @@ RUN --mount=type=cache,target=/build/.build \
     find -L "$(swift build -c release --show-bin-path)" -regex '.*\.resources$' -exec cp -Ra {} /staging \;
 
 # Build CLI
-RUN --mount=type=cache,target=/build/.build \
+RUN --mount=type=cache,id=pingd-swift-build-${TARGETPLATFORM},target=/build/.build \
     swift build -c release \
         --product pingd-cli \
         --static-swift-stdlib \
@@ -37,7 +39,7 @@ RUN --mount=type=cache,target=/build/.build \
     cp "$(swift build -c release --show-bin-path)/pingd-cli" /staging
 
 # Build VAPID keygen
-RUN --mount=type=cache,target=/build/.build \
+RUN --mount=type=cache,id=pingd-swift-build-${TARGETPLATFORM},target=/build/.build \
     swift build -c release \
         --product pingd-webpush-keygen \
         --static-swift-stdlib \
@@ -59,7 +61,6 @@ FROM ubuntu:noble
 
 RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true \
     && apt-get -q update \
-    && apt-get -q dist-upgrade -y \
     && apt-get -q install -y \
       libjemalloc2 \
       ca-certificates \
