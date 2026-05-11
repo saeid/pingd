@@ -8,7 +8,7 @@ struct TokenAuthMiddleware: AsyncMiddleware {
         guard let bearerToken = req.headers.bearerAuthorization?.token else {
             throw Abort(.unauthorized)
         }
-        let ip = req.headers.forwarded.first?.for ?? req.remoteAddress?.ipAddress ?? ""
+        let ip = req.clientIP
         let user = try await tokenClient.markTokenUse(bearerToken, ip, now())
         req.storage[UserStorageKey.self] = user
         return try await next.respond(to: req)
