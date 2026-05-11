@@ -23,6 +23,17 @@ extension Request {
     }
 
     var clientIP: String {
-        headers.forwarded.first?.for ?? remoteAddress?.ipAddress ?? "unknown"
+        if let xri = headers.first(name: "X-Real-IP")?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !xri.isEmpty {
+            return xri
+        }
+        if let xff = headers.first(name: "X-Forwarded-For") {
+            let ip = xff.split(separator: ",").last
+                .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            if let ip, !ip.isEmpty {
+                return ip
+            }
+        }
+        return remoteAddress?.ipAddress ?? "unknown"
     }
 }
