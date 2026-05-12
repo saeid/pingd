@@ -1,8 +1,6 @@
 services:
   pingd:
-    image: pingd:latest
-    build:
-      context: .
+    image: ghcr.io/saeid/pingd:latest
     ports:
       - "7685:7685"
     environment:
