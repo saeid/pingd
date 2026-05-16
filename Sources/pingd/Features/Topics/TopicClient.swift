@@ -4,6 +4,7 @@ import Foundation
 
 struct TopicClient {
     let list: @Sendable () async throws -> [Topic]
+    let listForOwner: @Sendable (_ ownerID: UUID) async throws -> [Topic]
     let get: @Sendable (UUID) async throws -> Topic?
     let getByName: @Sendable (String) async throws -> Topic?
     let countForOwner: @Sendable (_ ownerID: UUID) async throws -> Int
@@ -26,6 +27,11 @@ extension TopicClient {
         TopicClient(
             list: {
                 try await Topic.query(on: app.db).all()
+            },
+            listForOwner: { ownerID in
+                try await Topic.query(on: app.db)
+                    .filter(\.$owner.$id == ownerID)
+                    .all()
             },
             get: { id in
                 try await Topic.find(id, on: app.db)
@@ -68,6 +74,7 @@ extension TopicClient {
 
     static func mock(
         list: @escaping @Sendable () async throws -> [Topic] = { [] },
+        listForOwner: @escaping @Sendable (UUID) async throws -> [Topic] = { _ in [] },
         get: @escaping @Sendable (UUID) async throws -> Topic? = { _ in nil },
         getByName: @escaping @Sendable (String) async throws -> Topic? = { _ in nil },
         countForOwner: @escaping @Sendable (UUID) async throws -> Int = { _ in 0 },
@@ -79,6 +86,7 @@ extension TopicClient {
     ) -> Self {
         TopicClient(
             list: list,
+            listForOwner: listForOwner,
             get: get,
             getByName: getByName,
             countForOwner: countForOwner,

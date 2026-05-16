@@ -119,6 +119,7 @@ extension AppDependencies {
                 messageClient: messageClient,
                 subscriptionClient: subscriptionClient,
                 dispatchClient: dispatchClient,
+                userClient: userClient,
                 reservedTopicNames: appConfig.reservedTopicNames,
                 maxTopicsPerUser: appConfig.maxTopicsPerUser,
                 now: now

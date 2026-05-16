@@ -20,6 +20,7 @@ extension PingdTests {
             messageClient: .mock(),
             subscriptionClient: .mock(),
             dispatchClient: .mock(),
+            userClient: .mock(),
             reservedTopicNames: [],
             maxTopicsPerUser: 5,
             now: { Date() }
@@ -46,6 +47,7 @@ extension PingdTests {
             messageClient: .mock(),
             subscriptionClient: .mock(),
             dispatchClient: .mock(),
+            userClient: .mock(),
             reservedTopicNames: [],
             maxTopicsPerUser: 5,
             now: { Date() }
@@ -71,6 +73,7 @@ extension PingdTests {
             messageClient: .mock(),
             subscriptionClient: .mock(),
             dispatchClient: .mock(),
+            userClient: .mock(),
             reservedTopicNames: [],
             maxTopicsPerUser: nil,
             now: { Date() }
