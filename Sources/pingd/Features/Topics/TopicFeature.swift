@@ -32,6 +32,11 @@ struct TopicFeature {
     /// currentUser nil = anonymous
     let listTopics: @Sendable (_ currentUser: User?) async throws -> [Topic]
 
+    let listTopicsForUser: @Sendable (
+        _ currentUser: User,
+        _ username: String
+    ) async throws -> [Topic]
+
     let topicStats: @Sendable (
         _ currentUser: User,
         _ name: String
@@ -71,6 +76,7 @@ extension TopicFeature {
         messageClient: MessageClient,
         subscriptionClient: SubscriptionClient,
         dispatchClient: DispatchClient,
+        userClient: UserClient,
         reservedTopicNames: Set<String>,
         maxTopicsPerUser: Int?,
         now: @escaping @Sendable () -> Date
@@ -105,6 +111,11 @@ extension TopicFeature {
                     }
                     return topic.publicRead
                 }
+            },
+            listTopicsForUser: { currentUser, username in
+                try userClient.checkUserPermission(for: currentUser, targetUser: username)
+                let targetUserID = try await userClient.getUserId(for: username)
+                return try await topicClient.listForOwner(targetUserID)
             },
             topicStats: { currentUser, name in
                 guard currentUser.role == .admin else {

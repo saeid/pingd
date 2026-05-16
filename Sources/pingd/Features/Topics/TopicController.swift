@@ -12,10 +12,22 @@ struct TopicController: RouteCollection, @unchecked Sendable {
         topics.get(":name", "stats", use: stats)
         topics.patch(":name", use: update)
         topics.delete(":name", use: delete)
+
+        let userTopics = routes.grouped("users", ":username", "topics")
+        userTopics.get(use: listForUser)
     }
 
     func list(_ req: Request) async throws -> [TopicResponse] {
         let topics = try await topicFeature.listTopics(req.optionalUser)
+        return try topics.map(TopicResponse.init)
+    }
+
+    func listForUser(_ req: Request) async throws -> [TopicResponse] {
+        let currentUser = try req.user
+        guard let username = req.parameters.get("username") else {
+            throw Abort(.badRequest)
+        }
+        let topics = try await topicFeature.listTopicsForUser(currentUser, username)
         return try topics.map(TopicResponse.init)
     }
 
