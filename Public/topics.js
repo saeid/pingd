@@ -75,13 +75,26 @@ export async function loadSubscribedTopics() {
         return;
     }
 
-    const subscriptions = await api("GET", `/users/${encodePath(state.user.username)}/subscriptions`);
+    const username = encodePath(state.user.username);
+    const [subscriptions, ownedTopics] = await Promise.all([
+        api("GET", `/users/${username}/subscriptions`),
+        api("GET", `/users/${username}/topics`),
+    ]);
     const topicsByName = new Map();
     for (const subscription of subscriptions || []) {
         const topic = topicFromSubscription(subscription);
         if (topic.name) {
             topicsByName.set(topic.name, topic);
         }
+    }
+    for (const topic of ownedTopics || []) {
+        topicsByName.set(topic.name, {
+            id: topic.id,
+            name: topic.name,
+            publicRead: !!topic.publicRead,
+            publicPublish: !!topic.publicPublish,
+            ownerUserID: topic.ownerUserID,
+        });
     }
 
     state.topics = [...topicsByName.values()]
@@ -172,7 +185,9 @@ export async function lookupTopicByName(topicName, { subscribe = true, promptPer
         const topic = await api("GET", `/topics/${encodePath(name)}`, { topicName: name });
         upsertTopic(topic);
         if (subscribe) {
-            await subscribeToTopic(topic.name, { promptPermission });
+            try {
+                await subscribeToTopic(topic.name, { promptPermission });
+            } catch {}
         }
         state.currentTab = "topics";
         state.currentTopicName = topic.name;
@@ -229,9 +244,13 @@ export async function createTopic(form) {
 
     const topic = await api("POST", "/topics", { body });
     upsertTopic(topic);
-    await subscribeToTopic(topic.name);
+    try {
+        await subscribeToTopic(topic.name);
+        setToast(`Created topic ${name}`, "success");
+    } catch {
+        setToast(`Created topic ${name}. Enable notifications in Account to receive alerts.`, "default");
+    }
     closeModal();
-    setToast(`Created topic ${name}`, "success");
     await lookupTopicByName(name, { subscribe: false });
     if (state.user?.role === "admin") {
         await loadTopics();
