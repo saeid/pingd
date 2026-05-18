@@ -19,7 +19,7 @@ import {
     maskToken,
 } from "./lib.js";
 import { api } from "./api.js";
-import { subscribeToTopic, renderNotificationPanel } from "./webpush.js";
+import { subscribeToTopic, renderNotificationPanel, notificationStatus } from "./webpush.js";
 import {
     setToast,
     render,
@@ -665,12 +665,36 @@ function renderTopicRail() {
     `;
 }
 
+function renderNotificationsBanner() {
+    if (!state.token || state.user?.role === "guest") return "";
+
+    const status = notificationStatus();
+    if (status.label === "Enabled" && Notification.permission === "granted") return "";
+
+    const action = status.canEnable
+        ? `<button class="btn btn-outline btn-small" type="button" data-action="enable-notifications">Enable</button>`
+        : `<button class="btn btn-outline btn-small" type="button" data-tab="account">Open Account</button>`;
+
+    return `
+        <div class="notice-banner">
+            <div class="notice-body">
+                <strong>Notifications off</strong>
+                <span>${escapeHtml(status.detail)}</span>
+            </div>
+            ${action}
+        </div>
+    `;
+}
+
 function renderTopicsWorkspace() {
     const rail = renderTopicRail();
     return `
-        <div class="topics-layout ${rail ? "" : "topics-layout-single"}">
-            ${renderMessagesPanel()}
-            ${rail}
+        <div class="workspace-stack">
+            ${renderNotificationsBanner()}
+            <div class="topics-layout ${rail ? "" : "topics-layout-single"}">
+                ${renderMessagesPanel()}
+                ${rail}
+            </div>
         </div>
     `;
 }
