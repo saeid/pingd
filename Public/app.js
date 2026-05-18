@@ -25,7 +25,7 @@ import {
     deleteWebhook,
     publishCurrentTopic,
 } from "./topics.js";
-import { enablePushFromAccount, unsubscribeFromTopic } from "./webpush.js";
+import { enablePushFromAccount, unsubscribeFromTopic, watchNotificationPermission } from "./webpush.js";
 
 async function handleModalSubmit(type, formData) {
     switch (type) {
@@ -188,6 +188,7 @@ async function initialize() {
         onAction: handleModalAction,
     });
     initAppEvents();
+    watchNotificationPermission();
     try {
         if (state.token) {
             await bootstrapAuthenticatedSession();

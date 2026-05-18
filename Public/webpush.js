@@ -9,6 +9,27 @@ export function supportsWebPush() {
         "Notification" in window;
 }
 
+export function watchNotificationPermission() {
+    if (!supportsWebPush()) return;
+    const reconcile = () => {
+        if (Notification.permission !== "granted" && state.webPushDevice) {
+            state.webPushDevice = null;
+            state.webPushToken = null;
+            persistWebPushDevice(null);
+        }
+        render();
+    };
+    if (navigator.permissions?.query) {
+        navigator.permissions.query({ name: "notifications" })
+            .then((permissionStatus) => { permissionStatus.onchange = reconcile; })
+            .catch(() => {});
+    }
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") reconcile();
+    });
+    window.addEventListener("focus", reconcile);
+}
+
 function deviceInfo() {
     const data = navigator.userAgentData;
     const ua = navigator.userAgent;
@@ -198,9 +219,11 @@ export async function restorePush() {
         state.webPushDevice = null;
         state.webPushToken = null;
         persistWebPushDevice(null);
+        render();
         return;
     }
     if (!window.isSecureContext || Notification.permission !== "granted") {
+        render();
         return;
     }
 
@@ -213,6 +236,7 @@ export async function restorePush() {
             if (subscription?.endpoint === cachedToken.endpoint) {
                 state.webPushDevice = cached.device;
                 state.webPushToken = cached.pushToken;
+                render();
                 return;
             }
         } catch (error) {
@@ -225,6 +249,7 @@ export async function restorePush() {
     } catch (error) {
         console.warn("Push restore failed", error);
     }
+    render();
 }
 
 export async function enablePushFromAccount() {
@@ -309,14 +334,14 @@ export function notificationStatus() {
 
     if (Notification.permission === "denied") {
         return {
-            label: "Permission denied",
+            label: "Blocked",
             className: "badge-danger",
-            detail: "Blocked in browser settings.",
+            detail: "Notifications are blocked for this site. Allow them in your browser's site settings.",
             canEnable: false,
         };
     }
 
-    if (state.webPushDevice?.deliveryEnabled === true) {
+    if (state.webPushDevice?.deliveryEnabled === true && Notification.permission === "granted") {
         return {
             label: "Enabled",
             className: "badge-open",
@@ -329,7 +354,7 @@ export function notificationStatus() {
         return {
             label: "Disabled",
             className: "badge-warning",
-            detail: "Permission granted, device not registered.",
+            detail: "Notifications are off on this browser.",
             canEnable: true,
         };
     }
@@ -337,7 +362,7 @@ export function notificationStatus() {
     return {
         label: "Disabled",
         className: "badge-muted",
-        detail: "Permission has not been requested.",
+        detail: "Notifications are off on this browser.",
         canEnable: true,
     };
 }
@@ -352,16 +377,17 @@ export function renderNotificationPanel() {
                 <div class="panel-title">
                     <h3>Notifications</h3>
                 </div>
-                ${status.canEnable ? `
-                    <button class="btn btn-outline btn-small" type="button" data-action="enable-notifications" ${actionDisabled ? "disabled" : ""}>
-                        ${state.webPushBusy ? "Enabling..." : "Enable"}
-                    </button>
-                ` : ""}
+                <div class="topbar-actions">
+                    <span class="badge ${status.className}">${escapeHtml(status.label)}</span>
+                    ${status.canEnable ? `
+                        <button class="btn btn-outline btn-small" type="button" data-action="enable-notifications" ${actionDisabled ? "disabled" : ""}>
+                            ${state.webPushBusy ? "Enabling..." : "Enable"}
+                        </button>
+                    ` : ""}
+                </div>
             </header>
             <div class="panel-body">
-                <dl class="detail-list">
-                    <div class="detail-row"><dt>Device</dt><dd>${escapeHtml(status.detail)}</dd></div>
-                </dl>
+                <p class="panel-note">${escapeHtml(status.detail)}</p>
             </div>
         </section>
     `;
