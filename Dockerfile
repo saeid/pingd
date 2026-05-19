@@ -75,6 +75,7 @@ RUN mkdir -p /data && chown vapor:vapor /data
 WORKDIR /app
 
 COPY --from=build --chown=vapor:vapor /staging /app
+RUN chmod 755 /app
 
 ENV SWIFT_BACKTRACE=enable=yes,sanitize=yes,threads=all,images=all,interactive=no,swift-backtrace=./swift-backtrace-static
 
