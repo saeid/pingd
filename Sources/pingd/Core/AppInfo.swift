@@ -6,8 +6,8 @@ struct AppInfo {
 
     static var current: Self {
         AppInfo(
-            version: "0.0.1",
-            build: "1"
+            version: ProcessInfo.processInfo.environment["APP_VERSION"] ?? "dev",
+            build: ProcessInfo.processInfo.environment["APP_BUILD"] ?? "0"
         )
     }
 }
