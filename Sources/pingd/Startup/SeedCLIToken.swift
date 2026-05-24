@@ -1,9 +1,14 @@
 import Foundation
 import Vapor
 
-private func pingdDataDirectory() -> URL {
+private var pingdDataDirectory: URL {
     let path = ProcessInfo.processInfo.environment["PINGD_DATA_DIR"] ?? "data"
     return URL(fileURLWithPath: path, isDirectory: true)
+}
+
+private var pingdServerURL: String {
+    let port = Int(Environment.get("PORT") ?? "") ?? 7685
+    return "http://localhost:\(port)"
 }
 
 func seedCLIToken(services: AppDependencies, logger: Logger) async throws {
@@ -11,13 +16,21 @@ func seedCLIToken(services: AppDependencies, logger: Logger) async throws {
           let password = Environment.get("ADMIN_PASSWORD")
     else { return }
 
-    let dataDir = pingdDataDirectory()
-    let configFile = dataDir.appendingPathComponent("cli-config.json")
+    let configFile = pingdDataDirectory.appendingPathComponent("cli-config.json")
+    let serverURL = pingdServerURL
 
     if let data = try? Data(contentsOf: configFile),
-       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+       var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
        json["token"] as? String != nil {
-        logger.info("CLI config already exists")
+        let existing = (json["serverURL"] as? String) ?? ""
+        if existing != serverURL {
+            json["serverURL"] = serverURL
+            let updated = try JSONSerialization.data(withJSONObject: json, options: .prettyPrinted)
+            try updated.write(to: configFile)
+            logger.info("CLI config server URL updated to \(serverURL)")
+        } else {
+            logger.info("CLI config already exists")
+        }
         return
     }
 
@@ -26,11 +39,17 @@ func seedCLIToken(services: AppDependencies, logger: Logger) async throws {
     let token = try await services.tokenClient.createToken(userID, "cli", nil)
 
     let config: [String: Any] = [
-        "serverURL": "http://localhost:7685",
+        "serverURL": serverURL,
         "token": token.tokenHash,
     ]
-    try FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
-    let data = try JSONSerialization.data(withJSONObject: config, options: .prettyPrinted)
+    try FileManager.default.createDirectory(
+        at: pingdDataDirectory,
+        withIntermediateDirectories: true
+    )
+    let data = try JSONSerialization.data(
+        withJSONObject: config,
+        options: .prettyPrinted
+    )
     try data.write(to: configFile)
 
     logger.info("CLI token saved to \(configFile.path)")
