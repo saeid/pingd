@@ -22,6 +22,10 @@ func seedCLIToken(services: AppDependencies, logger: Logger) async throws {
     if let data = try? Data(contentsOf: configFile),
        var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
        json["token"] as? String != nil {
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o600],
+            ofItemAtPath: configFile.path
+        )
         let existing = (json["serverURL"] as? String) ?? ""
         if existing != serverURL {
             json["serverURL"] = serverURL
@@ -44,13 +48,18 @@ func seedCLIToken(services: AppDependencies, logger: Logger) async throws {
     ]
     try FileManager.default.createDirectory(
         at: pingdDataDirectory,
-        withIntermediateDirectories: true
+        withIntermediateDirectories: true,
+        attributes: [.posixPermissions: 0o700]
     )
     let data = try JSONSerialization.data(
         withJSONObject: config,
         options: .prettyPrinted
     )
     try data.write(to: configFile)
+    try FileManager.default.setAttributes(
+        [.posixPermissions: 0o600],
+        ofItemAtPath: configFile.path
+    )
 
     logger.info("CLI token saved to \(configFile.path)")
 }

@@ -6,6 +6,17 @@ import FluentSQLiteDriver
 import Vapor
 import VaporAPNS
 
+enum StartupError: Error, CustomStringConvertible {
+    case sqliteFileCreationFailed(path: String)
+
+    var description: String {
+        switch self {
+        case .sqliteFileCreationFailed(let path):
+            return "Failed to create SQLite database file at \(path)"
+        }
+    }
+}
+
 func makeCORSConfiguration(from config: CORSConfig) -> CORSMiddleware.Configuration {
     let allowedOrigin: CORSMiddleware.AllowOriginSetting =
         config.allowsAllOrigins ? .all : .any(config.explicitOrigins)
@@ -43,10 +54,30 @@ public func configure(_ app: Application) async throws {
         app.databases.use(DatabaseConfigurationFactory.sqlite(.memory), as: .sqlite)
     } else {
         let dataDir = Environment.get("PINGD_DATA_DIR") ?? "data"
-        try FileManager.default.createDirectory(atPath: dataDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            atPath: dataDir,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700]
+        )
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: dataDir)
         let databasePath = URL(fileURLWithPath: dataDir, isDirectory: true)
             .appendingPathComponent("pingddb.sqlite")
             .path
+        if !FileManager.default.fileExists(atPath: databasePath) {
+            let created = FileManager.default.createFile(
+                atPath: databasePath,
+                contents: nil,
+                attributes: [.posixPermissions: 0o600]
+            )
+            guard created else {
+                throw StartupError.sqliteFileCreationFailed(path: databasePath)
+            }
+        } else {
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o600],
+                ofItemAtPath: databasePath
+            )
+        }
         app.databases.use(DatabaseConfigurationFactory.sqlite(.file(databasePath)), as: .sqlite)
         app.logger.info("Starting Pingd \(AppInfo.current.version) (build \(AppInfo.current.build))")
     }
