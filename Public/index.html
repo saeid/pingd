@@ -328,6 +328,140 @@
         </section>
     </dialog>
 
+    <dialog id="dialog-new-share" class="app-modal">
+        <section class="modal">
+            <header class="modal-header">
+                <h3>Create share token</h3>
+                <p>Generate a secret token granting access to /<span class="mono" data-bind="topicName"></span>.</p>
+            </header>
+            <form data-modal-form="new-share">
+                <div class="modal-body">
+                    <div class="error-text" data-bind="error" hidden></div>
+                    <div class="field">
+                        <label for="new-share-label">Label</label>
+                        <input class="input" id="new-share-label" name="label" placeholder="grafana webhook" autocomplete="off">
+                    </div>
+                    <div class="webhook-form-grid">
+                        <div class="field">
+                            <label for="new-share-access">Access level</label>
+                            <select class="select" id="new-share-access" name="accessLevel" required>
+                                <option value="ro" selected>Read only</option>
+                                <option value="wo">Publish only</option>
+                                <option value="rw">Read &amp; publish</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="new-share-expires">Expires in</label>
+                            <select class="select" id="new-share-expires" name="expiresIn">
+                                <option value="" selected>Default expiry</option>
+                                <option value="3600">1h</option>
+                                <option value="86400">24h</option>
+                                <option value="604800">7d</option>
+                                <option value="2592000">30d</option>
+                                <option value="7776000">90d</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <footer class="modal-footer">
+                    <button class="btn btn-outline" type="button" data-action="close-modal">Cancel</button>
+                    <button class="btn btn-primary" type="submit">Create</button>
+                </footer>
+            </form>
+        </section>
+    </dialog>
+
+    <dialog id="dialog-edit-share" class="app-modal">
+        <section class="modal">
+            <header class="modal-header">
+                <h3>Edit share token</h3>
+                <p>Updates label, access level, or expiry for /<span class="mono" data-bind="topicName"></span>.</p>
+            </header>
+            <form data-modal-form="edit-share">
+                <div class="modal-body">
+                    <div class="error-text" data-bind="error" hidden></div>
+                    <div class="field">
+                        <label for="edit-share-label">Label</label>
+                        <input class="input" id="edit-share-label" name="label" placeholder="grafana webhook" autocomplete="off">
+                    </div>
+                    <div class="webhook-form-grid">
+                        <div class="field">
+                            <label for="edit-share-access">Access level</label>
+                            <select class="select" id="edit-share-access" name="accessLevel" required>
+                                <option value="ro">Read only</option>
+                                <option value="wo">Publish only</option>
+                                <option value="rw">Read &amp; publish</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="edit-share-expires">Expires in</label>
+                            <select class="select" id="edit-share-expires" name="expiresIn">
+                                <option value="" selected>Keep current</option>
+                                <option value="clear">Clear expiry</option>
+                                <option value="3600">1h from now</option>
+                                <option value="86400">24h from now</option>
+                                <option value="604800">7d from now</option>
+                                <option value="2592000">30d from now</option>
+                                <option value="7776000">90d from now</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <footer class="modal-footer">
+                    <button class="btn btn-outline" type="button" data-action="close-modal">Cancel</button>
+                    <button class="btn btn-primary" type="submit">Update</button>
+                </footer>
+            </form>
+        </section>
+    </dialog>
+
+    <dialog id="dialog-rotate-share" class="app-modal">
+        <section class="modal">
+            <header class="modal-header">
+                <h3>Rotate share token</h3>
+                <p>Rotates <span data-bind="shareLabel"></span>. The previous token stops working immediately.</p>
+            </header>
+            <footer class="modal-footer">
+                <button class="btn btn-outline" type="button" data-action="close-modal">Cancel</button>
+                <button class="btn btn-primary" type="button" data-action="confirm-rotate-share">Rotate</button>
+            </footer>
+        </section>
+    </dialog>
+
+    <dialog id="dialog-delete-share" class="app-modal">
+        <section class="modal">
+            <header class="modal-header">
+                <h3>Delete share token</h3>
+                <p>Delete <span data-bind="shareLabel"></span>? Existing clients using it will lose access.</p>
+            </header>
+            <footer class="modal-footer">
+                <button class="btn btn-outline" type="button" data-action="close-modal">Cancel</button>
+                <button class="btn btn-danger" type="button" data-action="confirm-delete-share">Delete</button>
+            </footer>
+        </section>
+    </dialog>
+
+    <dialog id="dialog-share-created" class="app-modal">
+        <section class="modal">
+            <header class="modal-header">
+                <h3>Share token created</h3>
+                <p>Copy your token now. It won't be shown again.</p>
+            </header>
+            <div class="modal-body">
+                <div class="field">
+                    <label>Token for /<span class="mono" data-bind="topicName"></span> · "<span data-bind="label"></span>"</label>
+                    <div class="token-created-value">
+                        <input class="input mono" id="created-share-value" data-bind="token" readonly>
+                        <button class="btn btn-primary btn-small" type="button" data-action="copy-created-share">Copy</button>
+                    </div>
+                </div>
+            </div>
+            <footer class="modal-footer">
+                <button class="btn btn-outline" type="button" data-action="close-modal">Done</button>
+            </footer>
+        </section>
+    </dialog>
+
     <dialog id="dialog-delete-webhook" class="app-modal">
         <section class="modal">
             <header class="modal-header">

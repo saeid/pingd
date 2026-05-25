@@ -25,6 +25,9 @@ export const state = {
     webhooksByTopic: {},
     webhooksLoadedByTopic: {},
     webhooksDeniedByTopic: {},
+    sharesByTopic: {},
+    sharesLoadedByTopic: {},
+    sharesDeniedByTopic: {},
 };
 
 export function hasSession() {
@@ -80,6 +83,9 @@ export function clearSession() {
     state.webhooksByTopic = {};
     state.webhooksLoadedByTopic = {};
     state.webhooksDeniedByTopic = {};
+    state.sharesByTopic = {};
+    state.sharesLoadedByTopic = {};
+    state.sharesDeniedByTopic = {};
     localStorage.removeItem("pingd_token");
     localStorage.removeItem("pingd_webpush_device");
 }

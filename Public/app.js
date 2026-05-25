@@ -23,6 +23,10 @@ import {
     createWebhook,
     updateWebhook,
     deleteWebhook,
+    createShare,
+    updateShare,
+    rotateShare,
+    deleteShare,
     publishCurrentTopic,
 } from "./topics.js";
 import { enablePushFromAccount, unsubscribeFromTopic, watchNotificationPermission } from "./webpush.js";
@@ -63,6 +67,10 @@ async function handleModalSubmit(type, formData) {
         return createWebhook(formData);
     case "edit-webhook":
         return updateWebhook(state.modal.webhookID, formData);
+    case "new-share":
+        return createShare(formData);
+    case "edit-share":
+        return updateShare(state.modal.shareID, formData);
     }
 }
 
@@ -74,10 +82,22 @@ async function handleModalAction(action) {
             await revokeToken(state.modal.tokenID);
         } else if (action === "confirm-delete-webhook") {
             await deleteWebhook(state.modal.webhookID);
+        } else if (action === "confirm-rotate-share") {
+            await rotateShare(state.modal.shareID);
+        } else if (action === "confirm-delete-share") {
+            await deleteShare(state.modal.shareID);
         }
     } catch (error) {
         setToast(error.message, "error");
     }
+}
+
+function findCurrentShare(shareID) {
+    const topic = state.topics.find((t) => t.name === state.currentTopicName);
+    if (!topic) return null;
+    const share = (state.sharesByTopic[topic.name] || []).find((item) => item.id === shareID);
+    if (!share) return null;
+    return { topic, share };
 }
 
 const appActions = {
@@ -87,6 +107,39 @@ const appActions = {
     "change-password": () => openModal({ type: "change-password" }),
     "new-token": () => openModal({ type: "new-token" }),
     "new-webhook": () => openModal({ type: "new-webhook" }),
+    "new-share": () => {
+        const topic = state.topics.find((t) => t.name === state.currentTopicName);
+        if (!topic) return;
+        openModal({ type: "new-share", topicName: topic.name });
+    },
+    "edit-share": (button) => {
+        const found = findCurrentShare(button.dataset.shareId);
+        if (!found) return;
+        openModal({
+            type: "edit-share",
+            shareID: found.share.id,
+            topicName: found.topic.name,
+            share: found.share,
+        });
+    },
+    "rotate-share": (button) => {
+        const found = findCurrentShare(button.dataset.shareId);
+        if (!found) return;
+        openModal({
+            type: "rotate-share",
+            shareID: found.share.id,
+            shareLabel: found.share.label || "(no label)",
+        });
+    },
+    "delete-share": (button) => {
+        const found = findCurrentShare(button.dataset.shareId);
+        if (!found) return;
+        openModal({
+            type: "delete-share",
+            shareID: found.share.id,
+            shareLabel: found.share.label || "(no label)",
+        });
+    },
     "enable-notifications": () => enablePushFromAccount(),
     "refresh": async () => {
         if (state.user?.role === "admin") {

@@ -107,6 +107,32 @@ export async function loadSubscribedTopics() {
     }
 }
 
+export async function loadShares(topicName) {
+    if (!state.token || !topicName) {
+        delete state.sharesByTopic[topicName];
+        delete state.sharesLoadedByTopic[topicName];
+        delete state.sharesDeniedByTopic[topicName];
+        return;
+    }
+
+    try {
+        state.sharesByTopic[topicName] = await api(
+            "GET",
+            `/topics/${encodePath(topicName)}/shares`,
+            { topicName }
+        );
+        state.sharesDeniedByTopic[topicName] = false;
+        state.sharesLoadedByTopic[topicName] = true;
+    } catch (error) {
+        if (error.status !== 403) {
+            setToast(error.message, "error");
+        }
+        state.sharesByTopic[topicName] = [];
+        state.sharesDeniedByTopic[topicName] = error.status === 403;
+        state.sharesLoadedByTopic[topicName] = true;
+    }
+}
+
 export async function loadWebhooks(topicName) {
     if (!state.token || !topicName) {
         delete state.webhooksByTopic[topicName];
@@ -165,12 +191,11 @@ export async function handleProtectedAction(topicName, action) {
         await action();
     } catch (error) {
         if (error.status === 403) {
-            const hadToken = !!state.topicTokens[topicName];
-            if (hadToken) {
-                delete state.topicTokens[topicName];
-                saveTopicTokens();
+            if (state.topicTokens[topicName]) {
+                setToast("Your share token doesn't permit this action", "error");
+                return;
             }
-            openTopicTokenModal(topicName, action, hadToken ? "Invalid share token" : "");
+            openTopicTokenModal(topicName, action);
             return;
         }
         setToast(error.message, "error");
@@ -181,22 +206,9 @@ export async function lookupTopicByName(topicName, { subscribe = true, promptPer
     const name = topicName.trim();
     if (!name) return;
 
+    let topic;
     try {
-        const topic = await api("GET", `/topics/${encodePath(name)}`, { topicName: name });
-        upsertTopic(topic);
-        if (subscribe) {
-            try {
-                await subscribeToTopic(topic.name, { promptPermission });
-            } catch {}
-        }
-        state.currentTab = "topics";
-        state.currentTopicName = topic.name;
-        const loads = [loadMessages(topic.name), loadTopicStats(topic.name)];
-        if (canManageWebhooks(topic)) {
-            loads.push(loadWebhooks(topic.name));
-        }
-        await Promise.all(loads);
-        render();
+        topic = await api("GET", `/topics/${encodePath(name)}`, { topicName: name });
     } catch (error) {
         if (error.status === 403 && state.topicTokens[name]) {
             delete state.topicTokens[name];
@@ -204,12 +216,34 @@ export async function lookupTopicByName(topicName, { subscribe = true, promptPer
             openTopicTokenModal(name, () => lookupTopicByName(name, { subscribe, promptPermission }), "Invalid share token");
             return;
         }
-        if (error.status === 403 && state.guest) {
+        if (error.status === 403) {
             openTopicTokenModal(name, () => lookupTopicByName(name, { subscribe, promptPermission }));
             return;
         }
+        setToast(error.message, "error");
+        return;
+    }
+
+    upsertTopic(topic);
+    if (subscribe) {
+        try {
+            await subscribeToTopic(topic.name, { promptPermission });
+        } catch {}
+    }
+    state.currentTab = "topics";
+    state.currentTopicName = topic.name;
+
+    try {
+        const loads = [loadMessages(topic.name), loadTopicStats(topic.name)];
+        if (canManageTopic(topic)) {
+            loads.push(loadWebhooks(topic.name));
+            loads.push(loadShares(topic.name));
+        }
+        await Promise.all(loads);
+    } catch (error) {
         setToast(error.status === 403 ? "Permission denied" : error.message, "error");
     }
+    render();
 }
 
 export async function selectTopic(topicName) {
@@ -316,6 +350,9 @@ export async function removeCurrentTopic() {
     delete state.webhooksByTopic[topic.name];
     delete state.webhooksLoadedByTopic[topic.name];
     delete state.webhooksDeniedByTopic[topic.name];
+    delete state.sharesByTopic[topic.name];
+    delete state.sharesLoadedByTopic[topic.name];
+    delete state.sharesDeniedByTopic[topic.name];
     delete state.topicTokens[topic.name];
     saveTopicTokens();
     if (state.currentTopicName === topic.name) {
@@ -391,7 +428,7 @@ function webhookTemplateFromForm(form) {
 export async function createWebhook(form) {
     const topic = currentTopic();
     if (!topic) return;
-    if (!canManageWebhooks(topic)) {
+    if (!canManageTopic(topic)) {
         throw new Error("Only admins and topic owners can manage webhooks");
     }
 
@@ -414,7 +451,7 @@ export async function createWebhook(form) {
 export async function updateWebhook(webhookID, form) {
     const topic = currentTopic();
     if (!topic) return;
-    if (!canManageWebhooks(topic)) {
+    if (!canManageTopic(topic)) {
         throw new Error("Only admins and topic owners can manage webhooks");
     }
 
@@ -431,7 +468,7 @@ export async function updateWebhook(webhookID, form) {
 export async function deleteWebhook(webhookID) {
     const topic = currentTopic();
     if (!topic) return;
-    if (!canManageWebhooks(topic)) {
+    if (!canManageTopic(topic)) {
         throw new Error("Only admins and topic owners can manage webhooks");
     }
 
@@ -562,7 +599,7 @@ function renderWebhookTemplateMeta(template = {}) {
     return parts.length ? parts.join(" · ") : "default priority";
 }
 
-export function canManageWebhooks(topic) {
+export function canManageTopic(topic) {
     if (!state.token || !state.user || !topic) return false;
     return state.user.role === "admin" || state.user.id === topic.ownerUserID;
 }
@@ -576,7 +613,7 @@ function renderWebhooksPanel(topic) {
         return "";
     }
 
-    if (!canManageWebhooks(topic)) {
+    if (!canManageTopic(topic)) {
         return "";
     }
 
@@ -624,11 +661,185 @@ function renderWebhooksPanel(topic) {
     `;
 }
 
+function shareExpiresAtFromSeconds(raw) {
+    const seconds = Number(raw);
+    if (!Number.isFinite(seconds) || seconds <= 0) return null;
+    return new Date(Date.now() + seconds * 1000).toISOString();
+}
+
+function createShareBody(form) {
+    const label = (form.get("label") ?? "").trim();
+    const accessLevel = (form.get("accessLevel") ?? "").trim();
+    if (!accessLevel) {
+        throw new Error("Access level is required");
+    }
+    const body = {
+        label: label || null,
+        accessLevel,
+    };
+    const expiresIn = (form.get("expiresIn") ?? "").trim();
+    if (expiresIn) {
+        const expiresAt = shareExpiresAtFromSeconds(expiresIn);
+        if (expiresAt) body.expiresAt = expiresAt;
+    }
+    return body;
+}
+
+export async function createShare(form) {
+    const topic = currentTopic();
+    if (!topic) return;
+    if (!canManageTopic(topic)) {
+        throw new Error("Only admins and topic owners can manage share tokens");
+    }
+
+    const body = createShareBody(form);
+    const created = await api("POST", `/topics/${encodePath(topic.name)}/shares`, {
+        topicName: topic.name,
+        body,
+    });
+
+    await loadShares(topic.name);
+    render();
+    openModal({
+        type: "share-created",
+        token: created.token,
+        topicName: topic.name,
+        label: created.label || "(no label)",
+    });
+}
+
+export async function updateShare(shareID, form) {
+    const topic = currentTopic();
+    if (!topic) return;
+    if (!canManageTopic(topic)) {
+        throw new Error("Only admins and topic owners can manage share tokens");
+    }
+
+    const accessLevel = (form.get("accessLevel") ?? "").trim();
+    if (!accessLevel) {
+        throw new Error("Access level is required");
+    }
+    const label = (form.get("label") ?? "").trim();
+    const body = { accessLevel, label: label || null };
+    const expiresIn = (form.get("expiresIn") ?? "").trim();
+    if (expiresIn === "clear") {
+        body.expiresAt = null;
+    } else if (expiresIn) {
+        const expiresAt = shareExpiresAtFromSeconds(expiresIn);
+        if (expiresAt) body.expiresAt = expiresAt;
+    }
+
+    await api("PATCH", `/topics/${encodePath(topic.name)}/shares/${encodePath(shareID)}`, {
+        topicName: topic.name,
+        body,
+    });
+    await loadShares(topic.name);
+    closeModal();
+    render();
+    setToast("Share token updated", "success");
+}
+
+export async function rotateShare(shareID) {
+    const topic = currentTopic();
+    if (!topic) return;
+    if (!canManageTopic(topic)) {
+        throw new Error("Only admins and topic owners can manage share tokens");
+    }
+
+    const rotated = await api("POST", `/topics/${encodePath(topic.name)}/shares/${encodePath(shareID)}/rotate`, {
+        topicName: topic.name,
+    });
+    await loadShares(topic.name);
+    render();
+    openModal({
+        type: "share-created",
+        token: rotated.token,
+        topicName: topic.name,
+        label: rotated.label || "(no label)",
+    });
+}
+
+export async function deleteShare(shareID) {
+    const topic = currentTopic();
+    if (!topic) return;
+    if (!canManageTopic(topic)) {
+        throw new Error("Only admins and topic owners can manage share tokens");
+    }
+
+    await api("DELETE", `/topics/${encodePath(topic.name)}/shares/${encodePath(shareID)}`, {
+        topicName: topic.name,
+    });
+    await loadShares(topic.name);
+    closeModal();
+    render();
+    setToast("Share token deleted");
+}
+
+function shareAccessLabel(level) {
+    switch (level) {
+    case "ro": return "read only";
+    case "wo": return "publish only";
+    case "rw": return "read & publish";
+    default: return level;
+    }
+}
+
+function renderSharesPanel(topic) {
+    if (!state.token || !topic || !canManageTopic(topic)) {
+        return "";
+    }
+
+    const shares = state.sharesByTopic[topic.name] || [];
+    const loaded = !!state.sharesLoadedByTopic[topic.name];
+    const denied = !!state.sharesDeniedByTopic[topic.name];
+
+    return `
+        <section class="panel panel-scroll">
+            <header class="panel-header">
+                <div class="panel-title">
+                    <h3>Share Tokens</h3>
+                    <p>Grant scoped access to this topic via secret tokens.</p>
+                </div>
+                ${denied ? "" : `<button class="btn btn-primary btn-small" type="button" data-action="new-share">New share</button>`}
+            </header>
+
+            <div class="token-list">
+                ${denied ? `
+                    <div class="empty-panel">
+                        <p>You need owner or admin access to manage share tokens.</p>
+                    </div>
+                ` : loaded && shares.length ? shares.map((share) => `
+                    <article class="token-row">
+                        <div>
+                            <div class="token-title">${escapeHtml(share.label || "(no label)")}</div>
+                            <div class="token-copy mono">${escapeHtml(truncateId(share.id))}</div>
+                            <div class="token-meta mono">
+                                <span>${escapeHtml(shareAccessLabel(share.accessLevel))}</span>
+                                <span>created ${formatDateTime(share.createdAt)}</span>
+                                <span>expires ${formatDateTime(share.expiresAt)}</span>
+                            </div>
+                        </div>
+                        <div class="row-actions">
+                            <button class="btn btn-outline btn-small" type="button" data-action="edit-share" data-share-id="${escapeHtml(share.id)}">Edit</button>
+                            <button class="btn btn-outline btn-small" type="button" data-action="rotate-share" data-share-id="${escapeHtml(share.id)}">Rotate</button>
+                            <button class="btn btn-danger btn-small" type="button" data-action="delete-share" data-share-id="${escapeHtml(share.id)}">Delete</button>
+                        </div>
+                    </article>
+                `).join("") : `
+                    <div class="empty-panel">
+                        <p>${loaded ? "No share tokens created yet." : "Share tokens will load when you open this topic."}</p>
+                    </div>
+                `}
+            </div>
+        </section>
+    `;
+}
+
 function renderTopicRail() {
     const topic = currentTopic();
     const stats = topic ? state.topicStatsByTopic[topic.name] : null;
 
-    if (!topic || (state.user?.role !== "admin" && !canManageWebhooks(topic))) {
+    if (!topic || (state.user?.role !== "admin" && !canManageTopic(topic))) {
         return "";
     }
 
@@ -660,6 +871,7 @@ function renderTopicRail() {
                     `}
                 </div>
             </section>` : ""}
+            ${renderSharesPanel(topic)}
             ${renderWebhooksPanel(topic)}
         </div>
     `;

@@ -105,6 +105,27 @@ function populateDialog(type, data) {
         fillBindings(dialog, "topicName", data.topicName);
         fillBindings(dialog, "url", data.url);
         break;
+    case "new-share":
+        fillBindings(dialog, "topicName", data.topicName);
+        break;
+    case "edit-share": {
+        fillBindings(dialog, "topicName", data.topicName);
+        form.elements.label.value = data.share?.label || "";
+        form.elements.accessLevel.value = data.share?.accessLevel || "ro";
+        form.elements.expiresIn.value = "";
+        break;
+    }
+    case "rotate-share":
+        fillBindings(dialog, "shareLabel", data.shareLabel || "(no label)");
+        break;
+    case "delete-share":
+        fillBindings(dialog, "shareLabel", data.shareLabel || "(no label)");
+        break;
+    case "share-created":
+        fillBindings(dialog, "topicName", data.topicName);
+        fillBindings(dialog, "label", data.label);
+        fillBindings(dialog, "token", data.token);
+        break;
     case "edit-webhook": {
         const template = data.template || {};
         form.elements.title.value = template.title || "";
@@ -208,6 +229,10 @@ export function initModalHandlers({ onSubmit, onAction }) {
         }
         if (action === "copy-created-webhook") {
             await copyInputValue("created-webhook-url", "Webhook URL copied");
+            return;
+        }
+        if (action === "copy-created-share") {
+            await copyInputValue("created-share-value", "Share token copied");
             return;
         }
 
