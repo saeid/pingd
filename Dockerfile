@@ -87,8 +87,8 @@ USER vapor:vapor
 
 EXPOSE 7685
 
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD curl -f http://localhost:7685/health || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=10s \
+    CMD curl -f "http://localhost:${PORT:-7685}/health" || exit 1
 
 ENTRYPOINT ["./pingd"]
 CMD ["serve", "--env", "production", "--hostname", "0.0.0.0"]
