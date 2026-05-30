@@ -135,6 +135,15 @@ requests.post(
 {{source}}
 {{event.repository.full_name}}</code></pre>
         <p>Missing fields render as empty string. There are no conditionals or loops, by design.</p>
+        <p>Use a number in the path to access an array element by position (zero-indexed):</p>
+        <pre><code>{{episodes.0.title}}
+{{users.1.name}}
+{{tags.0}}</code></pre>
+        <p>Out-of-range indexes render as empty.</p>
+        <p>You can also render a whole array. <code>{{tags}}</code> joins its elements with <code>, </code>:</p>
+        <pre><code>input:  { "tags": ["release", "urgent"] }
+output: "release, urgent"</code></pre>
+        <p>Nested arrays, objects, and null inside the array are skipped.</p>
 
         <h2>Receive payload</h2>
         <p>Webhook receive does not use bearer auth. The token in the URL is the credential.</p>
