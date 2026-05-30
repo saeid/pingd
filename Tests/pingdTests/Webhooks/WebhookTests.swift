@@ -370,10 +370,47 @@ struct WebhookTemplateRendererTests {
         #expect(WebhookTemplateRenderer.render("{{active}}", json: json) == "false")
     }
 
-    @Test("Array value renders as empty string")
-    func arrayValueRendersEmpty() {
+    @Test("Array of scalars renders as comma-joined string")
+    func arrayOfScalarsRendersJoined() {
         let json: [String: Any] = ["tags": ["a", "b"]]
-        #expect(WebhookTemplateRenderer.render("[{{tags}}]", json: json) == "[]")
+        #expect(WebhookTemplateRenderer.render("[{{tags}}]", json: json) == "[a, b]")
+    }
+
+    @Test("Array skips null, nested arrays, and objects when joining")
+    func arrayJoinSkipsNonScalars() {
+        let json: [String: Any] = ["mixed": ["a", NSNull(), ["nested"], ["k": "v"], "b"]]
+        #expect(WebhookTemplateRenderer.render("{{mixed}}", json: json) == "a, b")
+    }
+
+    @Test("Numeric path segment indexes into array")
+    func arrayIndexAccess() {
+        let json: [String: Any] = ["users": [["name": "vi"], ["name": "jinx"]]]
+        #expect(WebhookTemplateRenderer.render("{{users.0.name}}", json: json) == "vi")
+        #expect(WebhookTemplateRenderer.render("{{users.1.name}}", json: json) == "jinx")
+    }
+
+    @Test("Empty array renders as empty string")
+    func emptyArrayRendersEmpty() {
+        let json: [String: Any] = ["items": [Any]()]
+        #expect(WebhookTemplateRenderer.render("[{{items}}]", json: json) == "[]")
+    }
+
+    @Test("Out-of-range array index renders as empty")
+    func arrayIndexOutOfRange() {
+        let json: [String: Any] = ["users": [["name": "vi"]]]
+        #expect(WebhookTemplateRenderer.render("[{{users.5.name}}]", json: json) == "[]")
+    }
+
+    @Test("Nested array index works")
+    func nestedArrayIndex() {
+        let json: [String: Any] = ["grid": [["a", "b"], ["c", "d"]]]
+        #expect(WebhookTemplateRenderer.render("{{grid.1.0}}", json: json) == "c")
+    }
+
+    @Test("Whole-number Double renders without trailing .0")
+    func wholeNumberDoubleRenders() {
+        let json: [String: Any] = ["year": Double(2021)]
+        #expect(WebhookTemplateRenderer.render("{{year}}", json: json) == "2021")
     }
 
     @Test("Object value renders as empty string")
