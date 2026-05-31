@@ -28,6 +28,8 @@ export const state = {
     sharesByTopic: {},
     sharesLoadedByTopic: {},
     sharesDeniedByTopic: {},
+    railTab: null,
+    mobileView: "messages",
 };
 
 export function hasSession() {

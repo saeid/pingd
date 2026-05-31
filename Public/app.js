@@ -189,6 +189,24 @@ const appActions = {
 
 function initAppEvents() {
     app.addEventListener("click", async (event) => {
+        const mobileViewButton = event.target.closest("[data-mobile-view]");
+        if (mobileViewButton && app.contains(mobileViewButton)) {
+            const nextView = mobileViewButton.dataset.mobileView;
+            if (nextView === state.mobileView) return;
+            state.mobileView = nextView;
+            render();
+            return;
+        }
+
+        const railTabButton = event.target.closest("[data-rail-tab]");
+        if (railTabButton && app.contains(railTabButton)) {
+            const nextRail = railTabButton.dataset.railTab;
+            if (nextRail === state.railTab) return;
+            state.railTab = nextRail;
+            render();
+            return;
+        }
+
         const tabButton = event.target.closest("[data-tab]");
         if (tabButton && app.contains(tabButton)) {
             const nextTab = tabButton.dataset.tab;

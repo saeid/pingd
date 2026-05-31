@@ -698,6 +698,35 @@ a {
     min-height: 0;
 }
 
+.rail-tabbar,
+.mobile-view-switch {
+    display: none;
+    gap: 6px;
+    padding: 6px;
+    background: rgba(26, 23, 20, 0.88);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+.rail-tab,
+.mobile-view-tab {
+    flex: 1;
+    padding: 8px 10px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.rail-tab.is-active,
+.mobile-view-tab.is-active {
+    background: var(--bg-elevated, rgba(255, 255, 255, 0.06));
+    color: var(--text);
+}
+
 .message-layout {
     display: flex;
     flex-direction: column;
@@ -1165,6 +1194,22 @@ dialog.app-modal::backdrop {
 
     .panel {
         min-height: auto;
+    }
+
+    .mobile-view-switch,
+    .rail-tabbar {
+        display: flex;
+    }
+
+    .topics-layout[data-mobile-view="messages"] .topic-rail,
+    .topics-layout[data-mobile-view="manage"] .message-layout {
+        display: none;
+    }
+
+    .topic-rail[data-active-tab="stats"] > .rail-panel:not([data-rail-panel="stats"]),
+    .topic-rail[data-active-tab="shares"] > .rail-panel:not([data-rail-panel="shares"]),
+    .topic-rail[data-active-tab="webhooks"] > .rail-panel:not([data-rail-panel="webhooks"]) {
+        display: none;
     }
 }
 

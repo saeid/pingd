@@ -835,44 +835,73 @@ function renderSharesPanel(topic) {
     `;
 }
 
+function renderStatsPanel(topic) {
+    const stats = topic ? state.topicStatsByTopic[topic.name] : null;
+    return `
+        <section class="panel">
+            <header class="panel-header">
+                <div class="panel-title">
+                    <h3>Delivery Stats</h3>
+                </div>
+            </header>
+            <div class="panel-body">
+                ${stats ? `
+                    <div class="stat-grid">
+                        <div class="stat-card"><strong>${stats.subscriberCount}</strong><span>Subscribers</span></div>
+                        <div class="stat-card"><strong>${stats.messageCount}</strong><span>Messages</span></div>
+                        <div class="stat-card"><strong>${stats.deliveryStats.delivered}</strong><span>Delivered</span></div>
+                        <div class="stat-card"><strong>${stats.deliveryStats.failed}</strong><span>Failed</span></div>
+                    </div>
+                    <dl class="detail-list" style="margin-top: 14px;">
+                        <div class="detail-row"><dt>Pending</dt><dd>${stats.deliveryStats.pending}</dd></div>
+                        <div class="detail-row"><dt>Ongoing</dt><dd>${stats.deliveryStats.ongoing}</dd></div>
+                        <div class="detail-row"><dt>Last message</dt><dd>${formatDateTime(stats.lastMessageAt)}</dd></div>
+                    </dl>
+                ` : `
+                    <div class="empty-panel" style="height:auto;padding:0;">
+                        <p>Select a topic and stats will load here.</p>
+                    </div>
+                `}
+            </div>
+        </section>
+    `;
+}
+
+function railTabs(topic) {
+    const tabs = [];
+    if (state.user?.role === "admin") {
+        tabs.push({ id: "stats", label: "Stats", html: renderStatsPanel(topic) });
+    }
+    const sharesHtml = renderSharesPanel(topic);
+    if (sharesHtml) tabs.push({ id: "shares", label: "Shares", html: sharesHtml });
+    const webhooksHtml = renderWebhooksPanel(topic);
+    if (webhooksHtml) tabs.push({ id: "webhooks", label: "Webhooks", html: webhooksHtml });
+    return tabs;
+}
+
 function renderTopicRail() {
     const topic = currentTopic();
-    const stats = topic ? state.topicStatsByTopic[topic.name] : null;
 
     if (!topic || (state.user?.role !== "admin" && !canManageTopic(topic))) {
         return "";
     }
 
+    const tabs = railTabs(topic);
+    if (tabs.length === 0) return "";
+
+    const activeId = tabs.some((tab) => tab.id === state.railTab) ? state.railTab : tabs[0].id;
+    const tabbar = tabs.length > 1 ? `
+        <div class="rail-tabbar">
+            ${tabs.map((tab) => `
+                <button class="rail-tab${tab.id === activeId ? " is-active" : ""}" type="button" data-rail-tab="${tab.id}">${tab.label}</button>
+            `).join("")}
+        </div>
+    ` : "";
+
     return `
-        <div class="stack">
-            ${state.user?.role === "admin" ? `<section class="panel">
-                <header class="panel-header">
-                    <div class="panel-title">
-                        <h3>Delivery Stats</h3>
-                    </div>
-                </header>
-                <div class="panel-body">
-                    ${stats ? `
-                        <div class="stat-grid">
-                            <div class="stat-card"><strong>${stats.subscriberCount}</strong><span>Subscribers</span></div>
-                            <div class="stat-card"><strong>${stats.messageCount}</strong><span>Messages</span></div>
-                            <div class="stat-card"><strong>${stats.deliveryStats.delivered}</strong><span>Delivered</span></div>
-                            <div class="stat-card"><strong>${stats.deliveryStats.failed}</strong><span>Failed</span></div>
-                        </div>
-                        <dl class="detail-list" style="margin-top: 14px;">
-                            <div class="detail-row"><dt>Pending</dt><dd>${stats.deliveryStats.pending}</dd></div>
-                            <div class="detail-row"><dt>Ongoing</dt><dd>${stats.deliveryStats.ongoing}</dd></div>
-                            <div class="detail-row"><dt>Last message</dt><dd>${formatDateTime(stats.lastMessageAt)}</dd></div>
-                        </dl>
-                    ` : `
-                        <div class="empty-panel" style="height:auto;padding:0;">
-                            <p>Select a topic and stats will load here.</p>
-                        </div>
-                    `}
-                </div>
-            </section>` : ""}
-            ${renderSharesPanel(topic)}
-            ${renderWebhooksPanel(topic)}
+        <div class="stack topic-rail" data-active-tab="${activeId}">
+            ${tabbar}
+            ${tabs.map((tab) => `<div class="rail-panel" data-rail-panel="${tab.id}">${tab.html}</div>`).join("")}
         </div>
     `;
 }
@@ -900,10 +929,19 @@ function renderNotificationsBanner() {
 
 function renderTopicsWorkspace() {
     const rail = renderTopicRail();
+    const view = rail && state.mobileView === "manage" ? "manage" : "messages";
+    const switcher = rail ? `
+        <div class="mobile-view-switch">
+            <button class="mobile-view-tab${view === "messages" ? " is-active" : ""}" type="button" data-mobile-view="messages">Messages</button>
+            <button class="mobile-view-tab${view === "manage" ? " is-active" : ""}" type="button" data-mobile-view="manage">Manage</button>
+        </div>
+    ` : "";
+
     return `
         <div class="workspace-stack">
             ${renderNotificationsBanner()}
-            <div class="topics-layout ${rail ? "" : "topics-layout-single"}">
+            ${switcher}
+            <div class="topics-layout ${rail ? "" : "topics-layout-single"}" data-mobile-view="${view}">
                 ${renderMessagesPanel()}
                 ${rail}
             </div>
