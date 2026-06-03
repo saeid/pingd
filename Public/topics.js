@@ -1040,8 +1040,12 @@ function renderTopbar() {
             <div class="topbar-actions">
                 <button class="btn btn-outline btn-small" type="button" data-action="refresh">${icon("refresh")}Refresh</button>
             </div>
-            <div class="mobile-topbar-controls">
-                <div class="mobile-nav-row">
+            <div class="mobile-topbar-controls" data-nav-open="${state.navOpen}">
+                <button class="mobile-nav-toggle btn btn-outline btn-small" type="button" data-action="toggle-nav" aria-expanded="${state.navOpen}" aria-controls="mobile-nav-row">
+                    ${icon("menu")}
+                    <span>Menu</span>
+                </button>
+                <div class="mobile-nav-row" id="mobile-nav-row">
                     <button class="btn btn-outline btn-small ${state.currentTab === "topics" ? "active" : ""}" type="button" data-tab="topics">${icon("topics")}Topics</button>
                     ${state.token ? `<button class="btn btn-outline btn-small ${state.currentTab === "account" ? "active" : ""}" type="button" data-tab="account">${icon("account")}Account</button>` : ""}
                     <button class="btn btn-outline btn-small" type="button" data-action="subscribe-topic">Subscribe</button>

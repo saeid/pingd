@@ -30,6 +30,7 @@ export const state = {
     sharesDeniedByTopic: {},
     railTab: null,
     mobileView: "messages",
+    navOpen: false,
 };
 
 export function hasSession() {

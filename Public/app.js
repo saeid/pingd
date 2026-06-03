@@ -185,14 +185,28 @@ const appActions = {
     "delete-webhook": (button) => {
         openModal({ type: "delete-webhook", webhookID: button.dataset.webhookId });
     },
+    "toggle-nav": () => {
+        state.navOpen = !state.navOpen;
+        render();
+    },
 };
 
 function initAppEvents() {
     app.addEventListener("click", async (event) => {
+        const navRowClick = event.target.closest(".mobile-nav-row");
+        const navWillClose = !!(navRowClick && app.contains(navRowClick) && state.navOpen);
+        if (navWillClose) state.navOpen = false;
+        const renderClosedNav = () => {
+            if (navWillClose) render();
+        };
+
         const mobileViewButton = event.target.closest("button[data-mobile-view]");
         if (mobileViewButton && app.contains(mobileViewButton)) {
             const nextView = mobileViewButton.dataset.mobileView;
-            if (nextView === state.mobileView) return;
+            if (nextView === state.mobileView) {
+                renderClosedNav();
+                return;
+            }
             state.mobileView = nextView;
             render();
             return;
@@ -201,7 +215,10 @@ function initAppEvents() {
         const railTabButton = event.target.closest("[data-rail-tab]");
         if (railTabButton && app.contains(railTabButton)) {
             const nextRail = railTabButton.dataset.railTab;
-            if (nextRail === state.railTab) return;
+            if (nextRail === state.railTab) {
+                renderClosedNav();
+                return;
+            }
             state.railTab = nextRail;
             render();
             return;
@@ -210,7 +227,10 @@ function initAppEvents() {
         const tabButton = event.target.closest("[data-tab]");
         if (tabButton && app.contains(tabButton)) {
             const nextTab = tabButton.dataset.tab;
-            if (nextTab === state.currentTab) return;
+            if (nextTab === state.currentTab) {
+                renderClosedNav();
+                return;
+            }
             state.currentTab = nextTab;
             if (nextTab === "account" && state.token && !state.tokensLoaded) {
                 await loadTokens();
@@ -221,7 +241,10 @@ function initAppEvents() {
 
         const topicButton = event.target.closest("[data-topic]");
         if (topicButton && app.contains(topicButton)) {
-            if (topicButton.dataset.topic === state.currentTopicName) return;
+            if (topicButton.dataset.topic === state.currentTopicName) {
+                renderClosedNav();
+                return;
+            }
             await selectTopic(topicButton.dataset.topic);
             return;
         }
@@ -229,8 +252,13 @@ function initAppEvents() {
         const actionButton = event.target.closest("[data-action]");
         if (actionButton && app.contains(actionButton)) {
             const handler = appActions[actionButton.dataset.action];
-            if (handler) await handler(actionButton);
+            if (handler) {
+                await handler(actionButton);
+                return;
+            }
         }
+
+        renderClosedNav();
     });
 
     app.addEventListener("submit", async (event) => {

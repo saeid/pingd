@@ -518,6 +518,12 @@ a {
     display: none;
 }
 
+.mobile-nav-toggle {
+    display: none;
+    align-self: flex-start;
+    gap: 8px;
+}
+
 .mobile-nav-row,
 .mobile-topic-strip {
     display: flex;
@@ -1255,6 +1261,14 @@ dialog.app-modal::backdrop {
         width: 100%;
         gap: 10px;
         min-width: 0;
+    }
+
+    .mobile-nav-toggle {
+        display: inline-flex;
+    }
+
+    .mobile-topbar-controls[data-nav-open="false"] .mobile-nav-row {
+        display: none;
     }
 
     .content-shell {
