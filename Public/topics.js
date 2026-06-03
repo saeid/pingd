@@ -179,11 +179,12 @@ export async function loadTopicStats(topicName) {
 }
 
 export async function loadMessages(topicName) {
-    state.messagesByTopic[topicName] = await api(
+    const messages = await api(
         "GET",
         `/topics/${encodePath(topicName)}/messages`,
         { topicName }
     );
+    state.messagesByTopic[topicName] = sortMessagesNewestFirst(messages || []);
 }
 
 export async function handleProtectedAction(topicName, action) {
@@ -202,6 +203,10 @@ export async function handleProtectedAction(topicName, action) {
         setToast(error.message, "error");
         return false;
     }
+}
+
+function sortMessagesNewestFirst(messages) {
+    return [...messages].sort((a, b) => new Date(b.time) - new Date(a.time));
 }
 
 export async function lookupTopicByName(topicName, { subscribe = true, promptPermission = true } = {}) {
@@ -334,11 +339,10 @@ export async function publishCurrentTopic(form) {
         );
 
         const existing = state.messagesByTopic[topic.name] || [];
-        state.messagesByTopic[topic.name] = [...existing, message];
+        state.messagesByTopic[topic.name] = [message, ...existing];
+        setToast(`Published to ${topic.name}`, "success");
         await loadTopicStats(topic.name);
         render();
-
-        setToast(`Published to ${topic.name}`, "success");
     });
 }
 
