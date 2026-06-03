@@ -757,6 +757,8 @@ a {
 .composer-title-input {
     padding: 8px 12px;
     font-size: 13px;
+    min-height: 38px;
+    box-sizing: border-box;
 }
 
 .composer-body-input {
@@ -769,18 +771,45 @@ a {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 100px 140px 90px;
     gap: 6px;
-    align-items: start;
+    align-items: stretch;
 }
 
 .composer-row .input,
 .composer-row .select {
-    padding: 7px 10px;
-    font-size: 12px;
+    padding: 8px 12px;
+    font-size: 13px;
+    box-sizing: border-box;
+    height: 100%;
+    min-height: 38px;
+}
+
+.composer-row .select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 28px;
+    width: 100%;
+}
+
+.composer-row .select-wrap {
+    position: relative;
+    display: flex;
+}
+
+.composer-row .select-wrap svg {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: var(--text-muted);
 }
 
 .composer-row .btn {
-    padding: 7px 14px;
-    font-size: 12px;
+    padding: 8px 14px;
+    font-size: 13px;
+    box-sizing: border-box;
+    height: 100%;
+    min-height: 38px;
 }
 
 .message-list {

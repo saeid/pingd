@@ -551,19 +551,25 @@ function renderMessagesPanel() {
                 <textarea class="textarea composer-body-input" name="body" placeholder="Message body…" required></textarea>
                 <div class="composer-row">
                     <input class="input" name="tags" placeholder="tags">
-                    <select class="select" name="priority">
-                        <option value="1">Low</option>
-                        <option value="2" selected>Default</option>
-                        <option value="3">Urgent</option>
-                    </select>
-                    <select class="select" name="ttl">
-                        <option value="" selected>No expiry</option>
-                        <option value="3600">Expires in 1h</option>
-                        <option value="21600">Expires in 6h</option>
-                        <option value="86400">Expires in 24h</option>
-                        <option value="604800">Expires in 7d</option>
-                        <option value="2592000">Expires in 30d</option>
-                    </select>
+                    <div class="select-wrap">
+                        ${icon("chevronDown")}
+                        <select class="select" name="priority">
+                            <option value="1">Low</option>
+                            <option value="2" selected>Default</option>
+                            <option value="3">Urgent</option>
+                        </select>
+                    </div>
+                    <div class="select-wrap">
+                        ${icon("chevronDown")}
+                        <select class="select" name="ttl">
+                            <option value="" selected>No expiry</option>
+                            <option value="3600">Expires in 1h</option>
+                            <option value="21600">Expires in 6h</option>
+                            <option value="86400">Expires in 24h</option>
+                            <option value="604800">Expires in 7d</option>
+                            <option value="2592000">Expires in 30d</option>
+                        </select>
+                    </div>
                     <button class="btn btn-primary" type="submit">Publish</button>
                 </div>
             </form>
