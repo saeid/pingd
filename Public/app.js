@@ -189,7 +189,7 @@ const appActions = {
 
 function initAppEvents() {
     app.addEventListener("click", async (event) => {
-        const mobileViewButton = event.target.closest("[data-mobile-view]");
+        const mobileViewButton = event.target.closest("button[data-mobile-view]");
         if (mobileViewButton && app.contains(mobileViewButton)) {
             const nextView = mobileViewButton.dataset.mobileView;
             if (nextView === state.mobileView) return;
