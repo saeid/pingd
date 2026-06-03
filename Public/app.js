@@ -189,6 +189,10 @@ const appActions = {
         state.navOpen = !state.navOpen;
         render();
     },
+    "toggle-composer": () => {
+        state.composerOpen = !state.composerOpen;
+        render();
+    },
 };
 
 function initAppEvents() {
@@ -266,8 +270,12 @@ function initAppEvents() {
         if (!form) return;
         event.preventDefault();
         try {
-            await publishCurrentTopic(new FormData(form));
-            form.reset();
+            const ok = await publishCurrentTopic(new FormData(form));
+            if (ok) {
+                form.reset();
+                state.composerOpen = false;
+                render();
+            }
         } catch (error) {
             setToast(error.message, "error");
         }

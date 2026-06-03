@@ -31,6 +31,7 @@ export const state = {
     railTab: null,
     mobileView: "messages",
     navOpen: false,
+    composerOpen: false,
 };
 
 export function hasSession() {

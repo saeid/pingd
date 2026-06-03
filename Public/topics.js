@@ -189,16 +189,18 @@ export async function loadMessages(topicName) {
 export async function handleProtectedAction(topicName, action) {
     try {
         await action();
+        return true;
     } catch (error) {
         if (error.status === 403) {
             if (state.topicTokens[topicName]) {
                 setToast("Your share token doesn't permit this action", "error");
-                return;
+                return false;
             }
             openTopicTokenModal(topicName, action);
-            return;
+            return false;
         }
         setToast(error.message, "error");
+        return false;
     }
 }
 
@@ -312,7 +314,7 @@ export async function publishCurrentTopic(form) {
         throw new Error("Message body is required");
     }
 
-    await handleProtectedAction(topic.name, async () => {
+    return await handleProtectedAction(topic.name, async () => {
         const message = await api(
             "POST",
             `/topics/${encodePath(topic.name)}/messages`,
@@ -527,6 +529,9 @@ function renderMessagesPanel() {
                 </div>
                 <div class="topbar-actions">
                     ${accessBadge(topic)}
+                    <button class="btn btn-outline btn-small" type="button" data-action="toggle-composer" aria-expanded="${state.composerOpen}">
+                        ${state.composerOpen ? "Hide compose" : "Compose"}
+                    </button>
                     ${state.user?.role === "user" && topic.ownerUserID !== state.user.id ? `
                         <button class="btn btn-outline btn-small" data-action="unsubscribe-topic" data-topic-name="${escapeHtml(topic.name)}" type="button">
                             ${icon("unsubscribe")}
@@ -541,7 +546,7 @@ function renderMessagesPanel() {
                 </div>
             </header>
 
-            <form id="publish-form" class="composer">
+            <form id="publish-form" class="composer" data-composer-open="${state.composerOpen}">
                 <input class="input composer-title-input" name="title" placeholder="Title (optional)">
                 <textarea class="textarea composer-body-input" name="body" placeholder="Message body…" required></textarea>
                 <div class="composer-row">

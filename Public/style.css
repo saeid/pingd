@@ -750,6 +750,10 @@ a {
     flex-shrink: 0;
 }
 
+.composer[data-composer-open="false"] {
+    display: none;
+}
+
 .composer-title-input {
     padding: 8px 12px;
     font-size: 13px;
@@ -1268,6 +1272,10 @@ dialog.app-modal::backdrop {
     }
 
     .mobile-topbar-controls[data-nav-open="false"] .mobile-nav-row {
+        display: none;
+    }
+
+    .message-layout > .panel-header .panel-title {
         display: none;
     }
 
