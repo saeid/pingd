@@ -5,7 +5,7 @@ struct WebhooksCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "webhooks",
         abstract: "Manage webhooks",
-        subcommands: [List.self, Show.self, Create.self, Update.self, Delete.self]
+        subcommands: [List.self, Show.self, Create.self, Update.self, Rotate.self, Delete.self]
     )
 
     struct List: AsyncParsableCommand {
@@ -91,6 +91,25 @@ struct WebhooksCommand: AsyncParsableCommand {
                     as: WebhookDTO.self
                 )
                 print("Updated webhook \(webhook.id)")
+            }
+        }
+    }
+
+    struct Rotate: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(abstract: "Rotate a webhook token")
+
+        @Option(name: .shortAndLong, help: "Webhook ID")
+        var id: String
+
+        func run() async throws {
+            try await withAPIClient { client in
+                let response = try await client.post(
+                    "/webhooks/\(id)/rotate",
+                    as: CreateWebhookResponseDTO.self
+                )
+                print("Rotated webhook \(response.id)")
+                print("Token (shown once): \(response.token)")
+                print("URL: <server>/hooks/\(response.token)")
             }
         }
     }

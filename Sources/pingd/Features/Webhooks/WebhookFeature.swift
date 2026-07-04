@@ -55,6 +55,11 @@ struct WebhookFeature {
         _ template: WebhookTemplate
     ) async throws -> TopicWebhook
 
+    let rotateWebhook: @Sendable (
+        _ currentUser: User,
+        _ webhookID: UUID
+    ) async throws -> CreatedWebhook
+
     let deleteWebhook: @Sendable (
         _ currentUser: User,
         _ webhookID: UUID
@@ -147,6 +152,17 @@ extension WebhookFeature {
                     throw WebhookError.webhookNotFound
                 }
                 return updated
+            },
+            rotateWebhook: { currentUser, webhookID in
+                guard let webhook = try await webhookClient.get(webhookID) else {
+                    throw WebhookError.webhookNotFound
+                }
+                try ensureCanManage(webhook.topic, currentUser)
+                let token = generateToken()
+                guard let updated = try await webhookClient.updateTokenHash(webhookID, tokenHash(token)) else {
+                    throw WebhookError.webhookNotFound
+                }
+                return CreatedWebhook(webhook: updated, plaintextToken: token)
             },
             deleteWebhook: { currentUser, webhookID in
                 guard let webhook = try await webhookClient.get(webhookID) else {

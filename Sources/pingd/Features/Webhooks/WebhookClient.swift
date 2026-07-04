@@ -12,6 +12,7 @@ struct WebhookClient {
     let findByTokenHash: @Sendable (String) async throws -> TopicWebhook?
     let listByTopic: @Sendable (UUID) async throws -> [TopicWebhook]
     let updateTemplate: @Sendable (UUID, WebhookTemplate) async throws -> TopicWebhook?
+    let updateTokenHash: @Sendable (UUID, String) async throws -> TopicWebhook?
     let delete: @Sendable (UUID) async throws -> Void
 }
 
@@ -53,6 +54,14 @@ extension WebhookClient {
                 try await webhook.save(on: app.db)
                 return webhook
             },
+            updateTokenHash: { id, tokenHash in
+                guard let webhook = try await TopicWebhook.find(id, on: app.db) else {
+                    return nil
+                }
+                webhook.tokenHash = tokenHash
+                try await webhook.save(on: app.db)
+                return webhook
+            },
             delete: { id in
                 guard let webhook = try await TopicWebhook.find(id, on: app.db) else { return }
                 try await webhook.delete(on: app.db)
@@ -68,6 +77,7 @@ extension WebhookClient {
         findByTokenHash: @escaping @Sendable (String) async throws -> TopicWebhook? = { _ in nil },
         listByTopic: @escaping @Sendable (UUID) async throws -> [TopicWebhook] = { _ in [] },
         updateTemplate: @escaping @Sendable (UUID, WebhookTemplate) async throws -> TopicWebhook? = { _, _ in nil },
+        updateTokenHash: @escaping @Sendable (UUID, String) async throws -> TopicWebhook? = { _, _ in nil },
         delete: @escaping @Sendable (UUID) async throws -> Void = { _ in }
     ) -> Self {
         WebhookClient(
@@ -76,6 +86,7 @@ extension WebhookClient {
             findByTokenHash: findByTokenHash,
             listByTopic: listByTopic,
             updateTemplate: updateTemplate,
+            updateTokenHash: updateTokenHash,
             delete: delete
         )
     }

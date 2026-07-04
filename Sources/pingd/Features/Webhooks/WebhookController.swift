@@ -12,6 +12,7 @@ struct WebhookAdminController: RouteCollection, @unchecked Sendable {
         let webhookByID = routes.grouped("webhooks", ":id")
         webhookByID.get(use: show)
         webhookByID.patch(use: update)
+        webhookByID.post("rotate", use: rotate)
         webhookByID.delete(use: delete)
     }
 
@@ -70,6 +71,29 @@ struct WebhookAdminController: RouteCollection, @unchecked Sendable {
             return try WebhookResponse(updated)
         } catch {
             auditLogger.logError("webhook.update", req: req, error: error, metadata: [
+                "actor_username": currentUser.username,
+                "webhook_id": idString,
+                "ip": req.clientIP,
+            ])
+            throw error
+        }
+    }
+
+    func rotate(_ req: Request) async throws -> CreateWebhookResponse {
+        let currentUser = try req.user
+        guard let idString = req.parameters.get("id"), let id = UUID(uuidString: idString) else {
+            throw Abort(.badRequest)
+        }
+        do {
+            let rotated = try await webhookFeature.rotateWebhook(currentUser, id)
+            auditLogger.log("webhook.rotate", req: req, metadata: [
+                "actor_username": currentUser.username,
+                "webhook_id": idString,
+                "ip": req.clientIP,
+            ])
+            return try CreateWebhookResponse(webhook: rotated.webhook, token: rotated.plaintextToken)
+        } catch {
+            auditLogger.logError("webhook.rotate", req: req, error: error, metadata: [
                 "actor_username": currentUser.username,
                 "webhook_id": idString,
                 "ip": req.clientIP,

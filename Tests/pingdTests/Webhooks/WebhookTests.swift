@@ -281,6 +281,96 @@ extension PingdTests {
         }
     }
 
+    @Test("Webhooks: rotating a webhook invalidates the old token")
+    func rotateWebhookToken() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            let session = try await login(app, username: "jinx", password: "hunter2")
+            var webhookID: UUID?
+            var oldToken: String?
+            try await app.testing().test(
+                .POST, "topics/public-topic/webhooks",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                    try req.content.encode(CreateWebhookRequest(template: WebhookTemplate(body: "x")))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let response = try res.content.decode(CreateWebhookResponse.self)
+                    webhookID = response.id
+                    oldToken = response.token
+                }
+            )
+            let id = try #require(webhookID)
+            let firstToken = try #require(oldToken)
+            var rotatedToken: String?
+            try await app.testing().test(
+                .POST, "webhooks/\(id)/rotate",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: session.token)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let response = try res.content.decode(CreateWebhookResponse.self)
+                    #expect(response.id == id)
+                    #expect(response.token.hasPrefix("whk_"))
+                    #expect(response.token != firstToken)
+                    rotatedToken = response.token
+                }
+            )
+            try await app.testing().test(
+                .POST, "hooks/\(firstToken)",
+                beforeRequest: { req in
+                    req.body = .init(string: "{}")
+                },
+                afterResponse: { res in
+                    #expect(res.status == .notFound)
+                }
+            )
+            try await app.testing().test(
+                .POST, "hooks/\(try #require(rotatedToken))",
+                beforeRequest: { req in
+                    req.body = .init(string: "{}")
+                },
+                afterResponse: { res in
+                    #expect(res.status == .accepted)
+                }
+            )
+        }
+    }
+
+    @Test("Webhooks: non-owner cannot rotate webhook")
+    func rotateWebhookForbiddenForNonOwner() async throws {
+        try await withApp { app in
+            try await seedTopics(app)
+            let ownerSession = try await login(app, username: "jinx", password: "hunter2")
+            var webhookID: String?
+            try await app.testing().test(
+                .POST, "topics/public-topic/webhooks",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: ownerSession.token)
+                    try req.content.encode(CreateWebhookRequest(template: WebhookTemplate(body: "x")))
+                },
+                afterResponse: { res in
+                    #expect(res.status == .ok)
+                    let response = try res.content.decode(CreateWebhookResponse.self)
+                    webhookID = response.id.uuidString
+                }
+            )
+            let id = try #require(webhookID)
+            let otherSession = try await login(app, username: "vi", password: "password1")
+            try await app.testing().test(
+                .POST, "webhooks/\(id)/rotate",
+                beforeRequest: { req in
+                    req.headers.bearerAuthorization = .init(token: otherSession.token)
+                },
+                afterResponse: { res in
+                    #expect(res.status == .forbidden)
+                }
+            )
+        }
+    }
+
     @Test("Webhooks: cascade delete removes webhooks when topic deleted")
     func cascadeDeleteOnTopic() async throws {
         try await withApp { app in
