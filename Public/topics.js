@@ -471,6 +471,24 @@ export async function updateWebhook(webhookID, form) {
     setToast("Webhook updated", "success");
 }
 
+export async function rotateWebhook(webhookID) {
+    const topic = currentTopic();
+    if (!topic) return;
+    if (!canManageTopic(topic)) {
+        throw new Error("Only admins and topic owners can manage webhooks");
+    }
+
+    const rotated = await api("POST", `/webhooks/${encodePath(webhookID)}/rotate`);
+    await loadWebhooks(topic.name);
+    render();
+    openModal({
+        type: "webhook-created",
+        token: rotated.token,
+        url: webhookURL(rotated.token),
+        topicName: topic.name,
+    });
+}
+
 export async function deleteWebhook(webhookID) {
     const topic = currentTopic();
     if (!topic) return;
@@ -663,6 +681,7 @@ function renderWebhooksPanel(topic) {
                         </div>
                         <div class="row-actions">
                             <button class="btn btn-outline btn-small" type="button" data-action="edit-webhook" data-webhook-id="${escapeHtml(webhook.id)}">Edit</button>
+                            <button class="btn btn-outline btn-small" type="button" data-action="rotate-webhook" data-webhook-id="${escapeHtml(webhook.id)}">Rotate</button>
                             <button class="btn btn-danger btn-small" type="button" data-action="delete-webhook" data-webhook-id="${escapeHtml(webhook.id)}">Delete</button>
                         </div>
                     </article>

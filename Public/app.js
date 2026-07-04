@@ -22,6 +22,7 @@ import {
     revokeToken,
     createWebhook,
     updateWebhook,
+    rotateWebhook,
     deleteWebhook,
     createShare,
     updateShare,
@@ -82,6 +83,8 @@ async function handleModalAction(action) {
             await revokeToken(state.modal.tokenID);
         } else if (action === "confirm-delete-webhook") {
             await deleteWebhook(state.modal.webhookID);
+        } else if (action === "confirm-rotate-webhook") {
+            await rotateWebhook(state.modal.webhookID);
         } else if (action === "confirm-rotate-share") {
             await rotateShare(state.modal.shareID);
         } else if (action === "confirm-delete-share") {
@@ -184,6 +187,9 @@ const appActions = {
     },
     "delete-webhook": (button) => {
         openModal({ type: "delete-webhook", webhookID: button.dataset.webhookId });
+    },
+    "rotate-webhook": (button) => {
+        openModal({ type: "rotate-webhook", webhookID: button.dataset.webhookId });
     },
     "toggle-nav": () => {
         state.navOpen = !state.navOpen;

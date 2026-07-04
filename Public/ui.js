@@ -97,6 +97,9 @@ function populateDialog(type, data) {
     case "delete-webhook":
         fillBindings(dialog, "webhookID", truncateId(data.webhookID));
         break;
+    case "rotate-webhook":
+        fillBindings(dialog, "webhookID", truncateId(data.webhookID));
+        break;
     case "token-created":
         fillBindings(dialog, "label", data.label);
         fillBindings(dialog, "token", data.token);

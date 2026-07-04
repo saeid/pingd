@@ -310,7 +310,7 @@
     <dialog id="dialog-webhook-created" class="app-modal">
         <section class="modal">
             <header class="modal-header">
-                <h3>Webhook created</h3>
+                <h3>Webhook URL ready</h3>
                 <p>Copy your webhook URL now. The token won't be shown again.</p>
             </header>
             <div class="modal-body">
@@ -458,6 +458,19 @@
             </div>
             <footer class="modal-footer">
                 <button class="btn btn-outline" type="button" data-action="close-modal">Done</button>
+            </footer>
+        </section>
+    </dialog>
+
+    <dialog id="dialog-rotate-webhook" class="app-modal">
+        <section class="modal">
+            <header class="modal-header">
+                <h3>Rotate webhook token</h3>
+                <p>Rotate webhook <span class="mono" data-bind="webhookID"></span>? The previous URL stops working immediately.</p>
+            </header>
+            <footer class="modal-footer">
+                <button class="btn btn-outline" type="button" data-action="close-modal">Cancel</button>
+                <button class="btn btn-primary" type="button" data-action="confirm-rotate-webhook">Rotate</button>
             </footer>
         </section>
     </dialog>
