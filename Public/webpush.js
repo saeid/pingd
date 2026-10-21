@@ -1,4 +1,4 @@
-import { state, persistWebPushDevice } from "./state.js";
+import { state, persistWebPushDevice, hasSession } from "./state.js";
 import { encodePath, escapeHtml, safeJsonParse } from "./lib.js";
 import { api } from "./api.js";
 import { setToast, render } from "./ui.js";
@@ -17,7 +17,7 @@ export function watchNotificationPermission() {
             state.webPushToken = null;
             persistWebPushDevice(null);
         }
-        render();
+        if (hasSession()) render();
     };
     if (navigator.permissions?.query) {
         navigator.permissions.query({ name: "notifications" })

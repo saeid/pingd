@@ -139,7 +139,7 @@ export function renderAuth(app) {
 
                     <div class="field">
                         <label for="auth-password">Password</label>
-                        <input class="input" id="auth-password" name="password" type="password" autocomplete="current-password" placeholder="your password" required>
+                        <input class="input" id="auth-password" name="password" type="password" autocomplete="${isLogin ? "current-password" : "new-password"}" placeholder="your password" required>
                     </div>
 
                     ${!isLogin ? `
